@@ -71,3 +71,64 @@ pub fn init_demo_repo(at: &Path) -> Result<PathBuf> {
     git(at, &["commit", "-q", "-m", "init"])?;
     Ok(at.to_path_buf())
 }
+
+use serde::Serialize;
+
+/// One file's diff stat in a worktree.
+#[derive(Serialize, Debug, PartialEq)]
+pub struct FileDiff {
+    pub path: String,
+    pub added: u32,
+    pub removed: u32,
+}
+
+/// Per-repo working-tree diff stat (staged + unstaged + untracked-as-added).
+#[derive(Serialize, Debug, Default)]
+pub struct DiffSummary {
+    pub files: Vec<FileDiff>,
+}
+
+/// `git worktree list --porcelain` parsed into (path, branch) pairs.
+pub fn list_worktrees(repo: &Path) -> Result<Vec<(String, String)>> {
+    let out = git(repo, &["worktree", "list", "--porcelain"])?;
+    let mut res = Vec::new();
+    let mut path: Option<String> = None;
+    for line in out.lines() {
+        if let Some(p) = line.strip_prefix("worktree ") {
+            path = Some(p.to_string());
+        } else if let Some(b) = line.strip_prefix("branch ") {
+            if let Some(p) = path.take() {
+                let branch = b.strip_prefix("refs/heads/").unwrap_or(b).to_string();
+                res.push((p, branch));
+            }
+        }
+    }
+    Ok(res)
+}
+
+/// Diff stat for a worktree: tracked changes via `git diff --numstat HEAD`
+/// plus untracked files counted as fully-added.
+pub fn repo_diff(worktree_path: &Path) -> Result<DiffSummary> {
+    let mut files = Vec::new();
+    let numstat = git(worktree_path, &["diff", "--numstat", "HEAD"])?;
+    for line in numstat.lines() {
+        let mut parts = line.split('\t');
+        let added = parts.next().unwrap_or("0").parse().unwrap_or(0);
+        let removed = parts.next().unwrap_or("0").parse().unwrap_or(0);
+        if let Some(path) = parts.next() {
+            files.push(FileDiff { path: path.to_string(), added, removed });
+        }
+    }
+    let untracked = git(
+        worktree_path,
+        &["ls-files", "--others", "--exclude-standard"],
+    )?;
+    for path in untracked.lines().filter(|l| !l.is_empty()) {
+        let full = worktree_path.join(path);
+        let added = std::fs::read_to_string(&full)
+            .map(|c| c.lines().count() as u32)
+            .unwrap_or(0);
+        files.push(FileDiff { path: path.to_string(), added, removed: 0 });
+    }
+    Ok(DiffSummary { files })
+}

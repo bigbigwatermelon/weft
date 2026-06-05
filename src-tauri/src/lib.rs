@@ -1,10 +1,10 @@
 mod batch;
 mod claude;
-mod git;
-mod paths;
+pub mod git;
+pub mod paths;
 mod pty;
-mod slug;
-mod store;
+pub mod slug;
+pub mod store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
