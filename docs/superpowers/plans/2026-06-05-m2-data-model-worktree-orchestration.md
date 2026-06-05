@@ -59,6 +59,7 @@ In `src-tauri/Cargo.toml` under `[dependencies]`, append:
 ```toml
 sea-orm = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 sea-orm-migration = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
+async-trait = "0.1"
 dirs = "5"
 futures = "0.3"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
@@ -232,7 +233,7 @@ Create `src-tauri/src/store/entities/workspace.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "workspace")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -253,7 +254,7 @@ Create `src-tauri/src/store/entities/repo_ref.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "repo_ref")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -277,7 +278,7 @@ Create `src-tauri/src/store/entities/thread.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "thread")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -301,7 +302,7 @@ Create `src-tauri/src/store/entities/direction.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "direction")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -325,7 +326,7 @@ Create `src-tauri/src/store/entities/direction_repo.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "direction_repo")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -346,7 +347,7 @@ Create `src-tauri/src/store/entities/worktree.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "worktree")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -369,7 +370,7 @@ Create `src-tauri/src/store/entities/session.rs`:
 ```rust
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "session")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -431,9 +432,16 @@ git commit -m "feat(M2): SeaORM entities for the workspace model"
 
 - [ ] **Step 1: Write the migration**
 
-Create `src-tauri/src/store/migration/mod.rs`:
+Create `src-tauri/src/store/migration/mod.rs`. **Idiomatic SeaORM: derive the
+`CREATE TABLE` straight from the entities via `Schema::create_table_from_entity`
+— the entities are the single source of truth, no hand-written SQL or duplicated
+column defs.**
 
 ```rust
+use crate::store::entities::{
+    direction, direction_repo, repo_ref, session, thread, worktree, workspace,
+};
+use sea_orm::{EntityTrait, Schema};
 use sea_orm_migration::prelude::*;
 
 pub struct Migrator;
@@ -453,56 +461,46 @@ impl MigrationName for M0001Init {
     }
 }
 
+impl M0001Init {
+    /// Derive a CREATE TABLE statement from an entity, scoped to the backend.
+    fn table<E: EntityTrait>(schema: &Schema, e: E) -> TableCreateStatement {
+        let mut stmt = schema.create_table_from_entity(e);
+        stmt.if_not_exists();
+        stmt
+    }
+}
+
 #[async_trait::async_trait]
 impl MigrationTrait for M0001Init {
-    async fn up(&self, m: &SchemaManager) -> Result<(), DbErr> {
-        m.get_connection()
-            .execute_unprepared(
-                r#"
-                CREATE TABLE workspace (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL, slug TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                CREATE TABLE repo_ref (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  workspace_id INTEGER NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL,
-                  local_git_path TEXT NOT NULL, base_ref TEXT NOT NULL, default_tool TEXT NOT NULL
-                );
-                CREATE TABLE thread (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  workspace_id INTEGER NOT NULL, title TEXT NOT NULL, slug TEXT NOT NULL,
-                  kind TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                CREATE TABLE direction (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  thread_id INTEGER NOT NULL, name TEXT NOT NULL, slug TEXT NOT NULL,
-                  tool TEXT NOT NULL, branch TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                CREATE TABLE direction_repo (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  direction_id INTEGER NOT NULL, repo_id INTEGER NOT NULL, role TEXT NOT NULL
-                );
-                CREATE TABLE worktree (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  repo_id INTEGER NOT NULL, direction_id INTEGER NOT NULL,
-                  branch TEXT NOT NULL, path TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                CREATE TABLE session (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  direction_id INTEGER NOT NULL, repo_id INTEGER NOT NULL, tool TEXT NOT NULL,
-                  cwd TEXT NOT NULL, native_session_id TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL
-                );
-                "#,
-            )
-            .await?;
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let schema = Schema::new(manager.get_database_backend());
+        manager.create_table(Self::table(&schema, workspace::Entity)).await?;
+        manager.create_table(Self::table(&schema, repo_ref::Entity)).await?;
+        manager.create_table(Self::table(&schema, thread::Entity)).await?;
+        manager.create_table(Self::table(&schema, direction::Entity)).await?;
+        manager.create_table(Self::table(&schema, direction_repo::Entity)).await?;
+        manager.create_table(Self::table(&schema, worktree::Entity)).await?;
+        manager.create_table(Self::table(&schema, session::Entity)).await?;
         Ok(())
     }
 
-    async fn down(&self, _m: &SchemaManager) -> Result<(), DbErr> {
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        for t in [
+            "session", "worktree", "direction_repo", "direction", "thread", "repo_ref", "workspace",
+        ] {
+            manager
+                .drop_table(Table::drop().table(Alias::new(t)).to_owned())
+                .await?;
+        }
         Ok(())
     }
 }
 ```
+
+> `create_table_from_entity` translates each entity column (type, nullability,
+> `i32` PK → autoincrement integer) to the SQLite backend automatically. Adding
+> a column later = edit the entity, add a new `M000N` migration that alters the
+> table; the initial schema never drifts from the entities.
 
 - [ ] **Step 2: Write the Db connect helper + a connection test**
 
