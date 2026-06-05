@@ -1,4 +1,4 @@
-//! Claude session-storage helpers, proven by `crates/spike-pty`.
+//! Claude session-storage helpers (encoded-cwd + native session-id capture).
 //!
 //! Product principle: we spawn PLAIN `claude` under the user's standard HOME so
 //! their own config / permission mode / allowlist apply. We never inject
