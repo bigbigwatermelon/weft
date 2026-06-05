@@ -16,19 +16,28 @@ each agent doing right now" at a glance.
 
 ## Product Purpose
 
-weft is a local-first cockpit for **watching and steering native agent runs**
-across logical multi-repo workspaces. It organizes repos into workspaces,
-materializes isolated git worktrees per thread/direction, and embeds each
-tool's own native TUI as a live viewport — without ever re-drawing the agent's
-output. The product is the *shell* around the runs: the workspace structure,
-the cross-cutting visibility (status, diffs, session registry), and the light
-coordination layer. Success looks like: a developer holds five parallel agent
-runs in their head effortlessly, because weft makes each run's state legible
-and switching between them instant.
+weft is a local-first **orchestrator** for parallel, multi-repo, multi-tool
+agent work. The core is the *structure and coordination*, not the watching:
 
-It is explicitly **not** a terminal emulator. The embedded TUI is one viewport
-into "how is this run going"; the felt product is calm observability and
-orchestration over many runs, not a shell you type into.
+1. **Organize** — turn scattered repos into a logical workspace; a plan derives
+   per-repo **scope** (write / read / none) and splits work into **directions**;
+   each write-repo gets an isolated git worktree.
+2. **Orchestrate** — run heterogeneous agents (Claude / Codex / OpenCode), one
+   per direction, in parallel across the workspace's threads.
+3. **Coordinate** — a per-thread **bus** (MCP) lets those agents talk
+   (post / inbox / ask) and a coordinator wakes them, so parallel directions
+   converge instead of drifting.
+
+The embedded native TUI is the **interaction surface** for a single session —
+how you talk to one agent — **not** the product's reason for being. Watching
+execution detail is incidental; the value is the orchestration and coordination
+layer that no single-agent tool provides. Success looks like: a developer runs
+several agents across several repos on one feature and weft keeps the work
+structured, scoped, and coordinated — not five terminals to babysit.
+
+It is explicitly **not** a terminal emulator, and equally not a "watch the
+agents go" dashboard. It is the workspace-and-coordination fabric the agents
+run inside.
 
 ## Brand Personality
 
@@ -52,19 +61,20 @@ when something actually changed.
 
 ## Design Principles
 
-1. **Observability before ornament.** The run is the content. Chrome stays
-   quiet and recedes; nothing decorative competes with what the agent is doing.
-2. **Frame, don't redraw.** We host native TUIs verbatim. weft's craft is the
-   shell around them — never reskinning or reinterpreting agent output.
-3. **Calm under parallelism.** Many threads and sessions at once must read as
+1. **Structure is the product.** The workspace → thread → direction → scope
+   model is what weft sells. Surfaces make that structure legible and editable;
+   the terminal is a leaf, not the headline.
+2. **Coordination over observation.** Favor what helps parallel directions
+   converge — scope, plan, handoffs, the thread bus — over features that merely
+   display execution. Don't build a "watch the agents go" dashboard.
+3. **Frame, don't redraw.** We host native TUIs verbatim as the interaction
+   surface for one session. weft's craft is the orchestration shell around them,
+   never reskinning or reinterpreting agent output.
+4. **Calm under parallelism.** Many threads and directions at once must read as
    composed, not busy. Density without noise; the eye always finds the one
    thing that changed.
-4. **Glanceable state, keyboard-first control.** Every run's status is legible
-   in a glance; switching, approving, and navigating are fast keyboard moves.
-   Motion exists to explain a change of state, never to perform.
-5. **Mirror the user's tools, never override them.** The UI reflects native
-   agent state (permissions, sessions, config) and never invents or overrides
-   it. What weft shows is true to what the CLI is actually doing.
+5. **Mirror the user's tools, never override them.** weft reflects native agent
+   state (permissions, sessions, config) and never invents or overrides it.
 
 ## Accessibility & Inclusion
 
