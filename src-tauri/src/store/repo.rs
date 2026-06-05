@@ -1,1 +1,306 @@
-//! Repository functions. Filled in Task 5.
+//! All DB reads/writes go through here. Keeps SeaORM specifics out of commands.
+
+use super::entities::{direction, direction_repo, repo_ref, session, thread, worktree, workspace};
+use super::Db;
+use crate::slug::unique_slug;
+use anyhow::Result;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
+
+fn now() -> String {
+    // RFC3339 without pulling chrono: seconds since epoch is enough for ordering.
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    format!("{secs}")
+}
+
+pub async fn create_workspace(db: &Db, name: &str) -> Result<workspace::Model> {
+    let existing: Vec<String> = workspace::Entity::find()
+        .all(&db.0)
+        .await?
+        .into_iter()
+        .map(|w| w.slug)
+        .collect();
+    let m = workspace::ActiveModel {
+        name: Set(name.to_string()),
+        slug: Set(unique_slug(name, &existing)),
+        created_at: Set(now()),
+        ..Default::default()
+    };
+    Ok(m.insert(&db.0).await?)
+}
+
+pub async fn list_workspaces(db: &Db) -> Result<Vec<workspace::Model>> {
+    Ok(workspace::Entity::find().all(&db.0).await?)
+}
+
+pub async fn add_repo_ref(
+    db: &Db,
+    workspace_id: i32,
+    name: &str,
+    local_git_path: &str,
+    base_ref: &str,
+    default_tool: &str,
+) -> Result<repo_ref::Model> {
+    let existing: Vec<String> = repo_ref::Entity::find()
+        .filter(repo_ref::Column::WorkspaceId.eq(workspace_id))
+        .all(&db.0)
+        .await?
+        .into_iter()
+        .map(|r| r.slug)
+        .collect();
+    let m = repo_ref::ActiveModel {
+        workspace_id: Set(workspace_id),
+        name: Set(name.to_string()),
+        slug: Set(unique_slug(name, &existing)),
+        local_git_path: Set(local_git_path.to_string()),
+        base_ref: Set(base_ref.to_string()),
+        default_tool: Set(default_tool.to_string()),
+        ..Default::default()
+    };
+    Ok(m.insert(&db.0).await?)
+}
+
+pub async fn create_thread(
+    db: &Db,
+    workspace_id: i32,
+    title: &str,
+    kind: &str,
+) -> Result<thread::Model> {
+    let existing: Vec<String> = thread::Entity::find()
+        .filter(thread::Column::WorkspaceId.eq(workspace_id))
+        .all(&db.0)
+        .await?
+        .into_iter()
+        .map(|t| t.slug)
+        .collect();
+    let m = thread::ActiveModel {
+        workspace_id: Set(workspace_id),
+        title: Set(title.to_string()),
+        slug: Set(unique_slug(title, &existing)),
+        kind: Set(kind.to_string()),
+        status: Set("active".to_string()),
+        created_at: Set(now()),
+        ..Default::default()
+    };
+    Ok(m.insert(&db.0).await?)
+}
+
+pub async fn list_threads(db: &Db, workspace_id: i32) -> Result<Vec<thread::Model>> {
+    Ok(thread::Entity::find()
+        .filter(thread::Column::WorkspaceId.eq(workspace_id))
+        .all(&db.0)
+        .await?)
+}
+
+/// Create a direction with its per-repo scope. `scope` is (repo_id, role).
+pub async fn create_direction(
+    db: &Db,
+    thread_id: i32,
+    name: &str,
+    tool: &str,
+    scope: &[(i32, String)],
+) -> Result<direction::Model> {
+    let t = thread::Entity::find_by_id(thread_id)
+        .one(&db.0)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("thread {thread_id} not found"))?;
+    let ws = workspace::Entity::find_by_id(t.workspace_id)
+        .one(&db.0)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("workspace missing"))?;
+    let existing: Vec<String> = direction::Entity::find()
+        .filter(direction::Column::ThreadId.eq(thread_id))
+        .all(&db.0)
+        .await?
+        .into_iter()
+        .map(|d| d.slug)
+        .collect();
+    let slug = unique_slug(name, &existing);
+    let branch = format!("ws/{}/{}/{}", ws.slug, t.slug, slug);
+    let dir = direction::ActiveModel {
+        thread_id: Set(thread_id),
+        name: Set(name.to_string()),
+        slug: Set(slug),
+        tool: Set(tool.to_string()),
+        branch: Set(branch),
+        created_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(&db.0)
+    .await?;
+    for (repo_id, role) in scope {
+        direction_repo::ActiveModel {
+            direction_id: Set(dir.id),
+            repo_id: Set(*repo_id),
+            role: Set(role.clone()),
+            ..Default::default()
+        }
+        .insert(&db.0)
+        .await?;
+    }
+    Ok(dir)
+}
+
+pub async fn direction_write_repos(db: &Db, direction_id: i32) -> Result<Vec<repo_ref::Model>> {
+    let links = direction_repo::Entity::find()
+        .filter(direction_repo::Column::DirectionId.eq(direction_id))
+        .filter(direction_repo::Column::Role.eq("write"))
+        .all(&db.0)
+        .await?;
+    let mut out = Vec::new();
+    for l in links {
+        if let Some(r) = repo_ref::Entity::find_by_id(l.repo_id).one(&db.0).await? {
+            out.push(r);
+        }
+    }
+    Ok(out)
+}
+
+pub async fn record_worktree(
+    db: &Db,
+    repo_id: i32,
+    direction_id: i32,
+    branch: &str,
+    path: &str,
+) -> Result<worktree::Model> {
+    Ok(worktree::ActiveModel {
+        repo_id: Set(repo_id),
+        direction_id: Set(direction_id),
+        branch: Set(branch.to_string()),
+        path: Set(path.to_string()),
+        created_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(&db.0)
+    .await?)
+}
+
+pub async fn list_worktrees(db: &Db, direction_id: Option<i32>) -> Result<Vec<worktree::Model>> {
+    let q = worktree::Entity::find();
+    let q = match direction_id {
+        Some(id) => q.filter(worktree::Column::DirectionId.eq(id)),
+        None => q,
+    };
+    Ok(q.all(&db.0).await?)
+}
+
+pub async fn worktree_for(
+    db: &Db,
+    direction_id: i32,
+    repo_id: i32,
+) -> Result<Option<worktree::Model>> {
+    Ok(worktree::Entity::find()
+        .filter(worktree::Column::DirectionId.eq(direction_id))
+        .filter(worktree::Column::RepoId.eq(repo_id))
+        .one(&db.0)
+        .await?)
+}
+
+/// Delete a thread and everything under it. Returns the worktree paths that the
+/// caller must physically remove via git (DB rows are gone after this).
+pub async fn delete_thread_cascade(db: &Db, thread_id: i32) -> Result<Vec<(i32, String)>> {
+    let dirs = direction::Entity::find()
+        .filter(direction::Column::ThreadId.eq(thread_id))
+        .all(&db.0)
+        .await?;
+    let mut removed: Vec<(i32, String)> = Vec::new(); // (repo_id, worktree path)
+    for d in &dirs {
+        let wts = worktree::Entity::find()
+            .filter(worktree::Column::DirectionId.eq(d.id))
+            .all(&db.0)
+            .await?;
+        for w in wts {
+            removed.push((w.repo_id, w.path.clone()));
+            worktree::Entity::delete_by_id(w.id).exec(&db.0).await?;
+        }
+        session::Entity::delete_many()
+            .filter(session::Column::DirectionId.eq(d.id))
+            .exec(&db.0)
+            .await?;
+        direction_repo::Entity::delete_many()
+            .filter(direction_repo::Column::DirectionId.eq(d.id))
+            .exec(&db.0)
+            .await?;
+        direction::Entity::delete_by_id(d.id).exec(&db.0).await?;
+    }
+    thread::Entity::delete_by_id(thread_id).exec(&db.0).await?;
+    Ok(removed)
+}
+
+pub async fn create_session(
+    db: &Db,
+    direction_id: i32,
+    repo_id: i32,
+    tool: &str,
+    cwd: &str,
+) -> Result<session::Model> {
+    Ok(session::ActiveModel {
+        direction_id: Set(direction_id),
+        repo_id: Set(repo_id),
+        tool: Set(tool.to_string()),
+        cwd: Set(cwd.to_string()),
+        native_session_id: Set(None),
+        status: Set("starting".to_string()),
+        created_at: Set(now()),
+        ..Default::default()
+    }
+    .insert(&db.0)
+    .await?)
+}
+
+pub async fn set_session_native_id(db: &Db, session_id: i32, native_id: &str) -> Result<()> {
+    if let Some(s) = session::Entity::find_by_id(session_id).one(&db.0).await? {
+        let mut a: session::ActiveModel = s.into();
+        a.native_session_id = Set(Some(native_id.to_string()));
+        a.status = Set("running".to_string());
+        a.update(&db.0).await?;
+    }
+    Ok(())
+}
+
+pub async fn get_session(db: &Db, session_id: i32) -> Result<Option<session::Model>> {
+    Ok(session::Entity::find_by_id(session_id).one(&db.0).await?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::Db;
+
+    async fn mem() -> Db {
+        Db::connect("sqlite::memory:").await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn create_and_cascade_delete() {
+        let db = mem().await;
+        let ws = create_workspace(&db, "Demo WS").await.unwrap();
+        assert_eq!(ws.slug, "demo-ws");
+        let repo = add_repo_ref(&db, ws.id, "web-app", "/tmp/x", "main", "claude")
+            .await
+            .unwrap();
+        let t = create_thread(&db, ws.id, "Add login", "feature")
+            .await
+            .unwrap();
+        let dir = create_direction(&db, t.id, "main", "claude", &[(repo.id, "write".into())])
+            .await
+            .unwrap();
+        assert_eq!(dir.branch, "ws/demo-ws/add-login/main");
+
+        // pretend it was materialized
+        record_worktree(&db, repo.id, dir.id, &dir.branch, "/tmp/wt")
+            .await
+            .unwrap();
+        assert_eq!(list_worktrees(&db, Some(dir.id)).await.unwrap().len(), 1);
+        assert!(direction_write_repos(&db, dir.id).await.unwrap().len() == 1);
+
+        // cascade delete returns the path to clean and empties the rows
+        let removed = delete_thread_cascade(&db, t.id).await.unwrap();
+        assert_eq!(removed, vec![(repo.id, "/tmp/wt".to_string())]);
+        assert_eq!(list_workspaces(&db).await.unwrap().len(), 1); // ws survives
+        assert_eq!(list_threads(&db, ws.id).await.unwrap().len(), 0);
+        assert_eq!(list_worktrees(&db, None).await.unwrap().len(), 0);
+    }
+}
