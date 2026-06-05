@@ -26,6 +26,9 @@ fn make_repo(root: &Path, name: &str) -> PathBuf {
 async fn m2_acceptance() {
     let root = std::env::temp_dir().join(format!("weft-m2-acc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
+    let weft_home = std::env::temp_dir().join(format!("weft-m2-home-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&weft_home);
+    std::env::set_var("WEFT_HOME", weft_home.to_str().unwrap());
     let repo_a = make_repo(&root, "repo-a");
     let repo_b = make_repo(&root, "repo-b");
 
@@ -65,4 +68,5 @@ async fn m2_acceptance() {
     assert_eq!(repo::list_worktrees(&db, None).await.unwrap().len(), 1);
 
     let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_dir_all(&weft_home);
 }
