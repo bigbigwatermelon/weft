@@ -1,33 +1,38 @@
 @import "tailwindcss";
 
 /* ───────────────────────── weft design tokens (DESIGN.md) ─────────────────────────
-   Dark-primary, high-density. Cool near-black surfaces + one moss-green brand
-   accent (doubles as the "running/alive" hero state). All color in OKLCH. */
+   Dark-primary, high-density. Violet-tinted near-black surfaces, anchored to the
+   brand mark: INDIGO = the parallel work lines (structure/primary), ORANGE = the
+   converged outcome (accent). Sourced from public/weft-*.svg. All color OKLCH. */
 @theme {
-  /* surface architecture — differentiated by lightness, not shadows */
-  --color-bg: oklch(0.16 0.006 250);
-  --color-surface: oklch(0.2 0.007 250);
-  --color-raised: oklch(0.235 0.008 250);
-  --color-border: oklch(0.28 0.008 250);
-  --color-border-strong: oklch(0.34 0.01 250);
+  /* surface architecture — violet-tinted near-black (anchored to #1C1B22) */
+  --color-bg: oklch(0.165 0.012 292);
+  --color-surface: oklch(0.205 0.013 292);
+  --color-raised: oklch(0.245 0.014 292);
+  --color-border: oklch(0.3 0.014 292);
+  --color-border-strong: oklch(0.37 0.016 292);
 
   /* ink — verified >= AA on --surface */
-  --color-ink: oklch(0.96 0.004 250);
-  --color-ink-muted: oklch(0.76 0.008 250);
-  --color-ink-faint: oklch(0.62 0.01 250);
+  --color-ink: oklch(0.96 0.005 292);
+  --color-ink-muted: oklch(0.76 0.01 292);
+  --color-ink-faint: oklch(0.62 0.012 292);
 
-  /* brand — moss/sage; brand AND the "alive/running" signal */
-  --color-brand: oklch(0.74 0.15 132);
-  --color-brand-press: oklch(0.68 0.15 132);
-  --color-brand-ink: oklch(0.18 0.03 132); /* text on a brand fill */
-  --color-brand-ghost: oklch(0.74 0.15 132 / 0.13);
+  /* brand — indigo #4F46E5 (the work lines / structure); primary + active + focus */
+  --color-brand: oklch(0.55 0.22 277);
+  --color-brand-press: oklch(0.49 0.21 277);
+  --color-brand-ink: oklch(0.99 0.005 277); /* white-ish text on an indigo fill */
+  --color-brand-ghost: oklch(0.55 0.22 277 / 0.16);
 
-  /* status — the only other saturated colors; always paired with glyph+label */
-  --color-running: oklch(0.74 0.15 132);
+  /* accent — orange #F2683C (the converged outcome); convergence/highlight moments */
+  --color-accent: oklch(0.7 0.18 38);
+  --color-accent-ghost: oklch(0.7 0.18 38 / 0.16);
+
+  /* status — distinct from brand+accent; always paired with glyph+label */
+  --color-running: oklch(0.73 0.16 150); /* real emerald = alive (not the brand) */
   --color-waiting: oklch(0.8 0.13 80);
-  --color-approval: oklch(0.78 0.15 55);
-  --color-inject: oklch(0.72 0.12 230);
-  --color-idle: oklch(0.64 0.015 250);
+  --color-approval: oklch(0.74 0.17 45);
+  --color-inject: oklch(0.72 0.12 215);
+  --color-idle: oklch(0.64 0.015 292);
   --color-danger: oklch(0.64 0.2 25);
 
   /* type — system stack (SF on macOS) + Inter fallback; mono for code/paths/ids */
@@ -83,7 +88,7 @@
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.42 0.012 250);
+    background: oklch(0.44 0.016 292);
     background-clip: content-box;
   }
   ::selection {

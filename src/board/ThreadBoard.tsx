@@ -25,7 +25,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 const TOOL_DOT: Record<string, string> = {
-  claude: "bg-[oklch(0.7_0.16_40)]",
+  claude: "bg-accent",
   codex: "bg-running",
   opencode: "bg-idle",
 };

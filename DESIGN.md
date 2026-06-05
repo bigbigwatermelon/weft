@@ -12,25 +12,28 @@ these tokens — never the default shadcn look.
 ## Theme
 
 Dark-primary, single theme to start (light is a later adapt pass). The mood:
-a well-instrumented control room at night — the surface is quiet and cool, the
-brand green glows like lichen under low light, status colors are the only
-saturated points and they always mean something.
+a well-instrumented control room at night — violet-tinted near-black surfaces,
+the **indigo** brand glowing like the work lines of the weft mark, the **orange**
+accent marking convergence/outcome, status colors the only other saturated points
+and they always mean something.
 
-Color strategy: **restrained**. Tinted-neutral cool-dark surfaces + one brand
-accent + a disciplined status palette. The brand carries identity; the surface
-never competes.
+Color strategy: **committed**. The brand is sourced from the weft mark
+(`public/weft-*.svg`): INDIGO `#4F46E5` = the three parallel work lines
+(structure/primary); ORANGE `#F2683C` = the converged outcome (accent). Surfaces
+are violet-tinted near-black anchored to the mark's `#1C1B22` base. The brand
+carries identity; the surface never competes.
 
 ## Color (OKLCH)
 
-### Surface architecture (cool near-black, chroma stays tiny)
+### Surface architecture (violet-tinted near-black, anchored to #1C1B22)
 
 | Token | OKLCH | Use |
 |---|---|---|
-| `--bg` | `oklch(0.16 0.006 250)` | app background, the deepest layer |
-| `--surface` | `oklch(0.20 0.007 250)` | panels, bars, cards |
-| `--surface-raised` | `oklch(0.235 0.008 250)` | popovers, menus, elevated rows |
-| `--border` | `oklch(0.28 0.008 250)` | hairline separators, control borders |
-| `--border-strong` | `oklch(0.34 0.010 250)` | focused/active borders |
+| `--bg` | `oklch(0.165 0.012 292)` | app background, the deepest layer |
+| `--surface` | `oklch(0.205 0.013 292)` | panels, bars, cards |
+| `--raised` | `oklch(0.245 0.014 292)` | popovers, menus, elevated rows |
+| `--border` | `oklch(0.30 0.014 292)` | hairline separators, control borders |
+| `--border-strong` | `oklch(0.37 0.016 292)` | focused/active borders |
 
 Surfaces are differentiated by **lightness steps, not shadows**. Shadows are
 reserved for genuinely floating layers (popover/modal/toast) at ≤ 8px blur.
@@ -39,34 +42,37 @@ reserved for genuinely floating layers (popover/modal/toast) at ≤ 8px blur.
 
 | Token | OKLCH | Use |
 |---|---|---|
-| `--ink` | `oklch(0.96 0.004 250)` | primary text |
-| `--ink-muted` | `oklch(0.76 0.008 250)` | secondary text, still ≥ 4.5:1 |
-| `--ink-faint` | `oklch(0.62 0.010 250)` | labels, meta, placeholders (≥ 4.5:1) |
+| `--ink` | `oklch(0.96 0.005 292)` | primary text |
+| `--ink-muted` | `oklch(0.76 0.010 292)` | secondary text, still ≥ 4.5:1 |
+| `--ink-faint` | `oklch(0.62 0.012 292)` | labels, meta, placeholders (≥ 4.5:1) |
 
 No text dimmer than `--ink-faint` for anything readable. Disabled-only may go
 lower.
 
-### Brand
+### Brand (indigo) + Accent (orange) — from the weft mark
 
-| Token | OKLCH | Use |
-|---|---|---|
-| `--brand` | `oklch(0.74 0.15 132)` | primary actions, active selection, logo, focus accent |
-| `--brand-press` | `oklch(0.68 0.15 132)` | pressed/active brand |
-| `--brand-ghost` | `oklch(0.74 0.15 132 / 0.12)` | brand-tinted hover/selected backgrounds |
+| Token | OKLCH | Source | Use |
+|---|---|---|---|
+| `--brand` | `oklch(0.55 0.22 277)` | `#4F46E5` indigo | primary actions, active selection, mark, focus ring |
+| `--brand-press` | `oklch(0.49 0.21 277)` | | pressed/active brand |
+| `--brand-ink` | `oklch(0.99 0.005 277)` | white | text on an indigo fill |
+| `--brand-ghost` | `oklch(0.55 0.22 277 / 0.16)` | | brand-tinted hover/selected backgrounds |
+| `--accent` | `oklch(0.70 0.18 38)` | `#F2683C` orange | convergence/outcome moments, distinctive highlights |
+| `--accent-ghost` | `oklch(0.70 0.18 38 / 0.16)` | | accent-tinted backgrounds |
 
-Moss/sage green — luminous but not neon. It is the brand *and* the natural
-signal for "alive / running", which is the product's hero state. Used
-sparingly: a primary button, the active thread, a focus ring — not large fills.
+Indigo is the brand; orange is the convergence accent (the mark's single outcome
+dot). Both used sparingly. Note the brand is **decoupled from status** — "running"
+is its own green (below), not the brand, so structure and liveness read distinctly.
 
 ### Status semantics (the only other saturated colors; always paired with icon + label)
 
 | State | Token | OKLCH | Glyph |
 |---|---|---|---|
-| running / active | `--status-running` | `oklch(0.74 0.15 132)` (brand) | ● pulse |
+| running / active | `--status-running` | `oklch(0.73 0.16 150)` emerald | ● pulse |
 | waiting-input | `--status-waiting` | `oklch(0.80 0.13 80)` amber | ◐ |
-| waiting-approval | `--status-approval` | `oklch(0.78 0.15 55)` orange | ⚠ |
-| injecting (program) | `--status-inject` | `oklch(0.72 0.12 230)` cyan | ↳ |
-| paused / idle | `--status-idle` | `oklch(0.64 0.015 250)` slate | ○ |
+| waiting-approval | `--status-approval` | `oklch(0.74 0.17 45)` orange | ⚠ |
+| injecting (program) | `--status-inject` | `oklch(0.72 0.12 215)` cyan | ↳ |
+| paused / idle | `--status-idle` | `oklch(0.64 0.015 292)` slate | ○ |
 | error / exited | `--status-error` | `oklch(0.64 0.20 25)` red | ✕ |
 
 Color never stands alone — the glyph and a text label always accompany it

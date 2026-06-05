@@ -10,7 +10,7 @@ const button = cva(
         primary:
           "bg-brand text-brand-ink hover:bg-brand/90 active:bg-brand-press",
         default:
-          "bg-raised text-ink border border-border hover:border-border-strong hover:bg-[oklch(0.26_0.008_250)]",
+          "bg-raised text-ink border border-border hover:border-border-strong hover:bg-[oklch(0.29_0.014_292)]",
         ghost: "text-ink-muted hover:text-ink hover:bg-brand-ghost",
         danger:
           "text-danger border border-transparent hover:bg-[oklch(0.64_0.2_25/0.12)]",
