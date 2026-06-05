@@ -35,6 +35,17 @@
 1. **encoded-cwd 必须先 canonicalize**:Claude 用解析符号链接后的真实路径编码。macOS `/tmp` → `/private/tmp`,故 `/tmp/.../wt` 的会话目录是 `-private-tmp-...`。编码规则 = canonical 路径里 `/` 和 `.` 均替换为 `-`。
 2. **首次 `--dangerously-skip-permissions` 有 Bypass 确认屏**:`1. No, exit` / `2. Yes, I accept`,Enter 确认。程序化 spawn 必须跨过它(spike 发 `2`+Enter)。**产品级影响**:spawn claude 会撞 onboarding/trust/bypass 首屏,产品要么驱动这些按键,要么在 **worktree-local、gitignore 的** 配置里预置 accepted 标志(绝不写 canonical 仓)。这条进 M4/M5 的会话启动逻辑。
 
+## 权限模式抉择:**产品默认不用 `--dangerously-skip-permissions`**
+
+用 `crates/spike-pty/src/bin/probe.rs` 实测(普通权限模式,不加 flag),确认产品该走"保留权限、自己呈现审批"的路线:
+
+- **① 文件夹信任屏**(每个新 worktree 路径一次):`❯ 1. Yes, I trust this folder / 2. No, exit`。先于一切;与工具权限无关。
+- **② 工具权限请求屏**(每个动作):`Do you want to create hi.txt? ❯ 1. Yes / 2. Yes, allow all edits during this session / 3. No`。**这正是架构 §4.3 审批流要消费的 `ApprovalRequested` 事件**;`Always` ≈ TUI 的 "2. allow all this session"。
+
+`--dangerously-skip-permissions` 只是 spike 为无人值守拿确定性结果才用;产品保留权限请求并用自身审批 UI 呈现,才符合 §4.3。
+
+**会话启动纪律(M4 会话启动逻辑必须遵守):门屏先答,再喂 prompt。** 探针证实:prompt 早于信任门发送会被信任门吞掉。健壮实现应**靠旁路通道/输出检测屏状态来驱动过门**,而非固定 sleep(spike/probe 里的固定 sleep 已显脆弱)。
+
 ## 范围
 
 **In**
