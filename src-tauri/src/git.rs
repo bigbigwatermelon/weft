@@ -131,3 +131,8 @@ pub fn repo_diff(worktree_path: &Path) -> Result<DiffSummary> {
     }
     Ok(DiffSummary { files })
 }
+
+/// Current branch name of a repo (e.g. "main").
+pub fn current_branch(repo: &Path) -> Result<String> {
+    git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])
+}
