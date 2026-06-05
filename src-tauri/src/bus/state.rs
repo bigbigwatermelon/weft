@@ -5,8 +5,16 @@
 
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
+use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+
+/// Emitted when a direction should be woken to read its inbox.
+#[derive(Clone, Debug)]
+pub struct Wake {
+    pub thread: i32,
+    pub dir: String,
+}
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Msg {
@@ -29,6 +37,7 @@ struct ThreadBus {
 #[derive(Default, Clone)]
 pub struct BusRegistry {
     inner: Arc<Mutex<HashMap<i32, ThreadBus>>>,
+    wake: Arc<Mutex<Option<Sender<Wake>>>>,
 }
 
 fn now() -> u64 {
@@ -41,6 +50,17 @@ fn now() -> u64 {
 impl BusRegistry {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Install the channel the coordinator listens on (called once at startup).
+    pub fn set_wake_sender(&self, tx: Sender<Wake>) {
+        *self.wake.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
+    }
+
+    fn emit_wake(&self, thread: i32, dir: &str) {
+        if let Some(tx) = self.wake.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
+            let _ = tx.send(Wake { thread, dir: dir.to_string() });
+        }
     }
 
     /// Register `dir` as a member of `thread` (idempotent). Called on connect.
@@ -62,22 +82,17 @@ impl BusRegistry {
             ts: now(),
             kind: kind.to_string(),
         };
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let bus = g.entry(thread).or_default();
-        bus.log.push(m.clone());
-        bus.inboxes.entry(to.to_string()).or_default().push(m);
+        {
+            let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            let bus = g.entry(thread).or_default();
+            bus.log.push(m.clone());
+            bus.inboxes.entry(to.to_string()).or_default().push(m);
+        }
+        self.emit_wake(thread, to);
     }
 
     /// Broadcast from `from` to every other member of the thread.
     pub fn broadcast(&self, thread: i32, from: &str, text: &str, kind: &str) {
-        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let bus = g.entry(thread).or_default();
-        let targets: Vec<String> = bus
-            .members
-            .iter()
-            .filter(|d| d.as_str() != from)
-            .cloned()
-            .collect();
         let m = Msg {
             from: from.to_string(),
             to: "*".to_string(),
@@ -85,9 +100,23 @@ impl BusRegistry {
             ts: now(),
             kind: kind.to_string(),
         };
-        bus.log.push(m.clone());
+        let targets: Vec<String> = {
+            let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+            let bus = g.entry(thread).or_default();
+            let targets: Vec<String> = bus
+                .members
+                .iter()
+                .filter(|d| d.as_str() != from)
+                .cloned()
+                .collect();
+            bus.log.push(m.clone());
+            for d in &targets {
+                bus.inboxes.entry(d.clone()).or_default().push(m.clone());
+            }
+            targets
+        };
         for d in targets {
-            bus.inboxes.entry(d).or_default().push(m.clone());
+            self.emit_wake(thread, &d);
         }
     }
 
@@ -159,6 +188,18 @@ mod tests {
         assert_eq!(r.inbox(1, "10").len(), 0);
         assert_eq!(r.inbox(1, "20").len(), 1);
         assert_eq!(r.inbox(1, "30").len(), 1);
+    }
+
+    #[test]
+    fn post_emits_wake() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let r = BusRegistry::new();
+        r.set_wake_sender(tx);
+        r.join(1, "10");
+        r.post(1, "20", "10", "hi", "message");
+        let w = rx.recv_timeout(std::time::Duration::from_secs(1)).unwrap();
+        assert_eq!(w.thread, 1);
+        assert_eq!(w.dir, "10");
     }
 
     #[test]
