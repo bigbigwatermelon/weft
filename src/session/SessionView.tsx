@@ -34,7 +34,7 @@ export function SessionView() {
   const dirName =
     (activeThreadId != null ? directionsByThread[activeThreadId] : undefined)?.find(
       (d) => d.id === active.directionId,
-    )?.name ?? "direction";
+    )?.name ?? "task";
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
