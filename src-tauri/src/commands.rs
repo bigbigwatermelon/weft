@@ -88,6 +88,32 @@ pub async fn list_directions(db: State<'_, Db>, thread_id: i32) -> R<Vec<entitie
     repo::list_directions(&db, thread_id).await.map_err(e)
 }
 
+/// The lead's proposed decomposition for a thread, resolved against the
+/// workspace repos (ARCHITECTURE §4.10, §5.1). None if nothing proposed yet.
+#[tauri::command]
+pub async fn get_proposal(
+    db: State<'_, Db>,
+    thread_id: i32,
+) -> R<Option<crate::planner::ResolvedProposal>> {
+    crate::planner::get_resolved(&db, thread_id).await.map_err(e)
+}
+
+/// Save a (human-edited) proposal back, keeping it in "proposed" state.
+#[tauri::command]
+pub async fn save_proposal(
+    db: State<'_, Db>,
+    thread_id: i32,
+    proposal: crate::planner::Proposal,
+) -> R<()> {
+    crate::planner::save_proposal(&db, thread_id, &proposal).await.map_err(e)
+}
+
+/// Confirm the stored proposal: create its directions + materialize worktrees.
+#[tauri::command]
+pub async fn confirm_proposal(db: State<'_, Db>, thread_id: i32) -> R<Vec<i32>> {
+    crate::planner::confirm(&db, thread_id).await.map_err(e)
+}
+
 #[tauri::command]
 pub async fn list_direction_repos(
     db: State<'_, Db>,

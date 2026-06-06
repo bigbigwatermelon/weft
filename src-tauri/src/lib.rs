@@ -18,6 +18,7 @@ mod coordinator;
 mod curator;
 mod drivers;
 mod inspect;
+mod planner;
 pub mod profile;
 mod pty;
 mod commands;
@@ -41,7 +42,8 @@ pub fn run() {
     let bus = bus::BusRegistry::new();
     let bus_base: String = {
         let bus = bus.clone();
-        tauri::async_runtime::block_on(async move { bus::server::serve(bus).await })
+        let db = db.clone();
+        tauri::async_runtime::block_on(async move { bus::server::serve(bus, db).await })
             .map(|(base, _handle)| base) // leak the JoinHandle: server lives for app lifetime
             .unwrap_or_else(|e| fatal("start bus server", e))
     };
@@ -79,6 +81,9 @@ pub fn run() {
             commands::reprofile_repo,
             commands::update_repo_profile,
             commands::list_directions,
+            commands::get_proposal,
+            commands::save_proposal,
+            commands::confirm_proposal,
             commands::list_direction_repos,
             commands::create_direction,
             commands::list_worktrees,

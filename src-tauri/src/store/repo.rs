@@ -1,7 +1,7 @@
 //! All DB reads/writes go through here. Keeps SeaORM specifics out of commands.
 
 use super::entities::{
-    direction, direction_repo, repo_profile, repo_ref, session, thread, worktree, workspace,
+    direction, direction_repo, plan, repo_profile, repo_ref, session, thread, worktree, workspace,
 };
 use super::Db;
 use crate::slug::unique_slug;
@@ -105,6 +105,38 @@ pub async fn list_repos(db: &Db, workspace_id: i32) -> Result<Vec<repo_ref::Mode
 
 pub async fn get_repo(db: &Db, repo_id: i32) -> Result<Option<repo_ref::Model>> {
     Ok(repo_ref::Entity::find_by_id(repo_id).one(&db.0).await?)
+}
+
+pub async fn get_thread(db: &Db, thread_id: i32) -> Result<Option<thread::Model>> {
+    Ok(thread::Entity::find_by_id(thread_id).one(&db.0).await?)
+}
+
+pub async fn get_plan(db: &Db, thread_id: i32) -> Result<Option<plan::Model>> {
+    Ok(plan::Entity::find()
+        .filter(plan::Column::ThreadId.eq(thread_id))
+        .one(&db.0)
+        .await?)
+}
+
+/// Insert or update a thread's plan/proposal.
+pub async fn upsert_plan(
+    db: &Db,
+    thread_id: i32,
+    proposal: &str,
+    status: &str,
+    created_at: &str,
+) -> Result<plan::Model> {
+    let mut a = match get_plan(db, thread_id).await? {
+        Some(m) => m.into(),
+        None => plan::ActiveModel {
+            thread_id: Set(thread_id),
+            created_at: Set(created_at.to_string()),
+            ..Default::default()
+        },
+    };
+    a.proposal = Set(proposal.to_string());
+    a.status = Set(status.to_string());
+    Ok(a.save(&db.0).await?.try_into_model()?)
 }
 
 pub async fn get_repo_profile(db: &Db, repo_id: i32) -> Result<Option<repo_profile::Model>> {

@@ -5,8 +5,9 @@
 //! itself (no auth; an accepted local-first tradeoff).
 
 use crate::bus::BusRegistry;
+use crate::store::Db;
 use axum::{
-    extract::{Path, State},
+    extract::{FromRef, Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -14,11 +15,31 @@ use axum::{
 };
 use serde_json::{json, Value};
 
-pub fn router(reg: BusRegistry) -> Router {
+/// Shared state for the local MCP server: the in-memory thread bus + the DB
+/// (the planner reads the repo map and writes proposals).
+#[derive(Clone)]
+pub struct ServerState {
+    pub bus: BusRegistry,
+    pub db: Db,
+}
+
+impl FromRef<ServerState> for BusRegistry {
+    fn from_ref(s: &ServerState) -> BusRegistry {
+        s.bus.clone()
+    }
+}
+impl FromRef<ServerState> for Db {
+    fn from_ref(s: &ServerState) -> Db {
+        s.db.clone()
+    }
+}
+
+pub fn router(bus: BusRegistry, db: Db) -> Router {
     Router::new()
         .route("/bus/:thread/:dir/mcp", post(handle).get(get_not_allowed))
+        .route("/planner/:thread/mcp", post(handle_planner).get(get_not_allowed))
         .route("/health", get(|| async { "ok" }))
-        .with_state(reg)
+        .with_state(ServerState { bus, db })
 }
 
 async fn get_not_allowed() -> StatusCode {
@@ -115,6 +136,101 @@ fn call_tool(reg: &BusRegistry, thread: i32, me: &str, name: &str, args: &Value)
     }
 }
 
+// ---- planner MCP (lead-only, per thread) ----
+
+async fn handle_planner(
+    Path(thread): Path<i32>,
+    State(db): State<Db>,
+    Json(req): Json<Value>,
+) -> Response {
+    let id = match req.get("id") {
+        Some(v) => v.clone(),
+        None => return StatusCode::ACCEPTED.into_response(),
+    };
+    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+
+    let result: Value = match method {
+        "initialize" => json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": { "tools": { "listChanged": false } },
+            "serverInfo": { "name": "weft_planner", "version": "1.0.0" }
+        }),
+        "tools/list" => json!({ "tools": planner_specs() }),
+        "tools/call" => {
+            let name = req.pointer("/params/name").and_then(|n| n.as_str()).unwrap_or("");
+            let args = req.pointer("/params/arguments").cloned().unwrap_or_else(|| json!({}));
+            call_planner(&db, thread, name, &args).await
+        }
+        _ => json!({}),
+    };
+    sse(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
+}
+
+async fn call_planner(db: &Db, thread: i32, name: &str, args: &Value) -> Value {
+    match name {
+        "get_repo_map" => match repo_map_json(db, thread).await {
+            Ok(v) => text_result(v),
+            Err(e) => text_result(format!("error: {e}")),
+        },
+        "get_task" => match crate::store::repo::get_thread(db, thread).await {
+            Ok(Some(t)) => text_result(
+                json!({ "title": t.title, "type": t.kind }).to_string(),
+            ),
+            Ok(None) => text_result("error: thread not found".into()),
+            Err(e) => text_result(format!("error: {e}")),
+        },
+        "propose_directions" => {
+            let proposal: crate::planner::Proposal =
+                serde_json::from_value(args.clone()).unwrap_or_default();
+            let n = proposal.directions.len();
+            match crate::planner::save_proposal(db, thread, &proposal).await {
+                Ok(()) => text_result(format!(
+                    "proposed {n} direction(s); the human will review and confirm in weft"
+                )),
+                Err(e) => text_result(format!("error: {e}")),
+            }
+        }
+        _ => text_result(format!("unknown tool: {name}")),
+    }
+}
+
+async fn repo_map_json(db: &Db, thread: i32) -> anyhow::Result<String> {
+    let t = crate::store::repo::get_thread(db, thread)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
+    let g = crate::curator::graph(db, t.workspace_id).await?;
+    Ok(serde_json::to_string(&g)?)
+}
+
+fn planner_specs() -> Value {
+    let str_prop = || json!({ "type": "string" });
+    json!([
+        {
+            "name": "get_task",
+            "description": "Read this thread's Task: its title and type (feature|bugfix|refactor|spike).",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "get_repo_map",
+            "description": "Read the workspace repo map: each repo's role/stack/summary/published+declared packages, plus the cross-repo dependency edges. Use it to decide which repos a task must touch and in what order.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "propose_directions",
+            "description": "Propose how to split this task into parallel directions, each with the repos it writes and reads (by name, from the repo map). The human reviews and confirms before any worktree is created.",
+            "inputSchema": { "type": "object", "properties": {
+                "rationale": str_prop(),
+                "directions": { "type": "array", "items": { "type": "object", "properties": {
+                    "name": str_prop(),
+                    "tool": str_prop(),
+                    "writes": { "type": "array", "items": str_prop() },
+                    "reads": { "type": "array", "items": str_prop() }
+                }, "required": ["name", "tool"] } }
+            }, "required": ["directions"] }
+        }
+    ])
+}
+
 fn tool_specs() -> Value {
     let str_prop = || json!({ "type": "string" });
     json!([
@@ -163,11 +279,14 @@ fn tool_specs() -> Value {
 }
 
 /// Bind an ephemeral port and serve the router; returns the bound base URL.
-pub async fn serve(reg: BusRegistry) -> std::io::Result<(String, tokio::task::JoinHandle<()>)> {
+pub async fn serve(
+    bus: BusRegistry,
+    db: Db,
+) -> std::io::Result<(String, tokio::task::JoinHandle<()>)> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let base = format!("http://127.0.0.1:{}", addr.port());
-    let app = router(reg);
+    let app = router(bus, db);
     let handle = tokio::spawn(async move {
         let _ = axum::serve(listener, app).await;
     });

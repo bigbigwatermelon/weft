@@ -1,5 +1,5 @@
 use crate::store::entities::{
-    direction, direction_repo, repo_profile, repo_ref, session, thread, worktree, workspace,
+    direction, direction_repo, plan, repo_profile, repo_ref, session, thread, worktree, workspace,
 };
 use sea_orm::{EntityTrait, Schema};
 use sea_orm_migration::prelude::*;
@@ -9,7 +9,11 @@ pub struct Migrator;
 #[async_trait::async_trait]
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(M0001Init), Box::new(M0002RepoProfile)]
+        vec![
+            Box::new(M0001Init),
+            Box::new(M0002RepoProfile),
+            Box::new(M0003Plan),
+        ]
     }
 }
 
@@ -78,6 +82,33 @@ impl MigrationTrait for M0002RepoProfile {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .drop_table(Table::drop().table(Alias::new("repo_profile")).to_owned())
+            .await?;
+        Ok(())
+    }
+}
+
+/// Adds the per-thread plan/proposal table (ARCHITECTURE §4.10).
+pub struct M0003Plan;
+
+impl MigrationName for M0003Plan {
+    fn name(&self) -> &str {
+        "m0003_plan"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0003Plan {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let schema = Schema::new(manager.get_database_backend());
+        let mut stmt = schema.create_table_from_entity(plan::Entity);
+        stmt.if_not_exists();
+        manager.create_table(stmt).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Alias::new("plan")).to_owned())
             .await?;
         Ok(())
     }
