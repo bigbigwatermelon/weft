@@ -14,6 +14,7 @@ import type {
   Role,
   SessionInfo,
   Thread,
+  ThreadOverview,
   Workspace,
   Worktree,
 } from "./types";
@@ -41,6 +42,8 @@ export const api = {
 
   listThreads: (workspaceId: number) =>
     invoke<Thread[]>("list_threads", { workspaceId }),
+  workspaceOverview: (workspaceId: number) =>
+    invoke<ThreadOverview[]>("workspace_overview", { workspaceId }),
   createThread: (workspaceId: number, title: string, kind: string) =>
     invoke<Thread>("create_thread", { workspaceId, title, kind }),
   deleteThread: (threadId: number) =>

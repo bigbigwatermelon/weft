@@ -168,6 +168,16 @@ export interface ResolvedProposal {
   directions: ResolvedDirection[];
 }
 
+/** A thread's roll-up for the workspace board (cards = threads). */
+export interface ThreadOverview {
+  thread_id: number;
+  title: string;
+  kind: string;
+  status: string;
+  direction_ids: number[];
+  write_repos: { id: number; name: string }[];
+}
+
 /** A tool's permission request, blocked on the human (the Ask Bridge §4.3). */
 export interface PermissionAsk {
   id: number;

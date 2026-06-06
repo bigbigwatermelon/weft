@@ -27,6 +27,7 @@ export function WorkspaceNav() {
     repos,
     threads,
     selectWorkspace,
+    backToWorkspace,
     openRepoMap,
     showRepoMap,
   } = useStore();
@@ -36,10 +37,14 @@ export function WorkspaceNav() {
   return (
     <nav className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-surface">
       <div className="flex items-center gap-2 px-3 pb-2 pt-3">
-        <span className="flex select-none items-center gap-1.5">
+        <button
+          onClick={backToWorkspace}
+          title="Workspace board"
+          className="flex select-none items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 transition-colors hover:bg-brand-ghost"
+        >
           <img src="/weft-mark.svg" alt="" className="h-[18px] w-[18px]" draggable={false} />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">weft</span>
-        </span>
+        </button>
         <span className="text-ink-faint">/</span>
         <WorkspacePicker
           workspaces={workspaces}

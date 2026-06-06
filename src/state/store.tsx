@@ -20,6 +20,7 @@ import type {
   RepoProfile,
   RepoRef,
   ResolvedProposal,
+  ThreadOverview,
   SessionInfo,
   SessionStatus,
   Thread,
@@ -82,11 +83,17 @@ interface Store {
   saveProposal: (proposal: Proposal) => Promise<void>;
   confirmProposal: () => Promise<void>;
 
+  /** Workspace board: per-thread roll-ups for the portfolio view. */
+  overview: ThreadOverview[];
+  refreshOverview: () => Promise<void>;
+
   selectWorkspace: (id: number) => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
   selectThread: (threadId: number) => Promise<void>;
   loadThreadChildren: (threadId: number) => Promise<void>;
   backToBoard: () => void;
+  /** Leave the active thread for the workspace portfolio board. */
+  backToWorkspace: () => void;
 
   createWorkspace: (name: string) => Promise<void>;
   addRepo: (name: string, path: string) => Promise<void>;
@@ -140,6 +147,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [repoEdges, setRepoEdges] = useState<RepoEdge[]>([]);
   const [showRepoMap, setShowRepoMap] = useState(false);
   const [proposal, setProposal] = useState<ResolvedProposal | null>(null);
+  const [overview, setOverview] = useState<ThreadOverview[]>([]);
 
   const refreshWorkspaces = useCallback(async () => {
     const ws = await api.listWorkspaces();
@@ -161,6 +169,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setRepoProfiles([]);
     setRepoEdges([]);
     setProposal(null);
+    setOverview([]);
   }, []);
 
   const loadThreadChildren = useCallback(async (threadId: number) => {
@@ -206,6 +215,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const backToBoard = useCallback(() => setActiveSessionId(null), []);
 
+  const refreshOverview = useCallback(async () => {
+    if (activeWorkspaceId == null) {
+      setOverview([]);
+      return;
+    }
+    try {
+      setOverview(await api.workspaceOverview(activeWorkspaceId));
+    } catch {
+      /* ignore */
+    }
+  }, [activeWorkspaceId]);
+
+  const backToWorkspace = useCallback(() => {
+    setActiveThreadId(null);
+    setActiveSessionId(null);
+    setShowNeeds(false);
+    setShowRepoMap(false);
+  }, []);
+
   const createWorkspace = useCallback(
     async (name: string) => {
       const ws = await api.createWorkspace(name);
@@ -237,6 +265,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (activeWorkspaceId == null) throw new Error("no workspace");
       const t = await api.createThread(activeWorkspaceId, title, kind);
       setThreads(await api.listThreads(activeWorkspaceId));
+      void refreshOverview();
       return t;
     },
     [activeWorkspaceId],
@@ -665,11 +694,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     startDraftPlan,
     saveProposal,
     confirmProposal,
+    overview,
+    refreshOverview,
     selectWorkspace,
     refreshWorkspaces,
     selectThread,
     loadThreadChildren,
     backToBoard,
+    backToWorkspace,
     createWorkspace,
     addRepo,
     createThread,

@@ -78,6 +78,52 @@ pub async fn list_threads(db: State<'_, Db>, workspace_id: i32) -> R<Vec<entitie
     repo::list_threads(&db, workspace_id).await.map_err(e)
 }
 
+#[derive(serde::Serialize)]
+pub struct RepoLite {
+    pub id: i32,
+    pub name: String,
+}
+
+/// A thread's roll-up for the workspace board (cards = threads). Live state
+/// (sessions / needs / asks) is overlaid client-side; this is the structure.
+#[derive(serde::Serialize)]
+pub struct ThreadOverview {
+    pub thread_id: i32,
+    pub title: String,
+    pub kind: String,
+    pub status: String,
+    pub direction_ids: Vec<i32>,
+    /// distinct repos this thread WRITES (across its directions).
+    pub write_repos: Vec<RepoLite>,
+}
+
+/// Portfolio view of a workspace: every thread with its directions + write set,
+/// so the board can show roll-ups and compute cross-thread repo contention
+/// (a repo written by 2+ threads is a "hot repo").
+#[tauri::command]
+pub async fn workspace_overview(db: State<'_, Db>, workspace_id: i32) -> R<Vec<ThreadOverview>> {
+    let threads = repo::list_threads(&db, workspace_id).await.map_err(e)?;
+    let mut out = Vec::new();
+    for t in threads {
+        let dirs = repo::list_directions(&db, t.id).await.map_err(e)?;
+        let mut seen = std::collections::BTreeMap::<i32, String>::new();
+        for d in &dirs {
+            for r in repo::direction_write_repos(&db, d.id).await.map_err(e)? {
+                seen.entry(r.id).or_insert(r.name);
+            }
+        }
+        out.push(ThreadOverview {
+            thread_id: t.id,
+            title: t.title,
+            kind: t.kind,
+            status: t.status,
+            direction_ids: dirs.iter().map(|d| d.id).collect(),
+            write_repos: seen.into_iter().map(|(id, name)| RepoLite { id, name }).collect(),
+        });
+    }
+    Ok(out)
+}
+
 #[tauri::command]
 pub async fn list_repos(db: State<'_, Db>, workspace_id: i32) -> R<Vec<entities::repo_ref::Model>> {
     repo::list_repos(&db, workspace_id).await.map_err(e)
