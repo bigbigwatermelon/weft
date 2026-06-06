@@ -107,26 +107,20 @@ fn hook_decision(decision: &str, reason: &str) -> Response {
     .into_response()
 }
 
-/// A short human label + raw detail for a tool action.
+/// A short human label + raw detail for a tool action. Tool-agnostic across
+/// claude (Bash / file_path) and opencode (bash / filePath, lowercase names):
+/// a command reads as "Run: …", a file op as "<tool> <file>".
 fn summarize(tool_name: &str, input: Option<&Value>) -> (String, String) {
     let s = |k: &str| input.and_then(|v| v.get(k)).and_then(|v| v.as_str()).map(|s| s.to_string());
-    match tool_name {
-        "Bash" => {
-            let cmd = s("command").unwrap_or_default();
-            let first = cmd.lines().next().unwrap_or("").to_string();
-            (format!("Run: {first}"), cmd)
-        }
-        "Edit" | "Write" | "MultiEdit" | "NotebookEdit" => {
-            let f = s("file_path").unwrap_or_default();
-            (format!("{tool_name} {f}"), f)
-        }
-        other => {
-            let detail = input
-                .map(|v| v.to_string())
-                .unwrap_or_default();
-            (other.to_string(), detail)
-        }
+    if let Some(cmd) = s("command") {
+        let first = cmd.lines().next().unwrap_or("").to_string();
+        return (format!("Run: {first}"), cmd);
     }
+    if let Some(f) = s("file_path").or_else(|| s("filePath")) {
+        return (format!("{tool_name} {f}"), f);
+    }
+    let detail = input.map(|v| v.to_string()).unwrap_or_default();
+    (tool_name.to_string(), detail)
 }
 
 async fn get_not_allowed() -> StatusCode {

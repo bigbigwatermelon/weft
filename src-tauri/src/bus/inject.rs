@@ -31,6 +31,9 @@ fn ask_url(base: &str, thread: i32, dir: &str, tool: &str) -> String {
 /// Best-effort: empty args if files can't be written. (OpenCode bridges via its
 /// server `/event` channel, not a hook — handled elsewhere.)
 pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Path) -> Injection {
+    if tool == "opencode" {
+        return inject_opencode_ask_plugin(base, thread, dir, cwd);
+    }
     if tool != "claude" && tool != "codex" {
         return Injection { args: vec![] };
     }
@@ -85,6 +88,39 @@ pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Pat
         }
         _ => Injection { args: vec![] },
     }
+}
+
+/// OpenCode has no PreToolUse hook; its analog is a local plugin's
+/// `tool.execute.before`, which is async and throws to deny. Drop a plugin in
+/// the worktree's `.opencode/plugins/` that POSTs each tool action to weft's
+/// /ask endpoint and throws on a deny verdict — same Ask Bridge, same endpoint,
+/// same allow/deny contract as claude/codex. Auto-loaded (no launch flag).
+fn inject_opencode_ask_plugin(base: &str, thread: i32, dir: &str, cwd: &Path) -> Injection {
+    let url = ask_url(base, thread, dir, "opencode");
+    let plugins = cwd.join(".opencode").join("plugins");
+    if std::fs::create_dir_all(&plugins).is_err() {
+        return Injection { args: vec![] };
+    }
+    let template = r#"// weft Ask Bridge — surfaces tool approvals to weft, blocks on deny.
+export const WeftAsk = async () => ({
+  "tool.execute.before": async (input, output) => {
+    let decision;
+    try {
+      const res = await fetch("__URL__", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tool_name: input.tool, tool_input: output.args }),
+      });
+      decision = (await res.json())?.hookSpecificOutput?.permissionDecision;
+    } catch (e) { /* weft unreachable → fall back to opencode's own flow */ }
+    if (decision === "deny") throw new Error("Denied in weft");
+  },
+});
+"#;
+    let body = template.replace("__URL__", &url);
+    let _ = std::fs::write(plugins.join("weft-ask.js"), body);
+    git_exclude(cwd, ".opencode/plugins/weft-ask.js");
+    Injection { args: vec![] }
 }
 
 /// Build the thread-bus injection. `cwd` is the worktree (used for the claude
@@ -266,10 +302,19 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+
     #[test]
-    fn opencode_ask_hook_is_noop_for_now() {
-        let inj = inject_ask_hook("http://127.0.0.1:9", 1, "10", "opencode", Path::new("/tmp"));
-        assert!(inj.args.is_empty());
+    fn opencode_ask_plugin_written_and_excluded() {
+        let dir = std::env::temp_dir().join(format!("weft-inj-oask-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let inj = inject_ask_hook("http://127.0.0.1:9", 1, "10", "opencode", &dir);
+        assert!(inj.args.is_empty(), "opencode plugin auto-loads, no launch flag");
+        let plugin = std::fs::read_to_string(dir.join(".opencode/plugins/weft-ask.js")).unwrap();
+        assert!(plugin.contains("tool.execute.before"));
+        assert!(plugin.contains("/ask/1/10?tool=opencode"));
+        assert!(plugin.contains("Denied in weft"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
