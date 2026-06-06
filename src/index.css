@@ -1,39 +1,36 @@
 @import "tailwindcss";
 
 /* ───────────────────────── weft design tokens (DESIGN.md) ─────────────────────────
-   Dark-primary, high-density. Violet-tinted near-black surfaces, anchored to the
-   brand mark: INDIGO = the parallel work lines (structure/primary), ORANGE = the
-   converged outcome (accent). Sourced from public/weft-*.svg. All color OKLCH. */
+   High-density. Brand sourced from public/weft-*.svg: INDIGO = the parallel work
+   lines (structure/primary), ORANGE = the converged outcome (accent). All OKLCH.
+   Colors reference per-theme `--c-*` vars (defined below) so dark/light switch at
+   runtime via [data-theme] on <html>. Fonts/radii/easing are theme-independent. */
 @theme {
-  /* surface architecture — violet-tinted near-black (anchored to #1C1B22) */
-  --color-bg: oklch(0.165 0.012 292);
-  --color-surface: oklch(0.205 0.013 292);
-  --color-raised: oklch(0.245 0.014 292);
-  --color-border: oklch(0.3 0.014 292);
-  --color-border-strong: oklch(0.37 0.016 292);
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-border: var(--c-border);
+  --color-border-strong: var(--c-border-strong);
+  --color-hover: var(--c-hover);
 
-  /* ink — verified >= AA on --surface */
-  --color-ink: oklch(0.96 0.005 292);
-  --color-ink-muted: oklch(0.76 0.01 292);
-  --color-ink-faint: oklch(0.62 0.012 292);
+  --color-ink: var(--c-ink);
+  --color-ink-muted: var(--c-ink-muted);
+  --color-ink-faint: var(--c-ink-faint);
 
-  /* brand — indigo #4F46E5 (the work lines / structure); primary + active + focus */
-  --color-brand: oklch(0.55 0.22 277);
-  --color-brand-press: oklch(0.49 0.21 277);
-  --color-brand-ink: oklch(0.99 0.005 277); /* white-ish text on an indigo fill */
-  --color-brand-ghost: oklch(0.55 0.22 277 / 0.16);
+  --color-brand: var(--c-brand);
+  --color-brand-press: var(--c-brand-press);
+  --color-brand-ink: var(--c-brand-ink);
+  --color-brand-ghost: var(--c-brand-ghost);
 
-  /* accent — orange #F2683C (the converged outcome); convergence/highlight moments */
-  --color-accent: oklch(0.7 0.18 38);
-  --color-accent-ghost: oklch(0.7 0.18 38 / 0.16);
+  --color-accent: var(--c-accent);
+  --color-accent-ghost: var(--c-accent-ghost);
 
-  /* status — distinct from brand+accent; always paired with glyph+label */
-  --color-running: oklch(0.73 0.16 150); /* real emerald = alive (not the brand) */
-  --color-waiting: oklch(0.8 0.13 80);
-  --color-approval: oklch(0.74 0.17 45);
-  --color-inject: oklch(0.72 0.12 215);
-  --color-idle: oklch(0.64 0.015 292);
-  --color-danger: oklch(0.64 0.2 25);
+  --color-running: var(--c-running);
+  --color-waiting: var(--c-waiting);
+  --color-approval: var(--c-approval);
+  --color-inject: var(--c-inject);
+  --color-idle: var(--c-idle);
+  --color-danger: var(--c-danger);
 
   /* type — system stack (SF on macOS) + Inter fallback; mono for code/paths/ids */
   --font-sans: ui-sans-serif, system-ui, -apple-system, "SF Pro Text", "Inter",
@@ -49,6 +46,59 @@
   /* easing — ease-out, no bounce */
   --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── DARK (default) — violet-tinted near-black, anchored to the mark's #1C1B22 ── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: oklch(0.165 0.012 292);
+  --c-surface: oklch(0.205 0.013 292);
+  --c-raised: oklch(0.245 0.014 292);
+  --c-border: oklch(0.3 0.014 292);
+  --c-border-strong: oklch(0.37 0.016 292);
+  --c-hover: oklch(0.29 0.014 292);
+  --c-ink: oklch(0.96 0.005 292);
+  --c-ink-muted: oklch(0.76 0.01 292);
+  --c-ink-faint: oklch(0.62 0.012 292);
+  --c-brand: oklch(0.62 0.2 277); /* brightened for legibility on near-black */
+  --c-brand-press: oklch(0.56 0.2 277);
+  --c-brand-ink: oklch(0.99 0.005 277);
+  --c-brand-ghost: oklch(0.62 0.2 277 / 0.18);
+  --c-accent: oklch(0.7 0.18 38);
+  --c-accent-ghost: oklch(0.7 0.18 38 / 0.16);
+  --c-running: oklch(0.73 0.16 150);
+  --c-waiting: oklch(0.8 0.13 80);
+  --c-approval: oklch(0.74 0.17 45);
+  --c-inject: oklch(0.72 0.12 215);
+  --c-idle: oklch(0.64 0.015 292);
+  --c-danger: oklch(0.64 0.2 25);
+}
+
+/* ── LIGHT — near-white violet-tinted paper; brand deepened for contrast ── */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --c-bg: oklch(0.975 0.004 292);
+  --c-surface: oklch(0.995 0.002 292);
+  --c-raised: oklch(1 0 0);
+  --c-border: oklch(0.9 0.006 292);
+  --c-border-strong: oklch(0.82 0.009 292);
+  --c-hover: oklch(0.95 0.006 292);
+  --c-ink: oklch(0.26 0.02 292);
+  --c-ink-muted: oklch(0.46 0.014 292);
+  --c-ink-faint: oklch(0.55 0.012 292);
+  --c-brand: oklch(0.51 0.23 277); /* the true #4F46E5 — strong on white */
+  --c-brand-press: oklch(0.45 0.22 277);
+  --c-brand-ink: oklch(0.99 0.005 277);
+  --c-brand-ghost: oklch(0.51 0.23 277 / 0.1);
+  --c-accent: oklch(0.62 0.19 38);
+  --c-accent-ghost: oklch(0.62 0.19 38 / 0.12);
+  --c-running: oklch(0.55 0.15 150);
+  --c-waiting: oklch(0.6 0.13 70);
+  --c-approval: oklch(0.6 0.18 40);
+  --c-inject: oklch(0.52 0.13 230);
+  --c-idle: oklch(0.55 0.02 292);
+  --c-danger: oklch(0.55 0.2 25);
 }
 
 @layer base {
@@ -88,7 +138,7 @@
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.44 0.016 292);
+    background: var(--color-border-strong);
     background-clip: content-box;
   }
   ::selection {

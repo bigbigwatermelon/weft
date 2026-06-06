@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { ChevronRight, FolderGit2, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, FolderGit2, Moon, Plus, Sun, Trash2 } from "lucide-react";
 import { useStore } from "../state/store";
+import { useTheme } from "../state/theme";
 import type { Thread } from "../lib/types";
 import { cn } from "../lib/cn";
 import {
@@ -86,10 +87,30 @@ export function WorkspaceNav() {
         )}
       </div>
 
+      <footer className="flex items-center justify-between border-t border-border px-3 py-2">
+        <span className="text-[11px] text-ink-faint">Local · no server</span>
+        <ThemeToggle />
+      </footer>
+
       <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
       <AddRepoDialog open={dlg === "repo"} onOpenChange={(o) => !o && setDlg(null)} />
       <CreateThreadDialog open={dlg === "thread"} onOpenChange={(o) => !o && setDlg(null)} />
     </nav>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  const dark = theme === "dark";
+  return (
+    <button
+      onClick={toggle}
+      aria-label={dark ? "Switch to light theme" : "Switch to dark theme"}
+      title={dark ? "Light theme" : "Dark theme"}
+      className="grid h-6 w-6 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+    >
+      {dark ? <Sun size={14} /> : <Moon size={14} />}
+    </button>
   );
 }
 

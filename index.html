@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/weft-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>weft</title>
+    <script>
+      // Apply the theme before first paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var k = localStorage.getItem("weft-theme");
+          var t =
+            k === "dark" || k === "light"
+              ? k
+              : matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark";
+          document.documentElement.dataset.theme = t;
+        } catch (e) {
+          document.documentElement.dataset.theme = "dark";
+        }
+      })();
+    </script>
   </head>
 
   <body>

@@ -11,11 +11,18 @@ these tokens — never the default shadcn look.
 
 ## Theme
 
-Dark-primary, single theme to start (light is a later adapt pass). The mood:
-a well-instrumented control room at night — violet-tinted near-black surfaces,
-the **indigo** brand glowing like the work lines of the weft mark, the **orange**
-accent marking convergence/outcome, status colors the only other saturated points
-and they always mean something.
+**Dark + light, toggleable.** Default follows the OS (`prefers-color-scheme`),
+the choice persists (localStorage `weft-theme`), applied via `data-theme` on
+`<html>` (an inline script in `index.html` sets it before first paint — no
+flash). Dark mood: a control room at night — violet-tinted near-black, the
+**indigo** brand glowing like the work lines of the weft mark, **orange** marking
+convergence. Light mood: violet-tinted paper, the same brand deepened for
+contrast. Both are designed palettes, not inverts; the embedded terminal stays
+dark in both (TUIs assume dark).
+
+Mechanism: Tailwind `@theme` colors reference per-theme `--c-*` vars; dark is the
+`:root` default, light overrides under `:root[data-theme="light"]`. Add a color
+only as a `--c-*` pair (dark + light).
 
 Color strategy: **committed**. The brand is sourced from the weft mark
 (`public/weft-*.svg`): INDIGO `#4F46E5` = the three parallel work lines
@@ -74,6 +81,13 @@ is its own green (below), not the brand, so structure and liveness read distinct
 | injecting (program) | `--status-inject` | `oklch(0.72 0.12 215)` cyan | ↳ |
 | paused / idle | `--status-idle` | `oklch(0.64 0.015 292)` slate | ○ |
 | error / exited | `--status-error` | `oklch(0.64 0.20 25)` red | ✕ |
+
+The tables above are the **dark** palette (`:root`). The **light** palette
+(`:root[data-theme="light"]`) keeps the same hues, flipped for a near-white
+violet paper: `--c-bg` `oklch(0.975 0.004 292)`, `--c-surface` `oklch(0.995 0.002 292)`,
+`--c-raised` white, `--c-ink` `oklch(0.26 0.02 292)`, brand deepened to the true
+`#4F46E5` `oklch(0.51 0.23 277)`, status colors darkened (~L 0.55–0.62) for AA on
+white. Exact values live in `src/index.css`; both tables stay in lockstep.
 
 Color never stands alone — the glyph and a text label always accompany it
 (see Accessibility in PRODUCT.md).

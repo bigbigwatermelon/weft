@@ -28,12 +28,17 @@ agent work. The core is the *structure and coordination*, not the watching:
    (post / inbox / ask) and a coordinator wakes them, so parallel directions
    converge instead of drifting.
 
-The embedded native TUI is the **interaction surface** for a single session —
-how you talk to one agent — **not** the product's reason for being. Watching
-execution detail is incidental; the value is the orchestration and coordination
-layer that no single-agent tool provides. Success looks like: a developer runs
-several agents across several repos on one feature and weft keeps the work
-structured, scoped, and coordinated — not five terminals to babysit.
+**Home is a conversation, not a terminal grid.** The primary surface is a **lead
+agent** (the user's main chat + control tower): it reads the repos read-only,
+plans, derives scope, and drives **worker** sessions per direction — it does not
+write code itself. Sessions carry `role = lead | worker`. Workers report back
+structured summaries + diff stat through the bus; the lead never ingests their
+raw transcripts. The embedded native TUI is the **interaction surface** for a
+single session, not the product's reason for being. Watching execution detail is
+incidental; the value is the orchestration + coordination layer no single-agent
+tool provides. Success looks like: a developer runs several agents across several
+repos on one feature and weft keeps the work structured, scoped, and coordinated
+— not five terminals to babysit.
 
 It is explicitly **not** a terminal emulator, and equally not a "watch the
 agents go" dashboard. It is the workspace-and-coordination fabric the agents
@@ -45,8 +50,9 @@ Composed, exact, quietly alive. Three words: **calm, precise, native-fast.**
 The voice is an expert peer's, not a vendor's: it states what is happening and
 gets out of the way. No hype, no hand-holding, no decoration for its own sake.
 When something is running, the interface should feel like a well-instrumented
-control room at night — dark, legible, everything in its place, motion only
-when something actually changed.
+control room — legible, everything in its place, motion only when something
+actually changed. Dark by default but fully at home in light too (both are
+designed, system-following + toggleable).
 
 ## Anti-references
 
@@ -75,6 +81,17 @@ when something actually changed.
    thing that changed.
 5. **Mirror the user's tools, never override them.** weft reflects native agent
    state (permissions, sessions, config) and never invents or overrides it.
+6. **Hide the mechanism, present the decisions.** worktrees / PTY / MCP bus /
+   add-dir / sidecar are plumbing — they recede into Inspect. What the user owns
+   stays first-class: scope, branch / PR / diff, tool choice, effective skills.
+   Every abstraction ships with an escape hatch (real path / open terminal) and
+   a readable failure.
+7. **Needs-you first.** The kanban is an agent + git projection that flows itself;
+   the human's job is exception-handling, so "what's waiting on me" is always the
+   most prominent thing, aggregated workspace-wide.
+8. **Bilingual from day one.** zh / en, two layers — UI strings AND agent output
+   language. Never hardcode user-facing strings; internal state enums stay
+   English, code/identifiers always English.
 
 ## Accessibility & Inclusion
 
