@@ -114,6 +114,12 @@ pub async fn confirm_proposal(db: State<'_, Db>, thread_id: i32) -> R<Vec<i32>> 
     crate::planner::confirm(&db, thread_id).await.map_err(e)
 }
 
+/// The brief a worker for this direction would be dispatched with (§4.10).
+#[tauri::command]
+pub async fn preview_brief(db: State<'_, Db>, direction_id: i32) -> R<String> {
+    crate::brief::assemble(&db, direction_id).await.map_err(e)
+}
+
 #[tauri::command]
 pub async fn list_direction_repos(
     db: State<'_, Db>,

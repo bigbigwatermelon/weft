@@ -12,6 +12,7 @@ pub mod store;
 pub mod git;
 pub mod materialize;
 mod batch;
+mod brief;
 pub mod bus;
 mod claude;
 mod coordinator;
@@ -84,6 +85,7 @@ pub fn run() {
             commands::get_proposal,
             commands::save_proposal,
             commands::confirm_proposal,
+            commands::preview_brief,
             commands::list_direction_repos,
             commands::create_direction,
             commands::list_worktrees,

@@ -262,7 +262,18 @@ async fn open_session_impl(
         &cwd,
     );
 
-    let active = spawn(&app, &dir.tool, direction_id, &inj.args, &cwd, None, sess.id, db.clone())
+    // Dispatch the worker WITH its brief (ARCHITECTURE §4.10): objective, scope,
+    // contracts, non-goals. Seeded as the initial message, BEFORE --mcp-config
+    // (claude's variadic flag would otherwise eat it). Best-effort: a bare
+    // session still opens if the brief can't be assembled.
+    let brief = crate::brief::assemble(db, direction_id).await.unwrap_or_default();
+    let mut args: Vec<String> = Vec::new();
+    if !brief.trim().is_empty() {
+        args.push(brief);
+    }
+    args.extend(inj.args);
+
+    let active = spawn(&app, &dir.tool, direction_id, &args, &cwd, None, sess.id, db.clone())
         .context("spawn agent")?;
     state.sessions.lock().unwrap_or_else(|e| e.into_inner()).insert(sess.id, active);
 
