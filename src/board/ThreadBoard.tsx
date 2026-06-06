@@ -6,6 +6,7 @@ import {
   Eye,
   Layers,
   Plus,
+  Sparkles,
   TerminalSquare,
 } from "lucide-react";
 import { useStore } from "../state/store";
@@ -15,6 +16,7 @@ import { StatusDot } from "../components/ui/StatusChip";
 import { Inspect } from "../components/Inspect";
 import { CreateDirectionDialog } from "../nav/dialogs";
 import { CoordinationPanel } from "./CoordinationPanel";
+import { ScopeConfirmView } from "./ScopeConfirmView";
 import { cn } from "../lib/cn";
 
 const KIND_LABEL: Record<string, string> = {
@@ -36,11 +38,13 @@ const TOOL_LABEL: Record<string, string> = {
 };
 
 export function ThreadBoard() {
-  const { threads, activeThreadId, directionsByThread } = useStore();
+  const { threads, activeThreadId, directionsByThread, repos, proposal } =
+    useStore();
   const thread = threads.find((t) => t.id === activeThreadId);
   const [newDir, setNewDir] = useState(false);
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
+  const proposing = proposal?.status === "proposed";
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
@@ -55,22 +59,29 @@ export function ThreadBoard() {
             </span>
           </div>
           <span className="mt-0.5 text-[12px] text-ink-faint">
-            {dirs.length} {dirs.length === 1 ? "direction" : "directions"} ·
-            parallel work lines, each scoped to its own repos
+            {proposing
+              ? "Review the proposed scope, then create the directions"
+              : `${dirs.length} ${dirs.length === 1 ? "direction" : "directions"} · parallel work lines, each scoped to its own repos`}
           </span>
         </div>
-        <Button variant="primary" className="ml-auto" onClick={() => setNewDir(true)}>
-          <Plus size={14} />
-          New direction
-        </Button>
+        {!proposing && (
+          <Button variant="primary" className="ml-auto" onClick={() => setNewDir(true)}>
+            <Plus size={14} />
+            New direction
+          </Button>
+        )}
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {dirs.length === 0 ? (
-            <EmptyBoard onAdd={() => setNewDir(true)} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {proposing && proposal ? (
+            <ScopeConfirmView proposal={proposal} repos={repos} taskTitle={thread.title} />
+          ) : dirs.length === 0 ? (
+            <div className="px-5 py-4">
+              <EmptyBoard onAdd={() => setNewDir(true)} />
+            </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 px-5 py-4">
               {dirs.map((d) => (
                 <DirectionCard key={d.id} direction={d} />
               ))}
@@ -84,7 +95,7 @@ export function ThreadBoard() {
             </div>
           )}
         </div>
-        <CoordinationPanel directions={dirs} />
+        {!proposing && <CoordinationPanel directions={dirs} />}
       </div>
 
       <CreateDirectionDialog open={newDir} onOpenChange={setNewDir} threadId={thread.id} />
@@ -205,21 +216,28 @@ function DirectionCard({ direction }: { direction: Direction }) {
 }
 
 function EmptyBoard({ onAdd }: { onAdd: () => void }) {
+  const { startDraftPlan } = useStore();
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
       <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
         <Layers size={20} className="text-ink-faint" />
       </div>
-      <h2 className="mt-3 text-[14px] font-semibold text-ink">No directions yet</h2>
+      <h2 className="mt-3 text-[14px] font-semibold text-ink">Plan this thread</h2>
       <p className="mt-1 max-w-xs text-[12px] leading-relaxed text-ink-faint">
-        A direction is one parallel work line: a tool, the repos it writes, and
-        an isolated worktree per repo. Split this thread into directions to run
-        agents side by side.
+        Split the task into directions — parallel work lines, each scoped to the
+        repos it writes. Draft the scope here, then create them all at once; only
+        write repos get a worktree.
       </p>
-      <Button variant="primary" className="mt-4" onClick={onAdd}>
-        <Plus size={14} />
-        New direction
-      </Button>
+      <div className="mt-4 flex items-center gap-2">
+        <Button variant="primary" onClick={() => void startDraftPlan()}>
+          <Sparkles size={14} />
+          Draft a plan
+        </Button>
+        <Button variant="ghost" onClick={onAdd}>
+          <Plus size={14} />
+          New direction
+        </Button>
+      </div>
     </div>
   );
 }

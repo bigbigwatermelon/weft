@@ -117,6 +117,37 @@ export interface RepoGraph {
   edges: RepoEdge[];
 }
 
+/** The lead's proposed split of a Task into directions (by repo NAME). */
+export interface ProposedDirection {
+  name: string;
+  tool: string;
+  writes: string[];
+  reads: string[];
+}
+export interface Proposal {
+  rationale: string;
+  directions: ProposedDirection[];
+}
+
+/** A proposal resolved against the workspace repos, for review/edit. */
+export interface ScopeEntry {
+  repo_id: number;
+  repo_name: string;
+  role: string; // write | read
+  known: boolean;
+}
+export interface ResolvedDirection {
+  name: string;
+  tool: string;
+  scope: ScopeEntry[];
+}
+export interface ResolvedProposal {
+  thread_id: number;
+  rationale: string;
+  status: string; // proposed | confirmed
+  directions: ResolvedDirection[];
+}
+
 /** An open agent→human question, aggregated workspace-wide for "Needs you". */
 export interface NeedItem {
   ask_id: number;

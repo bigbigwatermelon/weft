@@ -4,8 +4,10 @@ import type {
   Direction,
   DirectionRepo,
   NeedItem,
+  Proposal,
   RepoGraph,
   RepoRef,
+  ResolvedProposal,
   Role,
   SessionInfo,
   Thread,
@@ -43,6 +45,14 @@ export const api = {
 
   listDirections: (threadId: number) =>
     invoke<Direction[]>("list_directions", { threadId }),
+
+  // Planner: the lead's proposed Task → scope decomposition (§4.10, §5.1).
+  getProposal: (threadId: number) =>
+    invoke<ResolvedProposal | null>("get_proposal", { threadId }),
+  saveProposal: (threadId: number, proposal: Proposal) =>
+    invoke<void>("save_proposal", { threadId, proposal }),
+  confirmProposal: (threadId: number) =>
+    invoke<number[]>("confirm_proposal", { threadId }),
   listDirectionRepos: (directionId: number) =>
     invoke<DirectionRepo[]>("list_direction_repos", { directionId }),
   createDirection: (

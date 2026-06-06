@@ -13,9 +13,11 @@ import type {
   Direction,
   DirectionRepo,
   NeedItem,
+  Proposal,
   RepoEdge,
   RepoProfile,
   RepoRef,
+  ResolvedProposal,
   SessionInfo,
   SessionStatus,
   Thread,
@@ -66,6 +68,13 @@ interface Store {
   reprofileRepo: (repoId: number) => Promise<void>;
   editRepoProfile: (repoId: number, summary: string, role: string) => Promise<void>;
 
+  /** The active thread's plan proposal (Task → scope), if any. */
+  proposal: ResolvedProposal | null;
+  refreshProposal: (threadId: number) => Promise<void>;
+  startDraftPlan: () => Promise<void>;
+  saveProposal: (proposal: Proposal) => Promise<void>;
+  confirmProposal: () => Promise<void>;
+
   selectWorkspace: (id: number) => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
   selectThread: (threadId: number) => Promise<void>;
@@ -115,6 +124,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [repoProfiles, setRepoProfiles] = useState<RepoProfile[]>([]);
   const [repoEdges, setRepoEdges] = useState<RepoEdge[]>([]);
   const [showRepoMap, setShowRepoMap] = useState(false);
+  const [proposal, setProposal] = useState<ResolvedProposal | null>(null);
 
   const refreshWorkspaces = useCallback(async () => {
     const ws = await api.listWorkspaces();
@@ -135,6 +145,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setShowRepoMap(false);
     setRepoProfiles([]);
     setRepoEdges([]);
+    setProposal(null);
   }, []);
 
   const loadThreadChildren = useCallback(async (threadId: number) => {
@@ -168,6 +179,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveSessionId(null);
       setShowNeeds(false);
       setShowRepoMap(false);
+      try {
+        setProposal(await api.getProposal(threadId));
+      } catch {
+        setProposal(null);
+      }
       await loadThreadChildren(threadId);
     },
     [loadThreadChildren],
@@ -364,6 +380,41 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [refreshRepoMap],
   );
 
+  const refreshProposal = useCallback(async (threadId: number) => {
+    try {
+      setProposal(await api.getProposal(threadId));
+    } catch {
+      setProposal(null);
+    }
+  }, []);
+
+  const startDraftPlan = useCallback(async () => {
+    if (activeThreadId == null) return;
+    // Seed an empty proposal so the human can draft scope by hand. The agentic
+    // lead will pre-fill this instead, later.
+    await api.saveProposal(activeThreadId, {
+      rationale: "",
+      directions: [{ name: "Direction 1", tool: "claude", writes: [], reads: [] }],
+    });
+    await refreshProposal(activeThreadId);
+  }, [activeThreadId, refreshProposal]);
+
+  const saveProposal = useCallback(
+    async (next: Proposal) => {
+      if (activeThreadId == null) return;
+      await api.saveProposal(activeThreadId, next);
+      await refreshProposal(activeThreadId);
+    },
+    [activeThreadId, refreshProposal],
+  );
+
+  const confirmProposal = useCallback(async () => {
+    if (activeThreadId == null) return;
+    await api.confirmProposal(activeThreadId);
+    setProposal(null);
+    await loadThreadChildren(activeThreadId);
+  }, [activeThreadId, loadThreadChildren]);
+
   const answerAsk = useCallback(
     async (item: NeedItem, text: string) => {
       if (!text.trim()) return;
@@ -492,6 +543,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshRepoMap,
     reprofileRepo,
     editRepoProfile,
+    proposal,
+    refreshProposal,
+    startDraftPlan,
+    saveProposal,
+    confirmProposal,
     selectWorkspace,
     refreshWorkspaces,
     selectThread,
