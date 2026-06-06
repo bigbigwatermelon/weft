@@ -61,6 +61,11 @@ export const zh = {
     nudge: "提醒:让这个 agent 查看 bus",
     runChecks: "运行该任务的检查(lint / type / test)",
     noChecks: "未推断出检查项",
+    colQueued: "排队中",
+    colRunning: "进行中",
+    colNeeds: "需要你",
+    colReview: "待审阅",
+    colEmpty: "—",
   },
   scope: {
     proposedFor: "「{{title}}」的建议方案",

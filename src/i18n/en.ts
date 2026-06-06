@@ -65,6 +65,11 @@ export const en = {
     nudge: "Nudge: tell this agent to check the bus",
     runChecks: "Run this task's checks (lint / type / test)",
     noChecks: "no checks inferred",
+    colQueued: "Queued",
+    colRunning: "In progress",
+    colNeeds: "Needs you",
+    colReview: "Review",
+    colEmpty: "—",
   },
   scope: {
     proposedFor: "Proposed plan for {{title}}",

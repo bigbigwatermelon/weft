@@ -29,15 +29,47 @@ const TOOL_LABEL: Record<string, string> = {
   opencode: "OpenCode",
 };
 
+/** Lifecycle status of a task, derived from live state (§4.6). */
+type TaskState = "queued" | "running" | "needs" | "review";
+
+const COLUMNS: { key: TaskState; label: string; dot: string }[] = [
+  { key: "queued", label: "thread.colQueued", dot: "bg-idle" },
+  { key: "running", label: "thread.colRunning", dot: "bg-running" },
+  { key: "needs", label: "thread.colNeeds", dot: "bg-waiting" },
+  { key: "review", label: "thread.colReview", dot: "bg-brand" },
+];
+
 export function ThreadBoard() {
-  const { threads, activeThreadId, directionsByThread, repos, proposal } =
-    useStore();
+  const {
+    threads,
+    activeThreadId,
+    directionsByThread,
+    repos,
+    proposal,
+    sessions,
+    needs,
+    asks,
+    checksByDirection,
+  } = useStore();
   const { t } = useTranslation();
-  const thread = threads.find((t) => t.id === activeThreadId);
+  const thread = threads.find((th) => th.id === activeThreadId);
   const [newDir, setNewDir] = useState(false);
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
   const proposing = proposal?.status === "proposed";
+
+  const statusOf = (dirId: number): TaskState => {
+    const sess = Object.values(sessions).find((s) => s.directionId === dirId);
+    const need =
+      needs.some((n) => n.direction_id === dirId) ||
+      asks.some((a) => a.dir === String(dirId));
+    const checks = checksByDirection[dirId];
+    const failing = (checks ?? []).some((rc) => rc.checks.some((c) => c.status === "fail"));
+    if (need || failing) return "needs";
+    if (sess && (sess.status === "running" || sess.status === "starting")) return "running";
+    if (sess?.status === "exited" || (checks && checks.length > 0)) return "review";
+    return "queued";
+  };
 
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
@@ -66,7 +98,7 @@ export function ThreadBoard() {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           {proposing && proposal ? (
             <ScopeConfirmView proposal={proposal} repos={repos} taskTitle={thread.title} />
           ) : dirs.length === 0 ? (
@@ -74,17 +106,38 @@ export function ThreadBoard() {
               <EmptyBoard onAdd={() => setNewDir(true)} />
             </div>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-3 px-5 py-4">
-              {dirs.map((d) => (
-                <DirectionCard key={d.id} direction={d} />
-              ))}
-              <button
-                onClick={() => setNewDir(true)}
-                className="flex min-h-[140px] flex-col items-center justify-center gap-2 rounded-[var(--radius-lg)] border border-dashed border-border text-ink-faint transition-colors hover:border-border-strong hover:bg-surface hover:text-ink-muted"
-              >
-                <Plus size={18} />
-                <span className="text-[12px]">{t("thread.addDirection")}</span>
-              </button>
+            <div className="flex h-full min-w-fit gap-3 px-5 py-4">
+              {COLUMNS.map((col) => {
+                const cards = dirs.filter((d) => statusOf(d.id) === col.key);
+                return (
+                  <div key={col.key} className="flex w-[300px] shrink-0 flex-col gap-2">
+                    <div className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+                      <span className={cn("h-1.5 w-1.5 rounded-full", col.dot)} />
+                      {t(col.label)}
+                      <span className="tabular-nums text-ink-faint/70">{cards.length}</span>
+                      {col.key === "queued" && (
+                        <button
+                          onClick={() => setNewDir(true)}
+                          aria-label={t("thread.addDirection")}
+                          className="ml-auto grid h-5 w-5 place-items-center rounded text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+                        >
+                          <Plus size={13} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-[var(--radius-lg)] bg-surface/40 p-2">
+                      {cards.map((d) => (
+                        <DirectionCard key={d.id} direction={d} />
+                      ))}
+                      {cards.length === 0 && (
+                        <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-ink-faint/60">
+                          {t("thread.colEmpty")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
