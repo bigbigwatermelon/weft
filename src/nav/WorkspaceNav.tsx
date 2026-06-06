@@ -28,8 +28,15 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function WorkspaceNav() {
-  const { workspaces, activeWorkspaceId, repos, threads, selectWorkspace } =
-    useStore();
+  const {
+    workspaces,
+    activeWorkspaceId,
+    repos,
+    threads,
+    selectWorkspace,
+    openRepoMap,
+    showRepoMap,
+  } = useStore();
   const [dlg, setDlg] = useState<null | "ws" | "repo" | "thread">(null);
   const active = workspaces.find((w) => w.id === activeWorkspaceId);
 
@@ -51,20 +58,30 @@ export function WorkspaceNav() {
 
       <NeedsButton />
 
-      <button
-        onClick={() => setDlg("repo")}
-        disabled={!active}
-        className="group mx-2 mb-1 flex items-center justify-between rounded-[var(--radius-md)] px-2 py-1.5 text-left transition-colors hover:bg-brand-ghost disabled:opacity-40"
+      <div
+        className={cn(
+          "group mx-2 mb-1 flex items-center rounded-[var(--radius-md)] transition-colors",
+          showRepoMap ? "bg-brand-ghost" : "hover:bg-brand-ghost",
+        )}
       >
-        <span className="flex items-center gap-2 text-[12px] text-ink-muted">
+        <button
+          onClick={openRepoMap}
+          disabled={!active}
+          title="Open the repo map"
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[12px] text-ink-muted disabled:opacity-40"
+        >
           <FolderGit2 size={13} className="text-ink-faint" />
           {repos.length} {repos.length === 1 ? "repo" : "repos"}
-        </span>
-        <Plus
-          size={14}
-          className="text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
-        />
-      </button>
+        </button>
+        <button
+          onClick={() => setDlg("repo")}
+          disabled={!active}
+          aria-label="Add repo"
+          className="mr-1 grid h-6 w-6 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 disabled:opacity-40"
+        >
+          <Plus size={14} />
+        </button>
+      </div>
 
       <div className="mx-2 my-1 border-t border-border" />
 

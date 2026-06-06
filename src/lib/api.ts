@@ -4,6 +4,7 @@ import type {
   Direction,
   DirectionRepo,
   NeedItem,
+  RepoGraph,
   RepoRef,
   Role,
   SessionInfo,
@@ -24,6 +25,14 @@ export const api = {
     invoke<RepoRef[]>("list_repos", { workspaceId }),
   addRepoRef: (workspaceId: number, name: string, localGitPath: string) =>
     invoke<RepoRef>("add_repo_ref", { workspaceId, name, localGitPath }),
+
+  // Repo map (curator): profiles + cross-repo dependency graph.
+  repoGraph: (workspaceId: number) =>
+    invoke<RepoGraph>("repo_graph", { workspaceId }),
+  reprofileRepo: (repoId: number) =>
+    invoke<void>("reprofile_repo", { repoId }),
+  updateRepoProfile: (repoId: number, summary: string, role: string) =>
+    invoke<void>("update_repo_profile", { repoId, summary, role }),
 
   listThreads: (workspaceId: number) =>
     invoke<Thread[]>("list_threads", { workspaceId }),

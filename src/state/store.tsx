@@ -13,6 +13,8 @@ import type {
   Direction,
   DirectionRepo,
   NeedItem,
+  RepoEdge,
+  RepoProfile,
   RepoRef,
   SessionInfo,
   SessionStatus,
@@ -54,6 +56,15 @@ interface Store {
   refreshNeeds: () => Promise<void>;
   answerAsk: (item: NeedItem, text: string) => Promise<void>;
   goToAsk: (item: NeedItem) => Promise<void>;
+
+  /** The curator's repo map: profiles + dependency edges. */
+  repoProfiles: RepoProfile[];
+  repoEdges: RepoEdge[];
+  showRepoMap: boolean;
+  openRepoMap: () => void;
+  refreshRepoMap: () => Promise<void>;
+  reprofileRepo: (repoId: number) => Promise<void>;
+  editRepoProfile: (repoId: number, summary: string, role: string) => Promise<void>;
 
   selectWorkspace: (id: number) => Promise<void>;
   refreshWorkspaces: () => Promise<void>;
@@ -101,6 +112,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<BusMsg[]>([]);
   const [needs, setNeeds] = useState<NeedItem[]>([]);
   const [showNeeds, setShowNeeds] = useState(false);
+  const [repoProfiles, setRepoProfiles] = useState<RepoProfile[]>([]);
+  const [repoEdges, setRepoEdges] = useState<RepoEdge[]>([]);
+  const [showRepoMap, setShowRepoMap] = useState(false);
 
   const refreshWorkspaces = useCallback(async () => {
     const ws = await api.listWorkspaces();
@@ -118,6 +132,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setActiveThreadId(null);
     setActiveSessionId(null);
     setShowNeeds(false);
+    setShowRepoMap(false);
+    setRepoProfiles([]);
+    setRepoEdges([]);
   }, []);
 
   const loadThreadChildren = useCallback(async (threadId: number) => {
@@ -150,6 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveThreadId(threadId);
       setActiveSessionId(null);
       setShowNeeds(false);
+      setShowRepoMap(false);
       await loadThreadChildren(threadId);
     },
     [loadThreadChildren],
@@ -171,6 +189,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (activeWorkspaceId == null) return;
       await api.addRepoRef(activeWorkspaceId, name, path);
       setRepos(await api.listRepos(activeWorkspaceId));
+      // a freshly added repo is eagerly profiled server-side; pull the new map
+      try {
+        const g = await api.repoGraph(activeWorkspaceId);
+        setRepoProfiles(g.nodes);
+        setRepoEdges(g.edges);
+      } catch {
+        /* ignore */
+      }
     },
     [activeWorkspaceId],
   );
@@ -228,6 +254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (existing) {
         setActiveSessionId(existing.info.session_id);
         setShowNeeds(false);
+        setShowRepoMap(false);
         return;
       }
       const info = await api.openSession(directionId, repoId);
@@ -237,6 +264,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }));
       setActiveSessionId(info.session_id);
       setShowNeeds(false);
+      setShowRepoMap(false);
     },
     [sessions],
   );
@@ -294,8 +322,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const openNeeds = useCallback(() => {
     setActiveSessionId(null);
+    setShowRepoMap(false);
     setShowNeeds(true);
   }, []);
+
+  const refreshRepoMap = useCallback(async () => {
+    if (activeWorkspaceId == null) {
+      setRepoProfiles([]);
+      setRepoEdges([]);
+      return;
+    }
+    try {
+      const g = await api.repoGraph(activeWorkspaceId);
+      setRepoProfiles(g.nodes);
+      setRepoEdges(g.edges);
+    } catch {
+      /* workspace may be empty */
+    }
+  }, [activeWorkspaceId]);
+
+  const openRepoMap = useCallback(() => {
+    setActiveSessionId(null);
+    setShowNeeds(false);
+    setShowRepoMap(true);
+    void refreshRepoMap();
+  }, [refreshRepoMap]);
+
+  const reprofileRepo = useCallback(
+    async (repoId: number) => {
+      await api.reprofileRepo(repoId);
+      await refreshRepoMap();
+    },
+    [refreshRepoMap],
+  );
+
+  const editRepoProfile = useCallback(
+    async (repoId: number, summary: string, role: string) => {
+      await api.updateRepoProfile(repoId, summary, role);
+      await refreshRepoMap();
+    },
+    [refreshRepoMap],
+  );
 
   const answerAsk = useCallback(
     async (item: NeedItem, text: string) => {
@@ -418,6 +485,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     refreshNeeds,
     answerAsk,
     goToAsk,
+    repoProfiles,
+    repoEdges,
+    showRepoMap,
+    openRepoMap,
+    refreshRepoMap,
+    reprofileRepo,
+    editRepoProfile,
     selectWorkspace,
     refreshWorkspaces,
     selectThread,

@@ -91,6 +91,32 @@ export interface BusMsg {
   kind: string;
 }
 
+/** The curator's profile of one repo, as the UI sees it (ARCHITECTURE §4.9). */
+export interface RepoProfile {
+  repo_id: number;
+  repo_name: string;
+  role: string; // service | app | library | infra | docs | unknown
+  stack: string[];
+  summary: string;
+  published: string[];
+  deps: string[];
+  source: string; // inferred | user
+  profiled_commit: string;
+  stale: boolean;
+}
+
+/** A directed dependency edge: `from` consumes `to`, evidenced by `via`. */
+export interface RepoEdge {
+  from: number;
+  to: number;
+  via: string;
+}
+
+export interface RepoGraph {
+  nodes: RepoProfile[];
+  edges: RepoEdge[];
+}
+
 /** An open agent→human question, aggregated workspace-wide for "Needs you". */
 export interface NeedItem {
   ask_id: number;
