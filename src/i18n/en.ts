@@ -62,6 +62,7 @@ export const en = {
     reviewScope: "Review the proposed scope, then create the tasks",
     directionsSub_one: "{{count}} task · runs in parallel, each scoped to its own repos",
     directionsSub_other: "{{count}} tasks · run in parallel, each scoped to its own repos",
+    tabBoard: "Board",
     newDirection: "New task",
     addDirection: "Add task",
     planTitle: "Plan this thread",

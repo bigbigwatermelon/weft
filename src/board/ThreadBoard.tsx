@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import * as DM from "@radix-ui/react-dropdown-menu";
@@ -9,6 +9,8 @@ import {
   ChevronDown,
   CircleCheck,
   Layers,
+  LayoutGrid,
+  MessagesSquare,
   Plus,
   Radio,
   RotateCcw,
@@ -24,7 +26,7 @@ import { ResumeMenu } from "../components/ResumeMenu";
 import { ToolIcon } from "../components/ToolIcon";
 import { CreateDirectionDialog } from "../nav/dialogs";
 import { BusDrawer } from "./BusDrawer";
-import { LeadDock } from "../session/LeadDock";
+import { LeadTab } from "../session/LeadTab";
 import { ScopeConfirmView } from "./ScopeConfirmView";
 import { cn } from "../lib/cn";
 
@@ -58,6 +60,7 @@ export function ThreadBoard() {
     proposal,
     reviewingProposal,
     setReviewingProposal,
+    leadSession,
     messages,
     showBus,
     setShowBus,
@@ -68,11 +71,18 @@ export function ThreadBoard() {
   const { t } = useTranslation();
   const thread = threads.find((th) => th.id === activeThreadId);
   const [newDir, setNewDir] = useState(false);
+  const [tab, setTab] = useState<"board" | "lead">("board");
+  useEffect(() => {
+    setTab("board");
+    setReviewingProposal(false);
+  }, [activeThreadId, setReviewingProposal]);
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
-  // The board canvas shows scope-confirm only when the human opens the lead's
-  // proposal card; otherwise it's the kanban (or a rest-state).
   const reviewing = reviewingProposal && proposal?.status === "proposed";
+  const proposalPending =
+    proposal?.status === "proposed" && proposal.directions.length > 0 && !reviewingProposal;
+  const leadRunning =
+    leadSession?.status === "running" || leadSession?.status === "starting";
 
   // Column = the stored, agent/human-set status; an open ask/need or a failing
   // check overlays the task into Needs-you (the exception lane weft owns).
@@ -89,29 +99,59 @@ export function ThreadBoard() {
     return "queued";
   };
 
+  const TABS = [
+    { key: "board" as const, label: t("thread.tabBoard"), icon: LayoutGrid, dot: null as string | null },
+    {
+      key: "lead" as const,
+      label: t("lead.title"),
+      icon: MessagesSquare,
+      dot: proposalPending ? "bg-accent" : leadRunning ? "bg-running" : null,
+    },
+  ];
+
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
-      <header className="flex items-center gap-3 border-b border-border px-5 py-3">
-        <button
-          onClick={reviewing ? () => setReviewingProposal(false) : undefined}
-          disabled={!reviewing}
-          className="flex min-w-0 flex-col text-left disabled:cursor-default"
-        >
-          <div className="flex items-center gap-2">
-            {reviewing && <ArrowRight size={14} className="rotate-180 text-ink-faint" />}
-            <h1 className="truncate text-[16px] font-semibold tracking-tight text-ink">
-              {thread.title}
-            </h1>
-            <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] uppercase text-ink-faint">
-              {t(`kind.${thread.kind}`, thread.kind)}
-            </span>
-          </div>
-          <span className="mt-0.5 text-[12px] text-ink-faint">
-            {reviewing
-              ? t("thread.reviewScope")
-              : t("thread.directionsSub", { count: dirs.length })}
+      <header className="flex items-center gap-4 border-b border-border px-5 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="truncate text-[15px] font-semibold tracking-tight text-ink">
+            {thread.title}
+          </h1>
+          <span className="shrink-0 rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] uppercase text-ink-faint">
+            {t(`kind.${thread.kind}`, thread.kind)}
           </span>
-        </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          {TABS.map((tb) => {
+            const active = tab === tb.key;
+            return (
+              <button
+                key={tb.key}
+                onClick={() => {
+                  setTab(tb.key);
+                  if (tb.key === "board") setReviewingProposal(false);
+                }}
+                className={cn(
+                  "relative flex items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-[12.5px] transition-colors",
+                  active ? "text-ink" : "text-ink-faint hover:text-ink-muted",
+                )}
+              >
+                <tb.icon size={13} className={active ? "text-brand" : ""} />
+                {tb.label}
+                {tb.dot && (
+                  <span className={cn("h-1.5 w-1.5 rounded-full", tb.dot, "animate-pulse")} />
+                )}
+                {active && (
+                  <motion.span
+                    layoutId="thread-tab"
+                    className="absolute inset-x-1.5 -bottom-[9px] h-[2px] rounded-full bg-brand"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setShowBus(!showBus)}
@@ -123,7 +163,7 @@ export function ThreadBoard() {
               <span className="tabular-nums text-ink-faint">{messages.length}</span>
             )}
           </button>
-          {!reviewing && dirs.length > 0 && (
+          {tab === "board" && !reviewing && dirs.length > 0 && (
             <Button variant="primary" onClick={() => setNewDir(true)}>
               <Plus size={14} />
               {t("thread.newDirection")}
@@ -132,13 +172,17 @@ export function ThreadBoard() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
-          {reviewing && proposal ? (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {tab === "lead" ? (
+          <LeadTab onReview={() => setTab("board")} />
+        ) : reviewing && proposal ? (
+          <div className="min-h-0 flex-1 overflow-auto">
             <ScopeConfirmView proposal={proposal} repos={repos} taskTitle={thread.title} />
-          ) : dirs.length === 0 ? (
-            <EmptyDiscuss />
-          ) : (
+          </div>
+        ) : dirs.length === 0 ? (
+          <EmptyDiscuss onTalk={() => setTab("lead")} />
+        ) : (
+          <div className="min-h-0 flex-1 overflow-auto">
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
               {COLUMNS.map((col) => {
                 const cards = dirs.filter((d) => statusOf(d) === col.key);
@@ -172,9 +216,8 @@ export function ThreadBoard() {
                 );
               })}
             </div>
-          )}
-        </div>
-        <LeadDock />
+          </div>
+        )}
       </div>
 
       <BusDrawer directions={dirs} />
@@ -183,7 +226,7 @@ export function ThreadBoard() {
   );
 }
 
-function EmptyDiscuss() {
+function EmptyDiscuss({ onTalk }: { onTalk: () => void }) {
   const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
@@ -194,6 +237,10 @@ function EmptyDiscuss() {
       <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
         {t("thread.discussBody")}
       </p>
+      <Button variant="primary" className="mt-4" onClick={onTalk}>
+        <MessagesSquare size={14} />
+        {t("lead.title")}
+      </Button>
     </div>
   );
 }

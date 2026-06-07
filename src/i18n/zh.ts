@@ -57,6 +57,7 @@ export const zh = {
   thread: {
     reviewScope: "审阅建议的范围,然后创建任务",
     directionsSub_other: "{{count}} 个任务 · 并行执行,各自划定到自己的仓库",
+    tabBoard: "看板",
     newDirection: "新建任务",
     addDirection: "添加任务",
     planTitle: "规划这个会话",
