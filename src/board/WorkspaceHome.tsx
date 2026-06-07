@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Activity, FolderGit2, LayoutGrid } from "lucide-react";
+import { Activity } from "lucide-react";
 import { useStore, type OpenSession } from "../state/store";
 import { api } from "../lib/api";
 import type { NormEvent } from "../lib/types";
@@ -19,23 +19,17 @@ import { cn } from "../lib/cn";
  * rail now; this answers "what's happening right now".
  */
 export function WorkspaceHome() {
-  const { homeTab } = useStore();
-  const { t } = useTranslation();
-  const title =
-    homeTab === "board"
-      ? t("thread.tabBoard")
-      : homeTab === "overview"
-        ? t("workspace.tabOverview")
-        : t("workspace.tabRepos");
-  const Icon = homeTab === "board" ? LayoutGrid : homeTab === "overview" ? Activity : FolderGit2;
+  const { homeTab, navCollapsed } = useStore();
 
+  // No page header — the rail nav already names the current view. When the rail
+  // is collapsed, a minimal bar holds just the expand toggle.
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
-      <header className="flex items-center gap-2 border-b border-border px-5 py-2.5">
-        <RailToggle />
-        <Icon size={15} className="text-ink-faint" />
-        <h1 className="text-[14px] font-semibold tracking-tight text-ink">{title}</h1>
-      </header>
+      {navCollapsed && (
+        <div className="flex items-center border-b border-border px-3 py-2">
+          <RailToggle />
+        </div>
+      )}
 
       {homeTab === "board" ? (
         <WorkspaceKanban />

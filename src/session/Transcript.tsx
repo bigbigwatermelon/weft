@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api";
 import type { NormEvent } from "../lib/types";
-import { cn } from "../lib/cn";
+import { Markdown } from "../components/Markdown";
 
 /** Map a (cleaned) tool name to a glyph so the pills are scannable. */
 function toolIcon(name: string): ComponentType<LucideProps> {
@@ -119,14 +119,9 @@ export function Transcript({
             </p>
           </div>
         ) : (
-          <p
-            key={i}
-            className={cn(
-              "whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-ink",
-            )}
-          >
-            {e.text}
-          </p>
+          <div key={i} className="break-words">
+            <Markdown text={e.text} />
+          </div>
         ),
       )}
       {running && (
