@@ -309,19 +309,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [activeWorkspaceId],
   );
 
-  const createDirection = useCallback(
-    async (
-      threadId: number,
-      name: string,
-      tool: string,
-      scope: { repo_id: number; role: "write" | "read" }[],
-    ) => {
-      await api.createDirection(threadId, name, tool, scope);
-      await loadThreadChildren(threadId);
-    },
-    [loadThreadChildren],
-  );
-
   const deleteThread = useCallback(
     async (threadId: number) => {
       await api.deleteThread(threadId);
@@ -343,16 +330,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const openSession = useCallback(
-    async (directionId: number, repoId: number) => {
-      // focus an existing live session for this slot if present
-      const existing = Object.values(sessions).find(
+  // Spawn (or focus) a worker for a (direction, repo) slot. focus=true opens it
+  // full-screen (a click); focus=false dispatches it in the background.
+  const spawnWorker = useCallback(
+    async (directionId: number, repoId: number, focus: boolean) => {
+      const existing = Object.values(sessionsRef.current).find(
         (s) => s.directionId === directionId && s.repoId === repoId,
       );
       if (existing) {
-        setActiveSessionId(existing.info.session_id);
-        setShowNeeds(false);
-        setShowRepoMap(false);
+        if (focus) {
+          setActiveSessionId(existing.info.session_id);
+          setShowNeeds(false);
+          setShowRepoMap(false);
+        }
         return;
       }
       const info = await api.openSession(directionId, repoId, currentLang());
@@ -370,11 +360,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           kind: "worker",
         },
       }));
-      setActiveSessionId(info.session_id);
-      setShowNeeds(false);
-      setShowRepoMap(false);
+      if (focus) {
+        setActiveSessionId(info.session_id);
+        setShowNeeds(false);
+        setShowRepoMap(false);
+      }
     },
-    [sessions, activeThreadId],
+    [activeThreadId],
+  );
+
+  const openSession = useCallback(
+    (directionId: number, repoId: number) => spawnWorker(directionId, repoId, true),
+    [spawnWorker],
+  );
+
+  // Automation-first (§4 principle 7): once a task is materialized, dispatch its
+  // worker(s) right away — every write worktree gets an agent, no human click.
+  const dispatchDirection = useCallback(
+    async (directionId: number) => {
+      let wts;
+      try {
+        wts = await api.listWorktrees(directionId);
+      } catch {
+        return;
+      }
+      for (const w of wts) {
+        await spawnWorker(directionId, w.repo_id, false);
+      }
+    },
+    [spawnWorker],
+  );
+
+  const createDirection = useCallback(
+    async (
+      threadId: number,
+      name: string,
+      tool: string,
+      scope: { repo_id: number; role: "write" | "read" }[],
+    ) => {
+      const dir = await api.createDirection(threadId, name, tool, scope);
+      await loadThreadChildren(threadId);
+      void dispatchDirection(dir.id);
+    },
+    [loadThreadChildren, dispatchDirection],
   );
 
   // Start (or reuse) the thread's persistent lead conversation. Unlike a worker,
@@ -591,11 +619,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const confirmProposal = useCallback(async () => {
     if (activeThreadId == null) return;
-    await api.confirmProposal(activeThreadId);
+    const ids = await api.confirmProposal(activeThreadId);
     setProposal(null);
     setReviewingProposal(false);
     await loadThreadChildren(activeThreadId);
-  }, [activeThreadId, loadThreadChildren]);
+    // Automation-first: dispatch every new task's worker immediately.
+    for (const id of ids) void dispatchDirection(id);
+  }, [activeThreadId, loadThreadChildren, dispatchDirection]);
 
   const answerAsk = useCallback(
     async (item: NeedItem, text: string) => {
