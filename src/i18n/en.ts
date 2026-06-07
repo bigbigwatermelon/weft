@@ -124,6 +124,9 @@ export const en = {
     resumeReady: "Resume this session",
     starting: "Starting…",
     kill: "Kill",
+    clickToInteract: "Click to interact",
+    interacting: "Interacting",
+    backToReadonly: "Back to read-only",
   },
   bus: {
     title: "Thread bus",

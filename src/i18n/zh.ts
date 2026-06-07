@@ -117,6 +117,9 @@ export const zh = {
     resumeReady: "恢复此会话",
     starting: "启动中…",
     kill: "终止",
+    clickToInteract: "点击进入交互",
+    interacting: "交互中",
+    backToReadonly: "返回只读",
   },
   bus: {
     title: "会话总线",
