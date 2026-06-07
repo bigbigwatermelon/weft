@@ -181,6 +181,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // and which directions we've already auto-checked this idle episode.
   const lastOutputRef = useRef<Record<number, number>>({});
   const autoCheckedRef = useRef<Set<number>>(new Set());
+  // Directions with an auto-(re)dispatch in flight, so the poll-driven effect
+  // never spawns a duplicate worker before the first spawn lands in `sessions`.
+  const dispatchingRef = useRef<Set<number>>(new Set());
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
@@ -887,6 +890,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearInterval(h);
     };
   }, [activeThreadId]);
+
+  // Automation-first across restarts (§4 principle 7): a task that's "working"
+  // but has no live session — e.g. after an app restart, when in-memory PTYs are
+  // gone — gets its worker (re)dispatched so it runs without a manual click.
+  // Spawning reuses the existing worktree, so the agent continues the task.
+  useEffect(() => {
+    if (activeThreadId == null) return;
+    const dirs = directionsByThread[activeThreadId] ?? [];
+    for (const d of dirs) {
+      if (d.status !== "working") continue;
+      const hasLive = Object.values(sessionsRef.current).some(
+        (s) => s.directionId === d.id && s.status !== "exited",
+      );
+      if (hasLive || dispatchingRef.current.has(d.id)) continue;
+      dispatchingRef.current.add(d.id);
+      void dispatchDirection(d.id).finally(() => dispatchingRef.current.delete(d.id));
+    }
+  }, [activeThreadId, directionsByThread, dispatchDirection]);
 
   const leadSession = leadForActive ?? null;
   const leadCollapsed =

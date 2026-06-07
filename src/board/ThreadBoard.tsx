@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import {
-  ArrowRight,
   Bell,
   Check,
   CircleCheck,
@@ -354,16 +353,11 @@ function DirectionCard({ direction }: { direction: Direction }) {
                 <span className="truncate text-[12px] text-ink">
                   {repo?.name ?? `repo ${w.repo_id}`}
                 </span>
-                <span className="ml-auto flex items-center">
-                  {sess ? (
+                {sess && (
+                  <span className="ml-auto flex items-center">
                     <StatusDot status={sess.status as SessionStatus} />
-                  ) : (
-                    <ArrowRight
-                      size={13}
-                      className="text-ink-faint opacity-0 transition-opacity group-hover:opacity-100"
-                    />
-                  )}
-                </span>
+                  </span>
+                )}
               </button>
               <Inspect
                 path={w.path}

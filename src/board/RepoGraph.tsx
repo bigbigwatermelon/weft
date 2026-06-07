@@ -192,13 +192,15 @@ export function RepoGraph() {
             </marker>
           </defs>
           {repoEdges.map((e, i) => {
-            const a = layout.pos.get(e.from);
-            const b = layout.pos.get(e.to);
-            if (!a || !b) return null;
-            const x1 = a.x; // dependent, left edge
-            const y1 = a.y + NODE_H / 2;
-            const x2 = b.x + NODE_W; // dependency, right edge
-            const y2 = b.y + NODE_H / 2;
+            const dependent = layout.pos.get(e.from);
+            const dependency = layout.pos.get(e.to);
+            if (!dependent || !dependency) return null;
+            // Arrow points dependency -> dependent (core -> api -> web-app): the
+            // foundation feeds its consumers, reading left to right.
+            const x1 = dependency.x + NODE_W; // dependency, right edge (start)
+            const y1 = dependency.y + NODE_H / 2;
+            const x2 = dependent.x; // dependent, left edge (arrowhead)
+            const y2 = dependent.y + NODE_H / 2;
             const mx = (x1 + x2) / 2;
             return (
               <path
