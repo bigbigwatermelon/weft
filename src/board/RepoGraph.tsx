@@ -8,6 +8,7 @@ import {
   Maximize2,
   Minus,
   Package,
+  Pencil,
   Plus,
   RefreshCw,
   Server,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { useStore } from "../state/store";
+import type { RepoProfile } from "../lib/types";
 import { cn } from "../lib/cn";
 
 const ROLE_ICON: Record<string, ComponentType<LucideProps>> = {
@@ -271,20 +273,7 @@ export function RepoGraph() {
                 )}
               </div>
 
-              <p
-                className={cn(
-                  "text-[11.5px] leading-snug",
-                  p.summary ? "text-ink-muted" : "text-ink-faint italic",
-                )}
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {p.summary || t("repomap.addSummary")}
-              </p>
+              <NodeSummary profile={p} />
             </div>
           );
         })}
@@ -310,6 +299,76 @@ export function RepoGraph() {
         </ZoomBtn>
       </div>
     </div>
+  );
+}
+
+/** The node's one-line summary, click-to-edit (correcting it teaches the map). */
+function NodeSummary({ profile }: { profile: RepoProfile }) {
+  const { editRepoProfile } = useStore();
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(profile.summary);
+
+  async function save() {
+    setEditing(false);
+    const next = text.trim();
+    if (next === profile.summary) return;
+    await editRepoProfile(profile.repo_id, next, profile.role);
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.currentTarget.value)}
+        onBlur={() => void save()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void save();
+          if (e.key === "Escape") {
+            setText(profile.summary);
+            setEditing(false);
+          }
+        }}
+        placeholder={t("repomap.summaryPlaceholder")}
+        className="w-full rounded border border-border bg-bg px-1.5 py-1 text-[11.5px] text-ink outline-none focus:border-brand/60"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => {
+        setText(profile.summary);
+        setEditing(true);
+      }}
+      title={t("repomap.editHint")}
+      className="group/sum flex items-start gap-1 text-left"
+    >
+      <span
+        className={cn(
+          "text-[11.5px] leading-snug",
+          profile.summary ? "text-ink-muted" : "text-ink-faint italic",
+        )}
+        style={{
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+      >
+        {profile.summary || t("repomap.addSummary")}
+      </span>
+      {profile.source === "user" && (
+        <span className="mt-px shrink-0 rounded bg-brand-ghost px-1 py-px text-[9px] font-medium text-brand">
+          {t("repomap.yours")}
+        </span>
+      )}
+      <Pencil
+        size={10}
+        className="mt-0.5 shrink-0 text-ink-faint opacity-0 transition-opacity group-hover/sum:opacity-100"
+      />
+    </button>
   );
 }
 
