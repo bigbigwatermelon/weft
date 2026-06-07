@@ -88,12 +88,9 @@ export function WorkspaceNav() {
         )}
       </div>
 
-      <footer className="flex items-center justify-between border-t border-border px-3 py-2">
-        <span className="text-[11px] text-ink-faint">{t("nav.local")}</span>
-        <div className="flex items-center gap-1">
-          <LangToggle />
-          <ThemeToggle />
-        </div>
+      <footer className="flex items-center justify-end gap-1 border-t border-border px-3 py-2">
+        <LangToggle />
+        <ThemeToggle />
       </footer>
 
       <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
