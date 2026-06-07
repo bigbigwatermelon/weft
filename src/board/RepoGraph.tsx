@@ -124,7 +124,7 @@ export function RepoGraph() {
       // zoom proportional to the scroll delta so a trackpad's many small events
       // stay gentle; clamp the per-event delta so a mouse wheel can't jump.
       const dy = Math.max(-50, Math.min(50, e.deltaY));
-      zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * 0.0015));
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-dy * 0.0045));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
