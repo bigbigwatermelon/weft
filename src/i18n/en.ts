@@ -84,6 +84,7 @@ export const en = {
     colReview: "Review",
     colDone: "Done",
     colEmpty: "—",
+    dropHere: "Drop to move here",
     setStatus: "Set status",
     discussTitle: "Talk to the lead to plan this thread",
     discussBody:

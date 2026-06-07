@@ -79,6 +79,7 @@ export const zh = {
     colReview: "待审阅",
     colDone: "已完成",
     colEmpty: "—",
+    dropHere: "拖到此处移动",
     setStatus: "设置状态",
     discussTitle: "和 lead 聊聊来规划这个会话",
     discussBody:

@@ -61,11 +61,15 @@ export function ThreadBoard() {
     needs,
     asks,
     checksByDirection,
+    setTaskStatus,
   } = useStore();
   const { t } = useTranslation();
   const thread = threads.find((th) => th.id === activeThreadId);
   const [newDir, setNewDir] = useState(false);
   const [tab, setTab] = useState<"board" | "lead">("board");
+  // drag-to-restatus a task between columns
+  const [dragId, setDragId] = useState<number | null>(null);
+  const [overCol, setOverCol] = useState<TaskState | null>(null);
   useEffect(() => {
     setTab("board");
     setReviewingProposal(false);
@@ -175,6 +179,10 @@ export function ThreadBoard() {
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
               {COLUMNS.map((col) => {
                 const cards = dirs.filter((d) => statusOf(d) === col.key);
+                // "needs" is weft-derived (open asks / failing checks), not a
+                // status a human sets — so it isn't a drop target.
+                const droppable = col.key !== "needs";
+                const isOver = droppable && overCol === col.key && dragId != null;
                 return (
                   <div key={col.key} className="flex w-[300px] shrink-0 flex-col gap-2">
                     <div className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
@@ -191,13 +199,46 @@ export function ThreadBoard() {
                         </button>
                       )}
                     </div>
-                    <div className="flex min-h-0 flex-1 flex-col gap-2 rounded-[var(--radius-lg)] bg-surface/40 p-2">
+                    <div
+                      onDragOver={(e) => {
+                        if (!droppable || dragId == null) return;
+                        e.preventDefault();
+                        setOverCol(col.key);
+                      }}
+                      onDragLeave={() => setOverCol((c) => (c === col.key ? null : c))}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (droppable && dragId != null) void setTaskStatus(dragId, col.key);
+                        setDragId(null);
+                        setOverCol(null);
+                      }}
+                      className={cn(
+                        "flex min-h-0 flex-1 flex-col gap-2 rounded-[var(--radius-lg)] p-2 transition-colors",
+                        isOver
+                          ? "bg-brand-ghost ring-1 ring-inset ring-brand/40"
+                          : "bg-surface/40",
+                      )}
+                    >
                       {cards.map((d) => (
-                        <DirectionCard key={d.id} direction={d} />
+                        <div
+                          key={d.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDragId(d.id);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          onDragEnd={() => {
+                            setDragId(null);
+                            setOverCol(null);
+                          }}
+                          className={cn("cursor-grab active:cursor-grabbing", dragId === d.id && "opacity-40")}
+                        >
+                          <DirectionCard direction={d} />
+                        </div>
                       ))}
                       {cards.length === 0 && (
                         <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-ink-faint/60">
-                          {t("thread.colEmpty")}
+                          {isOver ? t("thread.dropHere") : t("thread.colEmpty")}
                         </div>
                       )}
                     </div>
