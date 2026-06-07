@@ -130,7 +130,11 @@ export function SessionView() {
       </header>
 
       {view === "chat" ? (
-        <Transcript cwd={info.worktree} tool={info.tool} />
+        <Transcript
+          cwd={info.worktree}
+          tool={info.tool}
+          running={status === "running" || status === "starting"}
+        />
       ) : view === "diff" ? (
         <DiffView cwd={info.worktree} />
       ) : (

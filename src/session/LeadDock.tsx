@@ -157,6 +157,7 @@ export function LeadDock() {
             <Transcript
               cwd={leadSession.info.worktree}
               tool={leadSession.info.tool}
+              running={running}
             />
           ) : (
             <motion.div

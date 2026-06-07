@@ -34,11 +34,21 @@ function toolIcon(name: string): ComponentType<LucideProps> {
  * costs nothing close to a live TUI. Polls while mounted; the PTY keeps running
  * underneath regardless.
  */
-export function Transcript({ cwd, tool }: { cwd: string; tool: string }) {
+export function Transcript({
+  cwd,
+  tool,
+  running,
+}: {
+  cwd: string;
+  tool: string;
+  running?: boolean;
+}) {
   const { t } = useTranslation();
   const [events, setEvents] = useState<NormEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const atBottomRef = useRef(true);
 
   useEffect(() => {
     let alive = true;
@@ -61,9 +71,16 @@ export function Transcript({ cwd, tool }: { cwd: string; tool: string }) {
     };
   }, [cwd, tool]);
 
+  // Only auto-scroll when the user is already near the bottom — don't yank them
+  // up to the latest when they've scrolled back to read history.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: "end" });
-  }, [events.length]);
+    if (atBottomRef.current) endRef.current?.scrollIntoView({ block: "end" });
+  }, [events.length, running]);
+
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (el) atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   if (loaded && events.length === 0) {
     return (
@@ -76,7 +93,11 @@ export function Transcript({ cwd, tool }: { cwd: string; tool: string }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-3">
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-3"
+    >
       {events.map((e, i) =>
         e.kind === "tool" ? (
           (() => {
@@ -107,6 +128,12 @@ export function Transcript({ cwd, tool }: { cwd: string; tool: string }) {
             {e.text}
           </p>
         ),
+      )}
+      {running && (
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-ink-faint">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-running" />
+          {t("lead.working")}
+        </div>
       )}
       <div ref={endRef} />
     </div>

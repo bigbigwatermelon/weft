@@ -87,6 +87,7 @@ export const zh = {
     viewChat: "对话",
     viewTerminal: "终端",
     transcriptEmpty: "还没有产出。",
+    working: "处理中…",
   },
   scope: {
     proposedFor: "「{{title}}」的建议方案",

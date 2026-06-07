@@ -92,6 +92,7 @@ export const en = {
     viewChat: "Chat",
     viewTerminal: "Terminal",
     transcriptEmpty: "Nothing yet.",
+    working: "Working…",
   },
   scope: {
     proposedFor: "Proposed plan for {{title}}",

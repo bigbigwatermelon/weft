@@ -93,6 +93,9 @@ fn is_seed(text: &str) -> bool {
         || text.contains("weft_bus")
         || text.contains("You are the lead for this thread")
         || text.contains("You are a worker in weft")
+        // tool-injected scaffolding (codex/opencode) — not a human turn
+        || text.contains("<environment_context>")
+        || text.contains("MEMORY_SUMMARY")
 }
 
 fn summarize_tool(_name: &str, input: Option<&serde_json::Value>) -> String {
