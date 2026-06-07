@@ -36,8 +36,10 @@ export interface OpenSession {
   /** identity of the (direction, repo) slot this session occupies */
   directionId: number;
   repoId: number;
+  /** the thread this session belongs to (a lead's home, a worker's parent). */
+  threadId: number;
   nativeId: string | null;
-  /** worker = a direction's session; lead = an ephemeral planning session */
+  /** worker = a task's session; lead = the thread's persistent conversation */
   kind: "worker" | "lead";
 }
 
@@ -56,6 +58,22 @@ interface Store {
   messages: BusMsg[];
   postHuman: (to: string | null, text: string) => Promise<void>;
   nudgeDirection: (directionId: number) => Promise<void>;
+
+  /** The active thread's persistent lead conversation, if one is running. */
+  leadSession: OpenSession | null;
+  /** Start the thread's lead (idempotent — reuses a live one). */
+  startLead: () => Promise<void>;
+  /** Send a composed message into the lead's PTY (bracketed paste + enter). */
+  sendToLead: (text: string) => Promise<void>;
+  /** Per-thread collapse state for the lead dock; default expanded. */
+  leadCollapsed: boolean;
+  toggleLeadCollapsed: () => void;
+  /** The thread-bus drawer (demoted from a permanent rail). */
+  showBus: boolean;
+  setShowBus: (open: boolean) => void;
+  /** Whether the board canvas is showing the proposal's scope-confirm. */
+  reviewingProposal: boolean;
+  setReviewingProposal: (v: boolean) => void;
 
   /** Open agent→human questions across the workspace; the Needs-you surface. */
   needs: NeedItem[];
@@ -112,7 +130,6 @@ interface Store {
   deleteThread: (threadId: number) => Promise<void>;
 
   openSession: (directionId: number, repoId: number) => Promise<void>;
-  planWithLead: () => Promise<void>;
   /** Set a task's lifecycle status (human override). */
   setTaskStatus: (directionId: number, status: string) => Promise<void>;
   /** Quality loop: executable-check results + in-flight set, per direction. */
@@ -161,6 +178,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [showRepoMap, setShowRepoMap] = useState(false);
   const [proposal, setProposal] = useState<ResolvedProposal | null>(null);
   const [overview, setOverview] = useState<ThreadOverview[]>([]);
+  // Lead dock: per-thread collapse memory; bus drawer; proposal-review state.
+  const [leadCollapsedByThread, setLeadCollapsedByThread] = useState<
+    Record<number, boolean>
+  >({});
+  const [showBus, setShowBus] = useState(false);
+  const [reviewingProposal, setReviewingProposal] = useState(false);
 
   const refreshWorkspaces = useCallback(async () => {
     const ws = await api.listWorkspaces();
@@ -216,6 +239,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setActiveSessionId(null);
       setShowNeeds(false);
       setShowRepoMap(false);
+      setShowBus(false);
+      setReviewingProposal(false);
       try {
         setProposal(await api.getProposal(threadId));
       } catch {
@@ -340,6 +365,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           status: "starting",
           directionId,
           repoId,
+          threadId: activeThreadId ?? -1,
           nativeId: null,
           kind: "worker",
         },
@@ -348,12 +374,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setShowNeeds(false);
       setShowRepoMap(false);
     },
-    [sessions],
+    [sessions, activeThreadId],
   );
 
-  const planWithLead = useCallback(async () => {
+  // Start (or reuse) the thread's persistent lead conversation. Unlike a worker,
+  // the lead is embedded in the dock, not opened full-screen, and it stays alive
+  // across the thread's life so the human can keep talking to it.
+  const startLead = useCallback(async () => {
     if (activeThreadId == null) return;
-    const lead = await api.planWithLead(activeThreadId, currentLang());
+    const thread = activeThreadId;
+    const live = Object.values(sessionsRef.current).find(
+      (s) => s.kind === "lead" && s.threadId === thread && s.status !== "exited",
+    );
+    if (live) return; // already running — the dock shows it
+    const lead = await api.planWithLead(thread, currentLang());
     const info: SessionInfo = {
       session_id: lead.session_id,
       repo: "",
@@ -362,6 +396,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       tool: lead.tool,
       resumed: false,
     };
+    lastOutputRef.current[lead.session_id] = Date.now();
     setSessions((m) => ({
       ...m,
       [lead.session_id]: {
@@ -369,13 +404,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         status: "running",
         directionId: -1,
         repoId: -1,
+        threadId: thread,
         nativeId: null,
         kind: "lead",
       },
     }));
-    setActiveSessionId(lead.session_id);
-    setShowNeeds(false);
-    setShowRepoMap(false);
+  }, [activeThreadId]);
+
+  const sendToLead = useCallback(async (text: string) => {
+    const body = text.trimEnd();
+    if (!body) return;
+    const thread = activeThreadId;
+    const lead = Object.values(sessionsRef.current).find(
+      (s) => s.kind === "lead" && s.threadId === thread && s.status !== "exited",
+    );
+    if (!lead) return;
+    // Bracketed paste keeps multi-line prompts intact in the TUI, then Enter submits.
+    const payload = `\x1b[200~${body}\x1b[201~\r`;
+    await api.writePty(lead.info.session_id, payload);
+  }, [activeThreadId]);
+
+  const toggleLeadCollapsed = useCallback(() => {
+    const thread = activeThreadId;
+    if (thread == null) return;
+    setLeadCollapsedByThread((m) => ({ ...m, [thread]: !m[thread] }));
   }, [activeThreadId]);
 
   const setTaskStatus = useCallback(async (directionId: number, status: string) => {
@@ -541,6 +593,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (activeThreadId == null) return;
     await api.confirmProposal(activeThreadId);
     setProposal(null);
+    setReviewingProposal(false);
     await loadThreadChildren(activeThreadId);
   }, [activeThreadId, loadThreadChildren]);
 
@@ -636,43 +689,38 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [activeWorkspaceId, refreshNeeds]);
 
-  // While an ephemeral lead session is planning, watch for its proposal; when it
-  // lands, stop the lead and drop back to the board's scope-confirm step.
-  const leadActive =
-    activeSessionId != null && sessions[activeSessionId]?.kind === "lead";
+  // The lead is persistent and lives in the dock, so while it's running we poll
+  // for its proposal and surface it as a card (the lead keeps running — the human
+  // can keep talking and the lead can re-propose). It does NOT take over the board.
+  const leadForActive =
+    activeThreadId != null
+      ? Object.values(sessions).find(
+          (s) =>
+            s.kind === "lead" &&
+            s.threadId === activeThreadId &&
+            s.status !== "exited",
+        )
+      : undefined;
+  const leadActiveId = leadForActive?.info.session_id ?? null;
   useEffect(() => {
-    if (!leadActive || activeThreadId == null || activeSessionId == null) return;
+    if (activeThreadId == null || leadActiveId == null) return;
     const thread = activeThreadId;
-    const leadId = activeSessionId;
     let alive = true;
     const tick = async () => {
       try {
         const p = await api.getProposal(thread);
-        if (alive && p && p.status === "proposed" && p.directions.length > 0) {
-          alive = false;
-          setProposal(p);
-          try {
-            await api.killSession(leadId);
-          } catch {
-            /* already gone */
-          }
-          setSessions((m) => {
-            const n = { ...m };
-            delete n[leadId];
-            return n;
-          });
-          setActiveSessionId(null);
-        }
+        if (alive && p) setProposal(p);
       } catch {
         /* planner not ready */
       }
     };
+    void tick();
     const h = setInterval(tick, 2500);
     return () => {
       alive = false;
       clearInterval(h);
     };
-  }, [leadActive, activeThreadId, activeSessionId]);
+  }, [activeThreadId, leadActiveId]);
 
   // Auto-verify loop (ARCHITECTURE §4.13): when a worker's PTY goes quiet for a
   // while it has likely finished its turn — run that direction's checks once per
@@ -732,6 +780,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [activeThreadId]);
 
+  const leadSession = leadForActive ?? null;
+  const leadCollapsed =
+    activeThreadId != null ? !!leadCollapsedByThread[activeThreadId] : false;
+
   const value: Store = {
     workspaces,
     activeWorkspaceId,
@@ -746,6 +798,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     messages,
     postHuman,
     nudgeDirection,
+    leadSession,
+    startLead,
+    sendToLead,
+    leadCollapsed,
+    toggleLeadCollapsed,
+    showBus,
+    setShowBus,
+    reviewingProposal,
+    setReviewingProposal,
     needs,
     asks,
     showNeeds,
@@ -780,7 +841,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     createDirection,
     deleteThread,
     openSession,
-    planWithLead,
     setTaskStatus,
     checksByDirection,
     checkingDirections,

@@ -67,6 +67,23 @@ export const zh = {
     colDone: "已完成",
     colEmpty: "—",
     setStatus: "设置状态",
+    discussTitle: "和 lead 聊聊来规划这个会话",
+    discussBody:
+      "在右侧的对话里描述你想要什么。lead 会读取你的仓库、提议如何拆分工作,你在这里确认成任务。",
+  },
+  lead: {
+    title: "Lead",
+    startTitle: "启动 lead",
+    startBody:
+      "这个会话的主要协作者:它读取仓库地图、和你一起规划、并驱动各个任务。",
+    start: "启动 lead",
+    collapse: "收起 lead",
+    expand: "展开 lead",
+    compose: "给 lead 发消息…",
+    send: "发送",
+    proposalReady_other: "建议 {{count}} 个任务",
+    reviewCreate: "查看并创建",
+    starting: "正在启动 lead…",
   },
   scope: {
     proposedFor: "「{{title}}」的建议方案",
@@ -103,6 +120,8 @@ export const zh = {
   },
   bus: {
     title: "会话总线",
+    activity: "活动",
+    close: "关闭",
     messages_other: "{{count}} 条消息",
     empty: "还没有消息。各任务通过 bus 在这里发言,你也可以。",
     broadcast: "广播 · 所有任务",

@@ -431,22 +431,28 @@ pub struct LeadInfo {
     pub tool: String,
 }
 
-/// The planning prompt the lead is seeded with. It is told to drive the planner
-/// MCP and propose a write-only decomposition; the human confirms in weft.
+/// The conversational lead prompt. The lead is the human's main collaborator for
+/// the thread: it discusses the work, and the plan EMERGES from that conversation
+/// rather than from a one-shot propose-and-exit. It proposes when (and only when)
+/// the human has converged with it, and may re-propose after more discussion.
 fn lead_prompt() -> &'static str {
-    "You are the planning lead in weft. Use the weft_planner MCP tools to plan, do not write code. \
-Steps: (1) call get_task to read the task; (2) call get_repo_map to see each repo's role and the \
-cross-repo dependency graph; (3) decide which repos each parallel direction must WRITE (reads are \
-free — never list them); (4) call propose_directions with a short rationale and the directions \
-(name, tool, writes[]). Prefer splitting frontend/backend/shared work so directions run in \
-parallel; put a shared contract's owner first. The human reviews and confirms your proposal."
+    "You are the lead for this thread in weft — the human's main collaborator. \
+Start by greeting briefly and using the weft_planner MCP tools to orient: call get_task to read \
+what's being asked, and get_repo_map to learn each repo's role and the cross-repo dependency graph. \
+Then DISCUSS the approach with the human; ask clarifying questions when it matters. You do not write \
+code — you plan and drive. When you and the human have converged on how to split the work, call \
+propose_directions with a short rationale and the directions (name, tool, writes[]); only list repos \
+each direction must WRITE (reads are free). The human reviews and confirms in weft; you can re-propose \
+after more discussion. Prefer splitting frontend/backend/shared work to run in parallel, owner of a \
+shared contract first."
 }
 
-/// Spawn an EPHEMERAL read-only lead session to plan a thread: a fresh agent in
-/// a per-thread scratch dir with the planner MCP injected and the planning
-/// prompt seeded. No worktree, no DB row — the lead proposes via the planner MCP
-/// and exits; the human confirms in the scope-confirm step. Keyed in PtyState by
-/// a synthetic negative id (`-thread_id`) so it never collides with worker ids.
+/// Spawn (or replace) the thread's PERSISTENT read-only lead conversation: a
+/// fresh agent in a per-thread scratch dir with the planner MCP injected and the
+/// conversational lead prompt seeded. No worktree, no DB row — the lead plans via
+/// the planner MCP; the human keeps talking to it in the dock and confirms its
+/// proposals in the scope-confirm step. Keyed in PtyState by a synthetic negative
+/// id (`-thread_id`) so it never collides with worker ids and is stable per thread.
 #[tauri::command]
 pub async fn plan_with_lead(
     app: AppHandle,

@@ -71,6 +71,24 @@ export const en = {
     colDone: "Done",
     colEmpty: "—",
     setStatus: "Set status",
+    discussTitle: "Talk to the lead to plan this thread",
+    discussBody:
+      "Describe what you want in the conversation on the right. The lead reads your repos, proposes how to split the work, and you confirm it into tasks here.",
+  },
+  lead: {
+    title: "Lead",
+    startTitle: "Start the lead",
+    startBody:
+      "Your main collaborator for this thread: it reads the repo map, plans the work with you, and drives the tasks.",
+    start: "Start the lead",
+    collapse: "Collapse lead",
+    expand: "Expand lead",
+    compose: "Message the lead…",
+    send: "Send",
+    proposalReady_one: "Proposed {{count}} task",
+    proposalReady_other: "Proposed {{count}} tasks",
+    reviewCreate: "Review & create",
+    starting: "Starting the lead…",
   },
   scope: {
     proposedFor: "Proposed plan for {{title}}",
@@ -109,6 +127,8 @@ export const en = {
   },
   bus: {
     title: "Thread bus",
+    activity: "Activity",
+    close: "Close",
     messages_one: "{{count}} message",
     messages_other: "{{count}} messages",
     empty: "No messages yet. Tasks post here via the bus; you can too.",

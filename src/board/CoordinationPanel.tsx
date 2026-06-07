@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Megaphone, Radio, Send } from "lucide-react";
+import { Megaphone, Radio, Send, X } from "lucide-react";
 import { useStore } from "../state/store";
 import type { Direction } from "../lib/types";
 import { Button } from "../components/ui/Button";
@@ -9,8 +9,14 @@ import { Input } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 import { cn } from "../lib/cn";
 
-/** A right-rail panel: the thread's bus timeline + a human composer. */
-export function CoordinationPanel({ directions }: { directions: Direction[] }) {
+/** The thread's bus timeline + a human composer; rendered inside the bus drawer. */
+export function CoordinationPanel({
+  directions,
+  onClose,
+}: {
+  directions: Direction[];
+  onClose?: () => void;
+}) {
   const { messages, postHuman } = useStore();
   const { t } = useTranslation();
   const [to, setTo] = useState<string>("*");
@@ -37,13 +43,22 @@ export function CoordinationPanel({ directions }: { directions: Direction[] }) {
   }
 
   return (
-    <aside className="flex w-80 shrink-0 flex-col border-l border-border bg-surface">
+    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-border bg-surface">
       <header className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <Radio size={13} className="text-brand" />
         <span className="text-[12px] font-semibold text-ink">{t("bus.title")}</span>
         <span className="ml-auto text-[11px] text-ink-faint">
           {t("bus.messages", { count: messages.length })}
         </span>
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label={t("bus.close")}
+            className="-mr-1 grid h-7 w-7 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+          >
+            <X size={15} />
+          </button>
+        )}
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col-reverse overflow-y-auto px-3 py-2">

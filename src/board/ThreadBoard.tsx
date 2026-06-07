@@ -10,7 +10,7 @@ import {
   CircleCheck,
   Layers,
   Plus,
-  Sparkles,
+  Radio,
   TerminalSquare,
   X,
 } from "lucide-react";
@@ -21,7 +21,8 @@ import { StatusDot } from "../components/ui/StatusChip";
 import { Inspect } from "../components/Inspect";
 import { ToolIcon } from "../components/ToolIcon";
 import { CreateDirectionDialog } from "../nav/dialogs";
-import { CoordinationPanel } from "./CoordinationPanel";
+import { BusDrawer } from "./BusDrawer";
+import { LeadDock } from "../session/LeadDock";
 import { ScopeConfirmView } from "./ScopeConfirmView";
 import { cn } from "../lib/cn";
 
@@ -53,6 +54,11 @@ export function ThreadBoard() {
     directionsByThread,
     repos,
     proposal,
+    reviewingProposal,
+    setReviewingProposal,
+    messages,
+    showBus,
+    setShowBus,
     needs,
     asks,
     checksByDirection,
@@ -62,7 +68,9 @@ export function ThreadBoard() {
   const [newDir, setNewDir] = useState(false);
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
-  const proposing = proposal?.status === "proposed";
+  // The board canvas shows scope-confirm only when the human opens the lead's
+  // proposal card; otherwise it's the kanban (or a rest-state).
+  const reviewing = reviewingProposal && proposal?.status === "proposed";
 
   // Column = the stored, agent/human-set status; an open ask/need or a failing
   // check overlays the task into Needs-you (the exception lane weft owns).
@@ -82,8 +90,13 @@ export function ThreadBoard() {
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
       <header className="flex items-center gap-3 border-b border-border px-5 py-3">
-        <div className="flex min-w-0 flex-col">
+        <button
+          onClick={reviewing ? () => setReviewingProposal(false) : undefined}
+          disabled={!reviewing}
+          className="flex min-w-0 flex-col text-left disabled:cursor-default"
+        >
           <div className="flex items-center gap-2">
+            {reviewing && <ArrowRight size={14} className="rotate-180 text-ink-faint" />}
             <h1 className="truncate text-[16px] font-semibold tracking-tight text-ink">
               {thread.title}
             </h1>
@@ -92,27 +105,37 @@ export function ThreadBoard() {
             </span>
           </div>
           <span className="mt-0.5 text-[12px] text-ink-faint">
-            {proposing
+            {reviewing
               ? t("thread.reviewScope")
               : t("thread.directionsSub", { count: dirs.length })}
           </span>
+        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setShowBus(!showBus)}
+            className="flex items-center gap-1.5 rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-[12px] text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+          >
+            <Radio size={13} className="text-brand" />
+            {t("bus.activity")}
+            {messages.length > 0 && (
+              <span className="tabular-nums text-ink-faint">{messages.length}</span>
+            )}
+          </button>
+          {!reviewing && dirs.length > 0 && (
+            <Button variant="primary" onClick={() => setNewDir(true)}>
+              <Plus size={14} />
+              {t("thread.newDirection")}
+            </Button>
+          )}
         </div>
-        {!proposing && (
-          <Button variant="primary" className="ml-auto" onClick={() => setNewDir(true)}>
-            <Plus size={14} />
-            {t("thread.newDirection")}
-          </Button>
-        )}
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-auto">
-          {proposing && proposal ? (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto">
+          {reviewing && proposal ? (
             <ScopeConfirmView proposal={proposal} repos={repos} taskTitle={thread.title} />
           ) : dirs.length === 0 ? (
-            <div className="px-5 py-4">
-              <EmptyBoard onAdd={() => setNewDir(true)} />
-            </div>
+            <EmptyDiscuss />
           ) : (
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
               {COLUMNS.map((col) => {
@@ -149,11 +172,27 @@ export function ThreadBoard() {
             </div>
           )}
         </div>
-        {!proposing && <CoordinationPanel directions={dirs} />}
+        <LeadDock />
       </div>
 
+      <BusDrawer directions={dirs} />
       <CreateDirectionDialog open={newDir} onOpenChange={setNewDir} threadId={thread.id} />
     </section>
+  );
+}
+
+function EmptyDiscuss() {
+  const { t } = useTranslation();
+  return (
+    <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
+        <Layers size={20} className="text-ink-faint" />
+      </div>
+      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.discussTitle")}</h2>
+      <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
+        {t("thread.discussBody")}
+      </p>
+    </div>
   );
 }
 
@@ -351,31 +390,3 @@ function TaskStatusMenu({ direction }: { direction: Direction }) {
   );
 }
 
-function EmptyBoard({ onAdd }: { onAdd: () => void }) {
-  const { startDraftPlan, planWithLead } = useStore();
-  const { t } = useTranslation();
-  return (
-    <div className="flex h-full flex-col items-center justify-center text-center">
-      <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
-        <Layers size={20} className="text-ink-faint" />
-      </div>
-      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.planTitle")}</h2>
-      <p className="mt-1 max-w-xs text-[12px] leading-relaxed text-ink-faint">
-        {t("thread.planBody")}
-      </p>
-      <div className="mt-4 flex items-center gap-2">
-        <Button variant="primary" onClick={() => void planWithLead()}>
-          <Sparkles size={14} />
-          {t("thread.planWithLead")}
-        </Button>
-        <Button variant="ghost" onClick={() => void startDraftPlan()}>
-          {t("thread.draftManually")}
-        </Button>
-        <Button variant="ghost" onClick={onAdd}>
-          <Plus size={14} />
-          {t("thread.newDirection")}
-        </Button>
-      </div>
-    </div>
-  );
-}
