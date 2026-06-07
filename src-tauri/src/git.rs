@@ -67,6 +67,32 @@ pub fn delete_branch(repo: &Path, branch: &str) -> Result<()> {
     git(repo, &["branch", "-D", branch]).map(|_| ()).or(Ok(()))
 }
 
+/// Create a brand-new git repo at `at` with an empty initial commit, so worktrees
+/// (which need a commit-ish) work immediately. Fails if `at` is a non-empty dir.
+/// Relies on the user's global git identity for the commit.
+pub fn init_repo(at: &Path) -> Result<()> {
+    if at.exists() && std::fs::read_dir(at).map(|mut d| d.next().is_some()).unwrap_or(false) {
+        bail!("a folder already exists at {} and isn't empty", at.display());
+    }
+    std::fs::create_dir_all(at)?;
+    git(at, &["init", "-q"])?;
+    git(at, &["commit", "-q", "--allow-empty", "-m", "Initial commit"])?;
+    Ok(())
+}
+
+/// Clone `url` into `dest` (which must not be an existing non-empty dir). Uses the
+/// system git credentials / SSH agent; weft never prompts for secrets, so a
+/// private repo without configured credentials fails with git's own error.
+pub fn clone_repo(url: &str, dest: &Path) -> Result<()> {
+    if dest.exists() && std::fs::read_dir(dest).map(|mut d| d.next().is_some()).unwrap_or(false) {
+        bail!("a folder already exists at {} and isn't empty", dest.display());
+    }
+    let parent = dest.parent().unwrap_or_else(|| Path::new("."));
+    std::fs::create_dir_all(parent)?;
+    git(parent, &["clone", url, &dest.to_string_lossy()])?;
+    Ok(())
+}
+
 /// Create a throwaway demo repo (for trying the app without a real repo).
 pub fn init_demo_repo(at: &Path) -> Result<PathBuf> {
     std::fs::create_dir_all(at)?;

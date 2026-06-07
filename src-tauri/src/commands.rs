@@ -18,6 +18,26 @@ pub async fn list_workspaces(db: State<'_, Db>) -> R<Vec<entities::workspace::Mo
     repo::list_workspaces(&db).await.map_err(e)
 }
 
+/// Register an existing local git repo: validate, record, profile. Shared by
+/// add (existing) / clone / create — they all converge on "a path weft refs".
+async fn register_repo(
+    db: &Db,
+    workspace_id: i32,
+    name: &str,
+    path: &str,
+) -> R<entities::repo_ref::Model> {
+    if !crate::git::is_git_repo(std::path::Path::new(path)) {
+        return Err("not a git repository".into());
+    }
+    // default base ref = current branch of the repo
+    let base = crate::git::current_branch(std::path::Path::new(path)).unwrap_or_else(|_| "main".into());
+    let r = repo::add_repo_ref(db, workspace_id, name, path, &base, "claude").await.map_err(e)?;
+    // Eager, deterministic profiling (ARCHITECTURE §4.9): best-effort, never
+    // blocks adding the repo if inference/git hiccups.
+    let _ = crate::curator::profile_repo(db, &r).await;
+    Ok(r)
+}
+
 #[tauri::command]
 pub async fn add_repo_ref(
     db: State<'_, Db>,
@@ -25,16 +45,43 @@ pub async fn add_repo_ref(
     name: String,
     local_git_path: String,
 ) -> R<entities::repo_ref::Model> {
-    if !crate::git::is_git_repo(std::path::Path::new(&local_git_path)) {
-        return Err("not a git repository".into());
-    }
-    // default base ref = current branch of the repo
-    let base = crate::git::current_branch(std::path::Path::new(&local_git_path)).unwrap_or_else(|_| "main".into());
-    let r = repo::add_repo_ref(&db, workspace_id, &name, &local_git_path, &base, "claude").await.map_err(e)?;
-    // Eager, deterministic profiling (ARCHITECTURE §4.9): best-effort, never
-    // blocks adding the repo if inference/git hiccups.
-    let _ = crate::curator::profile_repo(&db, &r).await;
-    Ok(r)
+    register_repo(&db, workspace_id, &name, &local_git_path).await
+}
+
+/// Clone a remote git URL into `<dest>/<name>`, then register it.
+#[tauri::command]
+pub async fn clone_repo(
+    db: State<'_, Db>,
+    workspace_id: i32,
+    url: String,
+    dest: String,
+    name: String,
+) -> R<entities::repo_ref::Model> {
+    let path = std::path::Path::new(&dest).join(&name);
+    let p = path.clone();
+    tokio::task::spawn_blocking(move || crate::git::clone_repo(&url, &p))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(e)?;
+    register_repo(&db, workspace_id, &name, &path.to_string_lossy()).await
+}
+
+/// Create a new git repo at `<dest>/<name>` (init + empty initial commit), then
+/// register it.
+#[tauri::command]
+pub async fn create_repo(
+    db: State<'_, Db>,
+    workspace_id: i32,
+    name: String,
+    dest: String,
+) -> R<entities::repo_ref::Model> {
+    let path = std::path::Path::new(&dest).join(&name);
+    let p = path.clone();
+    tokio::task::spawn_blocking(move || crate::git::init_repo(&p))
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(e)?;
+    register_repo(&db, workspace_id, &name, &path.to_string_lossy()).await
 }
 
 #[tauri::command]

@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check } from "lucide-react";
+import { Check, FolderOpen } from "lucide-react";
 import { Dialog, DialogContent } from "../components/ui/Dialog";
 import { Button } from "../components/ui/Button";
 import { Input, Field } from "../components/ui/Input";
 import { Select } from "../components/ui/Select";
 import { useStore } from "../state/store";
+import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 
 /** Generic single-text-field create dialog. */
@@ -96,22 +97,59 @@ export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
   );
 }
 
+type RepoMode = "local" | "clone" | "new";
+
+const basename = (p: string) => p.trim().replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? "";
+const repoNameFromUrl = (u: string) =>
+  u.trim().replace(/\.git$/, "").replace(/\/+$/, "").split(/[/:]/).filter(Boolean).pop() ?? "";
+
 export function AddRepoDialog({ open, onOpenChange }: DProps) {
-  const { addRepo } = useStore();
+  const { addRepo, cloneRepo, createRepo, projectsDir } = useStore();
   const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [path, setPath] = useState("");
+  const [mode, setMode] = useState<RepoMode>("local");
+  const [path, setPath] = useState(""); // local
+  const [url, setUrl] = useState(""); // clone
+  const [dest, setDest] = useState(""); // clone/new parent
+  const [name, setName] = useState(""); // all
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Reset on close; default the destination to the configured projects dir.
+  useEffect(() => {
+    if (!open) {
+      setMode("local");
+      setPath("");
+      setUrl("");
+      setDest("");
+      setName("");
+      setErr(null);
+      setBusy(false);
+    } else {
+      setDest(projectsDir);
+    }
+  }, [open, projectsDir]);
+
+  const finalName =
+    name.trim() ||
+    (mode === "local" ? basename(path) : mode === "clone" ? repoNameFromUrl(url) : "");
+
+  const canSubmit =
+    !busy &&
+    (mode === "local"
+      ? !!path.trim()
+      : mode === "clone"
+        ? !!url.trim() && !!dest.trim()
+        : !!name.trim() && !!dest.trim());
+
   async function submit() {
-    if (!path.trim() || busy) return;
+    if (!canSubmit) return;
     setBusy(true);
     setErr(null);
     try {
-      const fallbackName = name.trim() || path.trim().split("/").filter(Boolean).pop() || "repo";
-      await addRepo(fallbackName, path.trim());
-      setName("");
-      setPath("");
+      const n = finalName || "repo";
+      if (mode === "local") await addRepo(n, path.trim());
+      else if (mode === "clone") await cloneRepo(url.trim(), dest.trim(), n);
+      else await createRepo(n, dest.trim());
       onOpenChange(false);
     } catch (e) {
       setErr(String(e));
@@ -119,12 +157,51 @@ export function AddRepoDialog({ open, onOpenChange }: DProps) {
       setBusy(false);
     }
   }
+
+  async function pickInto(setter: (v: string) => void, derive?: (v: string) => void) {
+    const d = await api.pickFolder(t("dialog.addRepoTitle"));
+    if (!d) return;
+    setter(d);
+    if (derive) derive(d);
+  }
+
+  const cta =
+    mode === "local"
+      ? busy
+        ? t("dialog.creating")
+        : t("dialog.addRepo")
+      : mode === "clone"
+        ? busy
+          ? t("dialog.cloning")
+          : t("dialog.cloneRepo")
+        : busy
+          ? t("dialog.creating")
+          : t("dialog.createRepoCta");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title={t("dialog.addRepoTitle")}
-        description={t("dialog.addRepoDesc")}
-      >
+      <DialogContent title={t("dialog.addRepoTitle")} description={t("dialog.addRepoDesc")}>
+        <div className="mb-4 flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
+          {(["local", "clone", "new"] as RepoMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => {
+                setMode(m);
+                setErr(null);
+              }}
+              className={cn(
+                "flex-1 rounded-[var(--radius-sm)] px-2 py-1.5 text-[12.5px] transition-colors",
+                mode === m
+                  ? "bg-raised text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
+                  : "text-ink-faint hover:text-ink-muted",
+              )}
+            >
+              {t(`dialog.repoMode_${m}`)}
+            </button>
+          ))}
+        </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -132,33 +209,121 @@ export function AddRepoDialog({ open, onOpenChange }: DProps) {
           }}
           className="flex flex-col gap-4"
         >
-          <Field label={t("dialog.repoPath")}>
-            <Input
-              autoFocus
-              placeholder="/Users/you/code/web-app"
-              value={path}
-              onChange={(e) => setPath(e.currentTarget.value)}
-            />
-          </Field>
-          <Field label={t("dialog.repoName")}>
-            <Input
-              placeholder="web-app"
-              value={name}
-              onChange={(e) => setName(e.currentTarget.value)}
-            />
-          </Field>
-          {err && <p className="text-[12px] text-danger">{err}</p>}
+          {mode === "local" && (
+            <Field label={t("dialog.repoPath")}>
+              <PathInput
+                value={path}
+                placeholder="/Users/you/code/web-app"
+                onChange={setPath}
+                onPick={() => pickInto(setPath)}
+              />
+            </Field>
+          )}
+
+          {mode === "clone" && (
+            <>
+              <Field label={t("dialog.repoUrl")}>
+                <Input
+                  autoFocus
+                  placeholder="https://github.com/acme/web-app.git"
+                  value={url}
+                  onChange={(e) => setUrl(e.currentTarget.value)}
+                />
+              </Field>
+              <Field label={t("dialog.repoLocation")}>
+                <PathInput
+                  value={dest}
+                  placeholder="/Users/you/code"
+                  onChange={setDest}
+                  onPick={() => pickInto(setDest)}
+                />
+              </Field>
+            </>
+          )}
+
+          {mode === "new" && (
+            <Field label={t("dialog.repoLocation")}>
+              <PathInput
+                value={dest}
+                placeholder="/Users/you/code"
+                onChange={setDest}
+                onPick={() => pickInto(setDest)}
+              />
+            </Field>
+          )}
+
+          {mode !== "local" && (
+            <Field label={t("dialog.repoName")}>
+              <Input
+                autoFocus={mode === "new"}
+                placeholder="web-app"
+                value={name}
+                onChange={(e) => setName(e.currentTarget.value)}
+              />
+            </Field>
+          )}
+          {mode === "local" && (
+            <Field label={t("dialog.repoName")}>
+              <Input
+                placeholder={basename(path) || "web-app"}
+                value={name}
+                onChange={(e) => setName(e.currentTarget.value)}
+              />
+            </Field>
+          )}
+
+          {mode !== "local" && dest.trim() && finalName && (
+            <p className="-mt-1 text-[11px] text-ink-faint">
+              {t(mode === "clone" ? "dialog.cloneHint" : "dialog.newHint", {
+                path: `${dest.trim().replace(/\/+$/, "")}/${finalName}`,
+              })}
+            </p>
+          )}
+
+          {err && <p className="text-[12px] leading-relaxed text-danger">{err}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" variant="primary" disabled={!path.trim() || busy}>
-              {busy ? t("dialog.creating") : t("dialog.addRepo")}
+            <Button type="submit" variant="primary" disabled={!canSubmit}>
+              {cta}
             </Button>
           </div>
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A path input with a trailing native folder-picker button. */
+function PathInput({
+  value,
+  placeholder,
+  onChange,
+  onPick,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+  onPick: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.currentTarget.value)}
+      />
+      <button
+        type="button"
+        onClick={onPick}
+        title={t("settings.choose")}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+      >
+        <FolderOpen size={15} />
+      </button>
+    </div>
   );
 }
 

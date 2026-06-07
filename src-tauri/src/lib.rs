@@ -84,6 +84,8 @@ pub fn run() {
             commands::create_workspace,
             commands::list_workspaces,
             commands::add_repo_ref,
+            commands::clone_repo,
+            commands::create_repo,
             commands::create_thread,
             commands::list_threads,
             commands::workspace_overview,

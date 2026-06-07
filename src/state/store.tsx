@@ -133,6 +133,8 @@ interface Store {
 
   createWorkspace: (name: string) => Promise<void>;
   addRepo: (name: string, path: string) => Promise<void>;
+  cloneRepo: (url: string, dest: string, name: string) => Promise<void>;
+  createRepo: (name: string, dest: string) => Promise<void>;
   createThread: (title: string, kind: string) => Promise<Thread>;
   createDirection: (
     threadId: number,
@@ -328,21 +330,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [refreshWorkspaces, selectWorkspace],
   );
 
+  const refreshAfterRepo = useCallback(async (ws: number) => {
+    setRepos(await api.listRepos(ws));
+    // a freshly added repo is eagerly profiled server-side; pull the new map
+    try {
+      const g = await api.repoGraph(ws);
+      setRepoProfiles(g.nodes);
+      setRepoEdges(g.edges);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const addRepo = useCallback(
     async (name: string, path: string) => {
       if (activeWorkspaceId == null) return;
       await api.addRepoRef(activeWorkspaceId, name, path);
-      setRepos(await api.listRepos(activeWorkspaceId));
-      // a freshly added repo is eagerly profiled server-side; pull the new map
-      try {
-        const g = await api.repoGraph(activeWorkspaceId);
-        setRepoProfiles(g.nodes);
-        setRepoEdges(g.edges);
-      } catch {
-        /* ignore */
-      }
+      await refreshAfterRepo(activeWorkspaceId);
     },
-    [activeWorkspaceId],
+    [activeWorkspaceId, refreshAfterRepo],
+  );
+
+  const cloneRepo = useCallback(
+    async (url: string, dest: string, name: string) => {
+      if (activeWorkspaceId == null) return;
+      await api.cloneRepo(activeWorkspaceId, url, dest, name);
+      await refreshAfterRepo(activeWorkspaceId);
+    },
+    [activeWorkspaceId, refreshAfterRepo],
+  );
+
+  const createRepo = useCallback(
+    async (name: string, dest: string) => {
+      if (activeWorkspaceId == null) return;
+      await api.createRepo(activeWorkspaceId, name, dest);
+      await refreshAfterRepo(activeWorkspaceId);
+    },
+    [activeWorkspaceId, refreshAfterRepo],
   );
 
   const createThread = useCallback(
@@ -929,6 +953,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     backToWorkspace,
     createWorkspace,
     addRepo,
+    cloneRepo,
+    createRepo,
     createThread,
     createDirection,
     deleteThread,
