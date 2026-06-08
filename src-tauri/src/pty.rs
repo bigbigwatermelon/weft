@@ -15,7 +15,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -81,6 +81,50 @@ fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+/// Watchdog caps in seconds, read once per session from env. 0 disables.
+fn idle_cap_secs() -> u64 {
+    env_secs("WEFT_IDLE_WATCHDOG_SECS", 1800)
+} // 30 min
+fn wall_cap_secs() -> u64 {
+    env_secs("WEFT_WALL_CAP_SECS", 7200)
+} // 2 h
+fn env_secs(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(default)
+}
+
+fn human_dur(secs: u64) -> String {
+    if secs % 3600 == 0 {
+        format!("{}h", secs / 3600)
+    } else if secs % 60 == 0 {
+        format!("{}min", secs / 60)
+    } else {
+        format!("{}s", secs)
+    }
+}
+
+/// Decide whether a session should be force-stopped. Pure → unit-tested.
+/// `has_open_ask` = the session is legitimately blocked on the human, so its
+/// silence is expected → never idle-kill. Wall-clock always applies.
+fn watchdog_verdict(
+    now: u64,
+    start: u64,
+    last_activity: u64,
+    wall_cap: u64,
+    idle_cap: u64,
+    has_open_ask: bool,
+) -> Option<String> {
+    if wall_cap > 0 && now.saturating_sub(start) >= wall_cap {
+        return Some(format!("ran for over {}", human_dur(wall_cap)));
+    }
+    if idle_cap > 0 && !has_open_ask && now.saturating_sub(last_activity) >= idle_cap {
+        return Some(format!("no activity for {}", human_dur(idle_cap)));
+    }
+    None
+}
+
 /// Agent-output language directive (ARCHITECTURE §4.8, layer 2). Appended to the
 /// lead prompt / worker brief so prose follows the operator's UI language; code
 /// and identifiers always stay English. Empty for English (the default).
@@ -143,6 +187,7 @@ fn spawn(
     let mut reader = pair.master.try_clone_reader()?;
     let writer = pair.master.take_writer()?;
     let alive = Arc::new(AtomicBool::new(true));
+    let last_activity = Arc::new(AtomicU64::new(now_secs()));
 
     // --- shared pending buffer drained by the flusher ---
     let pending = Arc::new(Mutex::new(FrameBatcher::new(FRAME_MAX_BYTES)));
@@ -151,6 +196,7 @@ fn spawn(
     {
         let pending = pending.clone();
         let alive_r = alive.clone();
+        let last_activity_r = last_activity.clone();
         let app = app.clone();
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
@@ -158,6 +204,7 @@ fn spawn(
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
                     Ok(n) => {
+                        last_activity_r.store(now_secs(), Ordering::SeqCst);
                         pending.lock().unwrap_or_else(|e| e.into_inner()).push(&buf[..n]);
                     }
                 }
@@ -182,6 +229,49 @@ fn spawn(
                 let frame = pending.lock().unwrap_or_else(|e| e.into_inner()).take_frame();
                 if let Some(frame) = frame {
                     emit_output(&app, session_id, &frame);
+                }
+            }
+        });
+    }
+
+    // watchdog thread: force-stop a runaway/stuck session (wall-clock + idle).
+    {
+        let app = app.clone();
+        let alive_w = alive.clone();
+        let last_activity_w = last_activity.clone();
+        let start = now_secs();
+        let wall_cap = wall_cap_secs();
+        let idle_cap = idle_cap_secs();
+        std::thread::spawn(move || {
+            if wall_cap == 0 && idle_cap == 0 {
+                return;
+            }
+            loop {
+                std::thread::sleep(Duration::from_secs(30));
+                if !alive_w.load(Ordering::SeqCst) {
+                    return;
+                }
+                let now = now_secs();
+                let last = last_activity_w.load(Ordering::SeqCst);
+                // Workers are keyed by their direction id; a LEAD spawns with a
+                // synthetic negative id and its permission asks carry the literal
+                // "lead" (empty-dir is matched too, defensively). Match both so a
+                // lead blocked on a human is never idle-killed.
+                let needle = direction_id.to_string();
+                let is_lead = direction_id < 0;
+                let has_open_ask = app
+                    .try_state::<crate::ask::AskRegistry>()
+                    .map(|a| {
+                        a.open().iter().any(|k| {
+                            k.dir == needle || (is_lead && (k.dir == "lead" || k.dir.is_empty()))
+                        })
+                    })
+                    .unwrap_or(false);
+                if let Some(reason) =
+                    watchdog_verdict(now, start, last, wall_cap, idle_cap, has_open_ask)
+                {
+                    escalate(&app, session_id, direction_id, reason);
+                    return;
                 }
             }
         });
@@ -415,6 +505,42 @@ pub fn resize_pty(
     Ok(())
 }
 
+/// Force-stop a runaway/stuck session and surface it via Needs-you. Reuses the
+/// kill path, then posts a bus ask from the direction so it appears as a
+/// Needs-you item (no dedicated UI for round 1).
+fn escalate(app: &AppHandle, session_id: i32, direction_id: i32, reason: String) {
+    if let Some(state) = app.try_state::<PtyState>() {
+        if let Some(mut a) = state
+            .sessions
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&session_id)
+        {
+            a.alive.store(false, Ordering::SeqCst);
+            let _ = a.child.kill();
+            let _ = a.child.wait();
+        }
+    }
+    let _ = app.emit(EXIT_EVENT, serde_json::json!({ "sessionId": session_id }));
+
+    if let (Some(bus), Some(db)) = (
+        app.try_state::<crate::bus::BusRegistry>(),
+        app.try_state::<crate::store::Db>(),
+    ) {
+        let bus = (*bus).clone();
+        let db = crate::store::Db(db.0.clone());
+        tauri::async_runtime::spawn(async move {
+            if let Ok(Some(d)) = crate::store::repo::get_direction(&db, direction_id).await {
+                bus.ask_human(
+                    d.thread_id,
+                    &direction_id.to_string(),
+                    &format!("⚠️ Worker auto-stopped by the runaway guard: {reason}. Review and resume if it was still needed."),
+                );
+            }
+        });
+    }
+}
+
 /// Terminate one session.
 #[tauri::command]
 pub fn kill_session(state: State<PtyState>, session_id: i32) -> Result<(), String> {
@@ -523,4 +649,39 @@ async fn plan_with_lead_impl(
         cwd: cwd.to_string_lossy().to_string(),
         tool,
     })
+}
+
+#[cfg(test)]
+mod watchdog_tests {
+    use super::*;
+    #[test]
+    fn wall_cap_fires_regardless_of_activity() {
+        assert!(watchdog_verdict(10_000, 0, 9_999, 7200, 1800, false)
+            .unwrap()
+            .contains("ran for over 2h"));
+    }
+    #[test]
+    fn idle_fires_when_silent_and_not_waiting_on_human() {
+        assert!(watchdog_verdict(5_000, 4_000, 3_000, 0, 1800, false)
+            .unwrap()
+            .contains("no activity"));
+    }
+    #[test]
+    fn idle_suppressed_while_waiting_on_human() {
+        assert_eq!(watchdog_verdict(5_000, 4_000, 3_000, 0, 1800, true), None);
+    }
+    #[test]
+    fn active_session_is_kept() {
+        assert_eq!(watchdog_verdict(1_000, 0, 999, 7200, 1800, false), None);
+    }
+    #[test]
+    fn zero_caps_disable_each_check() {
+        assert_eq!(watchdog_verdict(1_000_000, 0, 0, 0, 0, false), None);
+    }
+    #[test]
+    fn human_dur_formats() {
+        assert_eq!(human_dur(7200), "2h");
+        assert_eq!(human_dur(1800), "30min");
+        assert_eq!(human_dur(45), "45s");
+    }
 }
