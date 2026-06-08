@@ -2,7 +2,7 @@
 
 <img src="public/weft-logo.svg" alt="Weft" width="240" />
 
-### Local-first mission control for coding agents
+### Local-first project management & orchestration hub for coding agents
 
 Drop in a task, get cross-repo pull requests — orchestrating your own Claude Code, Codex & OpenCode across many repos.
 

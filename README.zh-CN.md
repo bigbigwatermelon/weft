@@ -2,7 +2,7 @@
 
 <img src="public/weft-logo.svg" alt="Weft" width="240" />
 
-### 面向 coding agent 的本地优先指挥中心
+### 面向 coding agent 的本地优先项目管理、编排中心
 
 丢进一个 Task,收获跨仓 PR —— 编排你自己的 Claude Code、Codex 与 OpenCode,横跨多个仓库。
 
