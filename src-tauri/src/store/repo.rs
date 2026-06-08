@@ -176,6 +176,7 @@ pub async fn upsert_repo_profile(
     Ok(a.save(&db.0).await?.try_into_model()?)
 }
 
+// NOTE: dormant — returns empty until direction_repo is removed in sub-plan 1d.
 pub async fn list_direction_repos(
     db: &Db,
     direction_id: i32,
@@ -409,5 +410,32 @@ mod tests {
         assert_eq!(list_workspaces(&db).await.unwrap().len(), 1); // ws survives
         assert_eq!(list_threads(&db, ws.id).await.unwrap().len(), 0);
         assert_eq!(list_worktrees(&db, None).await.unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn direction_repo_of_none_when_unset() {
+        let db = mem().await;
+        let ws = create_workspace(&db, "Demo WS").await.unwrap();
+        let t = create_thread(&db, ws.id, "Add login", "feature")
+            .await
+            .unwrap();
+        // A direction with repo_id == 0 (unset) has no bound write repo.
+        let dir = direction::ActiveModel {
+            thread_id: Set(t.id),
+            name: Set("main".to_string()),
+            slug: Set("main".to_string()),
+            tool: Set("claude".to_string()),
+            branch: Set("ws/demo-ws/add-login/main".to_string()),
+            status: Set("queued".to_string()),
+            repo_id: Set(0),
+            reason: Set(String::new()),
+            created_at: Set(now()),
+            ..Default::default()
+        }
+        .insert(&db.0)
+        .await
+        .unwrap();
+        assert_eq!(dir.repo_id, 0);
+        assert!(direction_repo_of(&db, dir.id).await.unwrap().is_none());
     }
 }
