@@ -4,7 +4,7 @@
 
 ### Local-first project management & orchestration hub for coding agents
 
-Drop in a task, get cross-repo pull requests — orchestrating your own Claude Code, Codex & OpenCode across many repos.
+Drop in a task — Weft drives your own Claude Code, Codex & OpenCode across many repos, toward merged, shipped code.
 
 **local-first · no server · automation-first**
 
@@ -18,10 +18,13 @@ Drop in a task, get cross-repo pull requests — orchestrating your own Claude C
 
 > **Weft** is a local-first desktop delivery hub where coding agents (Claude Code,
 > Codex, OpenCode) drive work across **several repositories at once** — from a
-> stated **Task** all the way to **clean pull requests**. You state the intent;
-> Weft plans it, decides which repos to touch, spawns the agents, coordinates
-> them, verifies the result, and opens the PRs. **You supervise and handle
-> exceptions — you are not a required checkpoint in the loop.**
+> stated **Task** toward **merged, shipped code**. You state the intent; Weft
+> plans it, decides which repos to touch, spawns the agents, coordinates them, and
+> verifies the result. **You supervise and handle exceptions — you are not a
+> required checkpoint in the loop.**
+>
+> Today that lands as clean pull requests; the north star is to carry each task the
+> rest of the way — **merge and CI/CD** — so a workspace *ships*, not just opens PRs.
 
 It is explicitly *not* a terminal emulator, and not a "watch the agents go"
 dashboard. It is the **workspace-and-automation fabric** the agents deliver inside.
@@ -37,10 +40,11 @@ dashboard. It is the **workspace-and-automation fabric** the agents deliver insi
 
 A single workspace is a logical list of repo references. One **Task** fans out
 into parallel **directions**, each running in its own isolated git worktree, each
-driven by an agent — and converges back into pull requests.
+driven by an agent — and converges toward merged, shipped code (a PR today; merge
++ CI/CD next).
 
 <p align="center">
-  <img src="assets/diagrams/flow-en.svg" alt="Task to pull-requests flow" width="880" />
+  <img src="assets/diagrams/flow-en.svg" alt="Task to shipped-code flow" width="940" />
 </p>
 
 ---
@@ -58,7 +62,7 @@ split, in this order — and who does what."*
 | **Isolation** | one working tree | a **git worktree per write-repo**, lazily materialized |
 | **Human role** | drive every step | **supervise**; act only on exceptions |
 | **Quality gate** | a human nod | **executable verification** (lint · type · test · contract) |
-| **Boundary** | open-ended | **Task → PR** — merge/CI/release stay with your repo's harness |
+| **Destination** | open-ended | **Task → shipped** — opens a PR today, with **merge + CI/CD** as the goal |
 | **The agent CLIs** | re-wrapped / proxied | **native CLIs, verbatim** — hooks, skills, permissions intact |
 
 <p align="center">
@@ -131,8 +135,8 @@ It's **two levels, zoom-linked**:
 
 ## Principles (non-negotiable)
 
-1. **Automation is the north star.** Default path is autonomous: task in, PRs out.
-   Every surface is built for *supervising* the flow, not driving it step by step.
+1. **Automation is the north star.** Default path is autonomous: task in, shipped
+   code out. Every surface is built for *supervising* the flow, not driving it step by step.
 2. **The human handles exceptions, not the line.** Weft adds **no approval gate of
    its own**. The only blocking interruptions are the tools' own permission prompts
    (passed through verbatim, never overridden) plus a configurable irreversible-action
@@ -227,6 +231,10 @@ data model (M2), three drivers + surfaces (M3), session interaction layer (M4),
 lead/worker + lazy scope (M5), and the two-level agent-first board + config
 delivery + i18n (M6) — are implemented or in progress. Current focus is
 simplifying scope to a label-free, lazy-materialization model.
+
+**Where it's heading.** Delivery today reaches a pull request per repo. The north
+star is to take each task the rest of the way — **auto-merge and CI/CD** — so the
+unit of *done* is shipped code, not an open PR. That's the roadmap, not today's behavior.
 
 The deep design is in [`ARCHITECTURE.md`](ARCHITECTURE.md); the product thesis in
 [`PRODUCT.md`](PRODUCT.md); the visual system in [`DESIGN.md`](DESIGN.md).

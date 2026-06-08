@@ -54,8 +54,8 @@
   <rect class="lane" x="988" y="66" width="292" height="206" rx="13"/>
   <rect class="card" x="1006" y="90" width="256" height="74" rx="10"/>
   <g class="gl" stroke="#f2683c"><path d="M1024,118 l3,3 l6,-7"/></g>
-  <text class="cl" x="1044" y="122">delivered</text>
-  <text class="tg" x="1022" y="151">PR opened</text>
+  <text class="cl" x="1044" y="122">shipped</text>
+  <text class="tg" x="1022" y="151">merged · CI green</text>
 
   <!-- overlay arrows -->
   <path class="gl" d="M502,164 V312" stroke="#caa14e" stroke-dasharray="4 5" opacity=".85" marker-end="url(#b4a)"/>
