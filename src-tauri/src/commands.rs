@@ -413,6 +413,13 @@ pub async fn pending_asks(
     Ok(open)
 }
 
+/// Dangerous mode (global): every agent's tool asks auto-allow, no prompts.
+#[tauri::command]
+pub fn set_dangerous_mode(asks: tauri::State<'_, crate::ask::AskRegistry>, on: bool) -> R<()> {
+    asks.set_dangerous(on);
+    Ok(())
+}
+
 /// Pending "needs you" count per workspace (agent questions + tool asks), so the
 /// workspace switcher can flag OTHER workspaces that want attention.
 #[tauri::command]

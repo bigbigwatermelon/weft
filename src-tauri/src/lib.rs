@@ -11,7 +11,7 @@ pub mod slug;
 pub mod store;
 pub mod git;
 pub mod materialize;
-mod ask;
+pub mod ask;
 mod batch;
 mod brief;
 pub mod bus;
@@ -113,6 +113,7 @@ pub fn run() {
             commands::pending_asks,
             commands::workspace_needs_counts,
             commands::answer_permission,
+            commands::set_dangerous_mode,
             commands::needs_you,
             commands::answer_ask,
             pty::open_session,

@@ -268,6 +268,17 @@ export const en = {
     installed: "installed",
     installedVersion: "v{{version}}",
     notInstalled: "not found",
+    dangerTitle: "Dangerous mode",
+    dangerDesc:
+      "Agents run every tool — edits, shell commands — without asking. Fast, but they can do anything inside their worktrees.",
+  },
+  danger: {
+    nudgeTitle: "Approving a lot?",
+    nudgeBody: "Turn on Dangerous mode to skip all permission prompts.",
+    notNow: "Not now",
+    turnOn: "Turn on",
+    enabled: "Dangerous mode on — agents won't ask anymore.",
+    undo: "Undo",
   },
   kind: {
     feature: "Feature",

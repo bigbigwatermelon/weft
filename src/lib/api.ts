@@ -127,6 +127,8 @@ export const api = {
 
   // Which coding-agent CLIs are installed locally (for Settings).
   detectTools: () => invoke<ToolStatus[]>("detect_tools"),
+  // Dangerous mode (global): every agent's tool asks auto-allow.
+  setDangerousMode: (on: boolean) => invoke<void>("set_dangerous_mode", { on }),
   // Native folder picker; returns the chosen absolute path, or null if cancelled.
   pickFolder: async (title?: string) => {
     const sel = await openDialog({ directory: true, multiple: false, title });

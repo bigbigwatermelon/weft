@@ -255,6 +255,16 @@ export const zh = {
     installed: "已安装",
     installedVersion: "v{{version}}",
     notInstalled: "未找到",
+    dangerTitle: "危险模式",
+    dangerDesc: "agent 运行所有工具(改文件、执行命令)都不再询问。快,但它们能在各自的 worktree 里做任何事。",
+  },
+  danger: {
+    nudgeTitle: "经常在批准?",
+    nudgeBody: "开启危险模式,跳过所有授权提示。",
+    notNow: "以后再说",
+    turnOn: "开启",
+    enabled: "危险模式已开启——agent 不再询问。",
+    undo: "撤销",
   },
   kind: {
     feature: "功能",

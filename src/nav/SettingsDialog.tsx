@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, FolderOpen, Loader2, Moon, Sun } from "lucide-react";
+import { Check, FolderOpen, Loader2, Moon, Sun, Zap } from "lucide-react";
 import { Dialog, DialogContent } from "../components/ui/Dialog";
 import { Field, Input } from "../components/ui/Input";
 import { ToolIcon } from "../components/ToolIcon";
@@ -24,7 +24,8 @@ export function SettingsDialog({
 }) {
   const { t } = useTranslation();
   const { theme, toggle } = useTheme();
-  const { projectsDir, setProjectsDir, defaultTool, setDefaultTool } = useStore();
+  const { projectsDir, setProjectsDir, defaultTool, setDefaultTool, dangerousMode, setDangerousMode } =
+    useStore();
   const [lang, setLangState] = useState<Lang>(currentLang());
   const [detected, setDetected] = useState<ToolStatus[] | null>(null);
 
@@ -150,9 +151,56 @@ export function SettingsDialog({
             </div>
             <p className="text-[11px] leading-relaxed text-ink-faint">{t("settings.defaultToolHint")}</p>
           </div>
+
+          <div className="h-px bg-border" />
+
+          {/* dangerous mode */}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <Zap size={13} className="text-waiting" />
+                <span className="text-[12px] font-medium text-ink">{t("settings.dangerTitle")}</span>
+              </div>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">
+                {t("settings.dangerDesc")}
+              </p>
+            </div>
+            <Toggle on={dangerousMode} onChange={setDangerousMode} label={t("settings.dangerTitle")} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Toggle({
+  on,
+  onChange,
+  label,
+}: {
+  on: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      className={cn(
+        "relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors",
+        on ? "bg-waiting" : "bg-border-strong",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+          on ? "translate-x-[18px]" : "translate-x-0.5",
+        )}
+      />
+    </button>
   );
 }
 

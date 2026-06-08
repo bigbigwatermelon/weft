@@ -71,6 +71,9 @@ struct Inner {
     always: HashMap<(i32, String), HashSet<String>>,
     /// (thread, dir) granted full access — every ask auto-allows.
     full: HashSet<(i32, String)>,
+    /// Dangerous mode: when on, EVERY ask from EVERY agent auto-allows (never
+    /// surfaced). The global "skip all permission prompts" setting.
+    dangerous: bool,
 }
 
 /// Cloneable handle to all pending Asks.
@@ -120,10 +123,18 @@ impl AskRegistry {
         (id, rx)
     }
 
+    /// Toggle Dangerous mode (global): every incoming ask auto-allows.
+    pub fn set_dangerous(&self, on: bool) {
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).dangerous = on;
+    }
+
     /// A standing rule's verdict for an incoming ask, checked BEFORE surfacing:
     /// full access or a matching always-allow → auto-allow (never shown).
     pub fn auto_decision(&self, thread: i32, dir: &str, summary: &str) -> Option<Decision> {
         let g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        if g.dangerous {
+            return Some(Decision::Allow);
+        }
         let k = (thread, dir.to_string());
         if g.full.contains(&k) {
             return Some(Decision::Allow);

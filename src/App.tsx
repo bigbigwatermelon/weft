@@ -3,6 +3,7 @@ import { WorkspaceNav } from "./nav/WorkspaceNav";
 import { ThreadBoard } from "./board/ThreadBoard";
 import { WorkspaceHome } from "./board/WorkspaceHome";
 import { SessionView } from "./session/SessionView";
+import { DangerToast } from "./components/DangerToast";
 
 function Main() {
   const { activeSessionId, activeThreadId } = useStore();
@@ -17,6 +18,7 @@ function Shell() {
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
       {!navCollapsed && <WorkspaceNav />}
       <Main />
+      <DangerToast />
     </div>
   );
 }

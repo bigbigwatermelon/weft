@@ -79,6 +79,12 @@ interface Store {
   setProjectsDir: (p: string) => void;
   defaultTool: string;
   setDefaultTool: (t: string) => void;
+  /** Dangerous mode: agents skip all permission prompts (global). */
+  dangerousMode: boolean;
+  setDangerousMode: (on: boolean) => void;
+  /** The per-day "turn on Dangerous mode?" nudge toast state. */
+  dangerNudge: "ask" | "enabled" | null;
+  setDangerNudge: (v: "ask" | "enabled" | null) => void;
   /** Whether the board canvas is showing the proposal's scope-confirm. */
   reviewingProposal: boolean;
   setReviewingProposal: (v: boolean) => void;
@@ -220,6 +226,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setDefaultTool = useCallback((tl: string) => {
     localStorage.setItem("weft-default-tool", tl);
     setDefaultToolState(tl);
+  }, []);
+  const [dangerousMode, setDangerousModeState] = useState(
+    () => localStorage.getItem("weft-dangerous") === "1",
+  );
+  const setDangerousMode = useCallback((on: boolean) => {
+    localStorage.setItem("weft-dangerous", on ? "1" : "0");
+    setDangerousModeState(on);
+    void api.setDangerousMode(on);
+  }, []);
+  const [dangerNudge, setDangerNudge] = useState<"ask" | "enabled" | null>(null);
+  // Sync the persisted Dangerous-mode flag to the backend on launch (the bus
+  // registry starts fresh each run).
+  useEffect(() => {
+    void api.setDangerousMode(localStorage.getItem("weft-dangerous") === "1");
   }, []);
 
   // Auto-collapse the sidebar when the window gets narrow; auto-restore when it
@@ -725,13 +745,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (askId: number, answer: "allow" | "deny" | "always" | "full") => {
       // optimistic: drop the card immediately, then unblock the tool
       setAsks((cur) => cur.filter((a) => a.id !== askId));
+      // Per-day nudge: granting broad access (always / full) without Dangerous
+      // mode → once a day, suggest turning it on.
+      if ((answer === "always" || answer === "full") && !dangerousMode) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem("weft-danger-nudge") !== today) {
+          localStorage.setItem("weft-danger-nudge", today);
+          setDangerNudge("ask");
+        }
+      }
       try {
         await api.answerPermission(askId, answer);
       } catch {
         /* already resolved/expired */
       }
     },
-    [],
+    [dangerousMode],
   );
 
   const goToAsk = useCallback(
@@ -944,6 +973,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setProjectsDir,
     defaultTool,
     setDefaultTool,
+    dangerousMode,
+    setDangerousMode,
+    dangerNudge,
+    setDangerNudge,
     needs,
     asks,
     needsByWorkspace,

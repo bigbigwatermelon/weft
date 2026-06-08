@@ -1,6 +1,8 @@
 //! Drives the bus HTTP MCP handler exactly like a CLI client would: initialize,
 //! tools/list, then two directions exchanging a message.
+use weft_app_lib::ask::AskRegistry;
 use weft_app_lib::bus::{server, BusRegistry};
+use weft_app_lib::store::Db;
 
 async fn rpc(base: &str, thread: i32, dir: &str, body: serde_json::Value) -> String {
     let url = format!("{base}/bus/{thread}/{dir}/mcp");
@@ -17,7 +19,9 @@ async fn rpc(base: &str, thread: i32, dir: &str, body: serde_json::Value) -> Str
 #[tokio::test]
 async fn two_directions_exchange_a_message() {
     let reg = BusRegistry::new();
-    let (base, _h) = server::serve(reg).await.unwrap();
+    let db = Db::connect("sqlite::memory:").await.unwrap();
+    let asks = AskRegistry::new();
+    let (base, _h) = server::serve(reg, db, asks).await.unwrap();
 
     // both directions initialize (registers membership)
     for dir in ["10", "20"] {
