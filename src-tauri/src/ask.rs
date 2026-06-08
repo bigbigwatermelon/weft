@@ -123,9 +123,22 @@ impl AskRegistry {
         (id, rx)
     }
 
-    /// Toggle Dangerous mode (global): every incoming ask auto-allows.
+    /// Toggle Dangerous mode (global): every incoming ask auto-allows. Turning it
+    /// ON also releases the whole existing backlog — every already-open ask
+    /// resolves to Allow, so agents currently blocked on a prompt unblock at once.
     pub fn set_dangerous(&self, on: bool) {
-        self.inner.lock().unwrap_or_else(|e| e.into_inner()).dangerous = on;
+        let mut g = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        g.dangerous = on;
+        if !on {
+            return;
+        }
+        let ids: Vec<u64> = g.open.iter().map(|a| a.id).collect();
+        g.open.clear();
+        for id in ids {
+            if let Some(tx) = g.waiters.remove(&id) {
+                let _ = tx.send(Decision::Allow);
+            }
+        }
     }
 
     /// A standing rule's verdict for an incoming ask, checked BEFORE surfacing:

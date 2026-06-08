@@ -234,6 +234,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("weft-dangerous", on ? "1" : "0");
     setDangerousModeState(on);
     void api.setDangerousMode(on);
+    // Turning it on retro-approves the existing permission backlog (the backend
+    // releases the blocked agents); clear them from the UI now. Human questions
+    // (needs) are NOT auto-answered — they stay.
+    if (on) setAsks([]);
   }, []);
   const [dangerNudge, setDangerNudge] = useState<"ask" | "enabled" | null>(null);
   // Sync the persisted Dangerous-mode flag to the backend on launch (the bus
