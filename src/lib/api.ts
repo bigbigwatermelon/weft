@@ -3,7 +3,6 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   BusMsg,
   Direction,
-  DirectionRepo,
   LeadInfo,
   NeedItem,
   NormEvent,
@@ -68,8 +67,6 @@ export const api = {
     invoke<void>("save_proposal", { threadId, proposal }),
   confirmProposal: (threadId: number) =>
     invoke<number[]>("confirm_proposal", { threadId }),
-  listDirectionRepos: (directionId: number) =>
-    invoke<DirectionRepo[]>("list_direction_repos", { directionId }),
   createDirection: (
     threadId: number,
     name: string,

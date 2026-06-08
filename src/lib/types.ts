@@ -1,7 +1,6 @@
 // Mirrors the SeaORM models (serde serializes Rust field names as-is: snake_case).
 
 export type Tool = "claude" | "codex" | "opencode" | "none";
-export type Role = "write" | "read";
 export type ThreadKind = "feature" | "bugfix" | "refactor" | "spike";
 
 export interface Workspace {
@@ -57,13 +56,6 @@ export interface Direction {
   /** agent/human-driven lifecycle: queued | working | review | done. */
   status: string;
   created_at: string;
-}
-
-export interface DirectionRepo {
-  id: number;
-  direction_id: number;
-  repo_id: number;
-  role: string;
 }
 
 export interface Worktree {

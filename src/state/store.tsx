@@ -13,7 +13,6 @@ import { currentLang } from "../i18n";
 import type {
   BusMsg,
   Direction,
-  DirectionRepo,
   NeedItem,
   PermissionAsk,
   Proposal,
@@ -51,7 +50,6 @@ interface Store {
   threads: Thread[];
   directionsByThread: Record<number, Direction[]>;
   worktreesByDirection: Record<number, Worktree[]>;
-  directionReposByDirection: Record<number, DirectionRepo[]>;
 
   activeThreadId: number | null;
   sessions: Record<number, OpenSession>;
@@ -182,9 +180,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [threads, setThreads] = useState<Thread[]>([]);
   const [directionsByThread, setDirections] = useState<Record<number, Direction[]>>({});
   const [worktreesByDirection, setWorktrees] = useState<Record<number, Worktree[]>>({});
-  const [directionReposByDirection, setDirectionRepos] = useState<
-    Record<number, DirectionRepo[]>
-  >({});
   const [activeThreadId, setActiveThreadId] = useState<number | null>(null);
   const [sessions, setSessions] = useState<Record<number, OpenSession>>({});
   const [checksByDirection, setChecksByDirection] = useState<Record<number, RepoChecks[]>>({});
@@ -295,23 +290,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const dirs = await api.listDirections(threadId);
     setDirections((m) => ({ ...m, [threadId]: dirs }));
     const entries = await Promise.all(
-      dirs.map(
-        async (d) =>
-          [
-            d.id,
-            await api.listWorktrees(d.id),
-            await api.listDirectionRepos(d.id),
-          ] as const,
-      ),
+      dirs.map(async (d) => [d.id, await api.listWorktrees(d.id)] as const),
     );
     setWorktrees((m) => {
       const next = { ...m };
       for (const [id, wts] of entries) next[id] = wts;
-      return next;
-    });
-    setDirectionRepos((m) => {
-      const next = { ...m };
-      for (const [id, , drs] of entries) next[id] = drs;
       return next;
     });
   }, []);
@@ -992,7 +975,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     threads,
     directionsByThread,
     worktreesByDirection,
-    directionReposByDirection,
     activeThreadId,
     sessions,
     activeSessionId,
