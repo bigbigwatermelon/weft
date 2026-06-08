@@ -219,6 +219,16 @@ export interface PermissionAsk {
   dir_name: string;
 }
 
+/** A lead-proposed write declaration awaiting human approve/deny (Needs you). */
+export interface WriteTrigger {
+  thread_id: number;
+  thread_title: string;
+  index: number;
+  name: string;
+  repo_name: string;
+  reason: string;
+}
+
 /** An open agent→human question, aggregated workspace-wide for "Needs you". */
 export interface NeedItem {
   ask_id: number;

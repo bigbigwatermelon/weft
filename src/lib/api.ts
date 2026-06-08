@@ -20,6 +20,7 @@ import type {
   Workspace,
   Worktree,
   WorktreeDiff,
+  WriteTrigger,
 } from "./types";
 
 // Tauri converts camelCase command args to snake_case Rust params.
@@ -119,6 +120,14 @@ export const api = {
     invoke<NeedItem[]>("needs_you", { workspaceId }),
   answerAsk: (threadId: number, askId: number, text: string) =>
     invoke<void>("answer_ask", { threadId, askId, text }),
+
+  // Write triggers: lead-proposed repo writes awaiting human approve/deny.
+  writeTriggers: (workspaceId: number) =>
+    invoke<WriteTrigger[]>("write_triggers", { workspaceId }),
+  approveWriteTrigger: (threadId: number, index: number) =>
+    invoke<number>("approve_write_trigger", { threadId, index }),
+  denyWriteTrigger: (threadId: number, index: number) =>
+    invoke<void>("deny_write_trigger", { threadId, index }),
 
   // Inspect escape hatches (§4.7): real ways into the hidden plumbing.
   openTerminal: (path: string) => invoke<void>("open_terminal", { path }),
