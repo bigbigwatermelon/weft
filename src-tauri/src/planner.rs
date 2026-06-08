@@ -160,6 +160,18 @@ pub async fn approve_direction(db: &Db, thread_id: i32, index: usize) -> Result<
     if !resolved.repo.known {
         anyhow::bail!("repo {:?} is not a known workspace repo", resolved.repo.repo_name);
     }
+    let dirs = repo::list_directions(db, thread_id).await?;
+    if let Some(existing) = dirs
+        .iter()
+        .find(|d| d.name == resolved.name && d.repo_id == resolved.repo.repo_id)
+    {
+        // Already created (e.g. the lead re-proposed and the decision was reset).
+        // Idempotent: don't create a second direction/worktree.
+        let id = existing.id;
+        proposal.directions[index].decision = "approved".to_string();
+        persist_decision(db, thread_id, &proposal, &plan).await?;
+        return Ok(id);
+    }
     let dir = repo::create_direction(
         db,
         thread_id,
@@ -319,5 +331,112 @@ mod tests {
             .map(|(i, _)| i)
             .collect();
         assert_eq!(pending, vec![0]);
+    }
+
+    // ---- DB-backed: approve/deny/pending against a real repo + worktree ----
+
+    fn sh(dir: &std::path::Path, args: &[&str]) {
+        let st = std::process::Command::new(args[0])
+            .args(&args[1..])
+            .current_dir(dir)
+            .status()
+            .unwrap();
+        assert!(st.success(), "cmd {:?} failed", args);
+    }
+
+    /// A minimal committed git repo so materialize can build a worktree from it.
+    fn make_repo(root: &std::path::Path, name: &str) -> std::path::PathBuf {
+        let p = root.join(name);
+        std::fs::create_dir_all(&p).unwrap();
+        sh(&p, &["git", "init", "-q"]);
+        sh(&p, &["git", "config", "user.email", "t@t.t"]);
+        sh(&p, &["git", "config", "user.name", "t"]);
+        std::fs::write(p.join("README.md"), "# x\n").unwrap();
+        sh(&p, &["git", "add", "-A"]);
+        sh(&p, &["git", "commit", "-q", "-m", "init"]);
+        p
+    }
+
+    #[tokio::test]
+    async fn approve_deny_pending_against_db() {
+        let tag = format!("weft-planner-{}", std::process::id());
+        let root = std::env::temp_dir().join(format!("{tag}-root"));
+        let weft_home = std::env::temp_dir().join(format!("{tag}-home"));
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&weft_home);
+        std::env::set_var("WEFT_HOME", weft_home.to_str().unwrap());
+        let repo_path = make_repo(&root, "api");
+
+        let db = Db::connect("sqlite::memory:").await.unwrap();
+        let ws = repo::create_workspace(&db, "ws").await.unwrap();
+        let ra = repo::add_repo_ref(&db, ws.id, "api", repo_path.to_str().unwrap(), "main", "claude")
+            .await
+            .unwrap();
+        let t = repo::create_thread(&db, ws.id, "t1", "feature").await.unwrap();
+
+        // Proposal: one known-repo write (pending) + one unknown-repo write (pending).
+        let proposal = Proposal {
+            rationale: "r".into(),
+            directions: vec![
+                ProposedDirection {
+                    name: "Payments".into(),
+                    tool: "claude".into(),
+                    repo: "api".into(),
+                    reason: "add discount endpoint".into(),
+                    decision: "".into(),
+                },
+                ProposedDirection {
+                    name: "Ghost".into(),
+                    tool: "claude".into(),
+                    repo: "nope".into(),
+                    reason: "n/a".into(),
+                    decision: "".into(),
+                },
+            ],
+        };
+        save_proposal(&db, t.id, &proposal).await.unwrap();
+
+        // pending_writes surfaces only the known-repo, undecided one (index 0).
+        let pending = pending_writes(&db, t.id).await.unwrap();
+        assert_eq!(pending.len(), 1, "only the known-repo write is pending");
+        assert_eq!(pending[0].index, 0);
+        assert_eq!(pending[0].repo_name, "api");
+        assert_eq!(pending[0].reason, "add discount endpoint");
+
+        // Approve index 0 -> a real direction is created bound to the repo + reason.
+        let id = approve_direction(&db, t.id, 0).await.unwrap();
+        let dirs = repo::list_directions(&db, t.id).await.unwrap();
+        assert_eq!(dirs.len(), 1, "exactly one direction created");
+        assert_eq!(dirs[0].id, id);
+        assert_eq!(dirs[0].repo_id, ra.id);
+        assert_eq!(dirs[0].reason, "add discount endpoint");
+        // No longer pending once approved.
+        assert!(pending_writes(&db, t.id).await.unwrap().is_empty());
+
+        // Re-proposing wipes decisions back to "" (whole array replaced).
+        save_proposal(&db, t.id, &proposal).await.unwrap();
+        assert_eq!(pending_writes(&db, t.id).await.unwrap().len(), 1);
+
+        // Approve the SAME index again -> idempotent: same id, no second direction.
+        let id2 = approve_direction(&db, t.id, 0).await.unwrap();
+        assert_eq!(id2, id, "idempotent approve returns the existing direction");
+        let dirs2 = repo::list_directions(&db, t.id).await.unwrap();
+        assert_eq!(dirs2.len(), 1, "no second direction created on re-approve");
+
+        // Deny the unknown-repo write -> returns (name, repo), marks it denied,
+        // and pending_writes drops it (it was never known anyway).
+        let (name, repo_name) = deny_direction(&db, t.id, 1).await.unwrap();
+        assert_eq!(name, "Ghost");
+        assert_eq!(repo_name, "nope");
+        let p = repo::get_plan(&db, t.id).await.unwrap().unwrap();
+        let stored: Proposal = serde_json::from_str(&p.proposal).unwrap();
+        assert_eq!(stored.directions[1].decision, "denied");
+
+        // Cleanup.
+        let removed = repo::delete_thread_cascade(&db, t.id).await.unwrap();
+        let _ = materialize::cleanup_worktrees(&db, &removed).await;
+        std::env::remove_var("WEFT_HOME");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&weft_home);
     }
 }
