@@ -20,6 +20,7 @@ mod claude;
 mod codex;
 mod coordinator;
 mod curator;
+mod detect;
 mod drivers;
 mod inspect;
 mod planner;
@@ -40,6 +41,9 @@ fn fatal(context: &str, err: impl std::fmt::Display) -> ! {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Make GUI-launched spawns find nvm/fnm/native-installer CLIs (see detect.rs).
+    detect::augment_path_from_login_shell();
+
     // Open the DB synchronously before building the app.
     let db = tauri::async_runtime::block_on(async { store::Db::open_default().await })
         .unwrap_or_else(|e| fatal("open weft.db", e));
