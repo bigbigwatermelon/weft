@@ -120,6 +120,15 @@ export const zh = {
   },
   scope: {
     addReposFirst: "请先往这个工作区添加仓库。",
+    title: "审阅范围",
+    subtitle: "确认 lead 的拆分,然后创建子任务。每个子任务都会拿到自己的工作副本。",
+    rationale: "lead 的拆分思路",
+    writes: "写入",
+    noWrites: "未指定写入仓库",
+    unknownRepo: "不在这个工作区——创建时会跳过",
+    back: "返回对话",
+    confirm_other: "创建 {{count}} 个子任务",
+    confirming: "创建中…",
   },
   needs: {
     title: "待你处理",

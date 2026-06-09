@@ -126,6 +126,16 @@ export const en = {
   },
   scope: {
     addReposFirst: "Add repos to this workspace first.",
+    title: "Review the scope",
+    subtitle: "Confirm how the lead split the work, then create the sub-tasks. Each gets its own working copy.",
+    rationale: "How the lead split it",
+    writes: "writes",
+    noWrites: "no write repo specified",
+    unknownRepo: "not in this workspace — skipped on create",
+    back: "Back to conversation",
+    confirm_one: "Create {{count}} sub-task",
+    confirm_other: "Create {{count}} sub-tasks",
+    confirming: "Creating…",
   },
   needs: {
     title: "Needs you",

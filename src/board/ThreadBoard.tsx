@@ -20,6 +20,7 @@ import { ToolIcon } from "../components/ToolIcon";
 import { CreateDirectionDialog } from "../nav/dialogs";
 import { RailToggle } from "../components/RailToggle";
 import { BusDrawer } from "./BusDrawer";
+import { ScopeReview } from "./ScopeReview";
 import { LeadTab } from "../session/LeadTab";
 import { cn } from "../lib/cn";
 
@@ -164,6 +165,13 @@ export function ThreadBoard() {
       <div className="flex min-h-0 flex-1 flex-col">
         {tab === "lead" ? (
           <LeadTab onReview={() => setTab("board")} />
+        ) : reviewingProposal && proposal && proposal.status === "proposed" ? (
+          <ScopeReview
+            onBack={() => {
+              setReviewingProposal(false);
+              setTab("lead");
+            }}
+          />
         ) : dirs.length === 0 ? (
           <EmptyDiscuss onTalk={() => setTab("lead")} />
         ) : (
