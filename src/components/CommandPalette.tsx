@@ -4,6 +4,7 @@ import {
   Activity,
   CircleDot,
   CornerDownLeft,
+  HelpCircle,
   LayoutDashboard,
   Network,
   PanelLeft,
@@ -46,6 +47,7 @@ export function CommandPalette() {
     backToWorkspace,
     setHomeTab,
     openRepoMap,
+    openNeeds,
     navCollapsed,
     setNavCollapsed,
     activeWorkspaceId,
@@ -98,6 +100,13 @@ export function CommandPalette() {
       run: () => selectThread(th.id),
     }));
     const nav: Command[] = [
+      {
+        key: "nav-needs",
+        group: t("palette.go"),
+        label: t("needs.title"),
+        icon: <HelpCircle size={14} />,
+        run: () => openNeeds(),
+      },
       {
         key: "nav-board",
         group: t("palette.go"),
@@ -174,6 +183,7 @@ export function CommandPalette() {
     backToWorkspace,
     setHomeTab,
     openRepoMap,
+    openNeeds,
     navCollapsed,
     setNavCollapsed,
     activeWorkspaceId,

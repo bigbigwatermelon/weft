@@ -17,6 +17,7 @@ import { useStore } from "../state/store";
 import type { NeedItem, PermissionAsk, WriteTrigger } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
+import { RailToggle } from "../components/RailToggle";
 import type { TFunction } from "i18next";
 
 /**
@@ -34,6 +35,7 @@ export function NeedsYouView() {
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
       <header className="flex items-center gap-2.5 border-b border-border px-5 py-3">
+        <RailToggle />
         <span className="grid h-6 w-6 place-items-center rounded-[var(--radius-sm)] bg-waiting/15">
           <HelpCircle size={14} className="text-waiting" />
         </span>

@@ -726,6 +726,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const openNeeds = useCallback(() => {
     setActiveSessionId(null);
+    setViewing(null);
     setHomeTab("board");
     setShowNeeds(true);
   }, []);

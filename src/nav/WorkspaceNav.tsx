@@ -8,6 +8,7 @@ import {
   ChevronDown,
   FolderGit2,
   FolderPlus,
+  HelpCircle,
   LayoutGrid,
   PanelLeftClose,
   Plus,
@@ -36,7 +37,13 @@ export function WorkspaceNav() {
     setHomeTab,
     activeThreadId,
     showNeeds,
+    openNeeds,
+    needs,
+    asks,
+    writeTriggers,
   } = useStore();
+  // Live workspace-wide pending count for the Needs-you focal entry.
+  const needsCount = needs.length + asks.length + writeTriggers.length;
   const [dlg, setDlg] = useState<null | "ws" | "repo" | "thread" | "settings">(null);
   const active = workspaces.find((w) => w.id === activeWorkspaceId);
   const { t } = useTranslation();
@@ -115,8 +122,17 @@ export function WorkspaceNav() {
 
       <div className="mx-2 my-1 border-t border-border" />
 
-      {/* workspace views — the home tabs, moved into the rail (Linear-style) */}
+      {/* workspace views — the home tabs, moved into the rail (Linear-style).
+          Needs-you leads: the exception queue is the focal surface (PRODUCT §7),
+          reachable from anywhere with the live workspace-wide pending count. */}
       <ul className="flex flex-col gap-0.5 px-2 py-1">
+        <WsNavItem
+          icon={HelpCircle}
+          label={t("needs.title")}
+          attnCount={needsCount}
+          active={showNeeds}
+          onClick={() => openNeeds()}
+        />
         <WsNavItem
           icon={LayoutGrid}
           label={t("thread.tabBoard")}
@@ -129,7 +145,6 @@ export function WorkspaceNav() {
         <WsNavItem
           icon={Activity}
           label={t("workspace.tabOverview")}
-          attnCount={activeWorkspaceId != null ? needsByWorkspace[activeWorkspaceId] ?? 0 : 0}
           active={onHome && homeTab === "overview"}
           onClick={() => {
             backToWorkspace();

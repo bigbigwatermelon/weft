@@ -2,6 +2,7 @@ import { StoreProvider, useStore } from "./state/store";
 import { WorkspaceNav } from "./nav/WorkspaceNav";
 import { ThreadBoard } from "./board/ThreadBoard";
 import { WorkspaceHome } from "./board/WorkspaceHome";
+import { NeedsYouView } from "./board/NeedsYouView";
 import { SessionView } from "./session/SessionView";
 import { ObserveView } from "./session/ObserveView";
 import { DangerToast } from "./components/DangerToast";
@@ -10,7 +11,10 @@ import { CommandPalette } from "./components/CommandPalette";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function Main() {
-  const { activeSessionId, viewing, activeThreadId } = useStore();
+  const { activeSessionId, viewing, activeThreadId, showNeeds } = useStore();
+  // Needs-you is the workspace-wide exception queue — it takes precedence over
+  // whatever thread/board is open underneath, so it's reachable from anywhere.
+  if (showNeeds) return <NeedsYouView />;
   if (activeSessionId != null) return <SessionView />;
   if (viewing != null) return <ObserveView />;
   if (activeThreadId != null) return <ThreadBoard />;
@@ -18,9 +22,9 @@ function Main() {
 }
 
 function Shell() {
-  const { navCollapsed, activeSessionId, viewing, activeThreadId } = useStore();
+  const { navCollapsed, activeSessionId, viewing, activeThreadId, showNeeds } = useStore();
   // Key the boundary by route so navigating away from a crashed screen clears it.
-  const routeKey = `${activeSessionId ?? ""}|${viewing ?? ""}|${activeThreadId ?? ""}`;
+  const routeKey = `${showNeeds ? "needs" : ""}|${activeSessionId ?? ""}|${viewing ?? ""}|${activeThreadId ?? ""}`;
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
       {!navCollapsed && <WorkspaceNav />}
