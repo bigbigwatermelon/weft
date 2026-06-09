@@ -20,13 +20,6 @@ export interface RepoRef {
   default_tool: string;
 }
 
-/** The review-agent rung's verdict (§4.13): a lightweight on-demand pre-PR
- *  self-review. status = pass | fail | skipped. */
-export interface ReviewVerdict {
-  status: "pass" | "fail" | "skipped";
-  summary: string;
-}
-
 /** One effective skill/rule for a repo, tagged with the layer it comes from
  *  (personal / repo) and whether a higher layer shadows it (§ M6 有效配置). */
 export interface ConfigItem {

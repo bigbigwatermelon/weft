@@ -151,7 +151,8 @@ function SettingsNavButton({
 
 function GeneralSettings() {
   const { t } = useTranslation();
-  const { projectsDir, setProjectsDir, defaultTool, setDefaultTool } = useStore();
+  const { projectsDir, setProjectsDir, defaultTool, setDefaultTool, reviewSkill, setReviewSkill } =
+    useStore();
   const [lang, setLangState] = useState<Lang>(currentLang());
 
   useEffect(() => {
@@ -190,6 +191,14 @@ function GeneralSettings() {
               <FolderOpen size={14} />
             </button>
           </div>
+        </SettingRow>
+        <SettingRow label={t("settings.reviewSkill")} hint={t("settings.reviewSkillHint")}>
+          <Input
+            value={reviewSkill}
+            placeholder="superpowers:requesting-code-review"
+            onChange={(e) => setReviewSkill(e.currentTarget.value)}
+            className="h-8 w-[360px] max-w-[42vw] bg-bg/80 font-mono text-[12px]"
+          />
         </SettingRow>
         <SettingRow label={t("settings.agentLanguage")} hint={t("settings.agentLanguageHint")}>
           <Segmented

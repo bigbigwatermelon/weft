@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
-  Loader2,
   MessagesSquare,
   ScanEye,
   TerminalSquare,
@@ -154,16 +153,13 @@ function DirectionCard({ direction }: { direction: Direction }) {
     needs,
     asks,
     checksByDirection,
-    reviewsByDirection,
-    reviewingDirections,
-    reviewDirection,
+    requestSkillReview,
   } = useStore();
   const { t } = useTranslation();
   const writes = worktreesByDirection[direction.id] ?? [];
   const checks = checksByDirection[direction.id];
-  const review = reviewsByDirection[direction.id];
-  const reviewing = !!reviewingDirections[direction.id];
   const [showProvenance, setShowProvenance] = useState(false);
+  const [reviewSent, setReviewSent] = useState(false);
 
   const allChecks = (checks ?? []).flatMap((rc) => rc.checks);
   const failed = allChecks.filter((c) => c.status === "fail").length;
@@ -175,8 +171,6 @@ function DirectionCard({ direction }: { direction: Direction }) {
 
   const testsKind =
     failed > 0 ? "fail" : allChecks.length > 0 && passed === allChecks.length ? "pass" : "pend";
-  const reviewKind =
-    review?.status === "pass" ? "pass" : review?.status === "fail" ? "fail" : "pend";
   const action = hasNeed
     ? { label: t("thread.handle"), variant: "primary" as const }
     : direction.status === "review"
@@ -256,54 +250,53 @@ function DirectionCard({ direction }: { direction: Direction }) {
           label={failed > 0 ? t("thread.acceptFail", { count: failed }) : t("thread.typesSignal")}
         />
         <TrustSignal kind="pend" label={t("thread.contractSignal")} />
-        <TrustSignal
-          kind={reviewKind}
-          label={
-            review?.status === "pass"
-              ? t("thread.reviewPassed")
-              : review?.status === "fail"
-                ? t("thread.reviewFailed")
-                : t("thread.reviewSignal")
-          }
-        />
       </div>
 
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2">
         <button
           type="button"
           onClick={() => setShowProvenance((open) => !open)}
-          className="flex items-center gap-1 rounded-[var(--radius-sm)] px-1 py-0.5 text-[11px] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+          className="flex shrink-0 items-center gap-1 rounded-[var(--radius-sm)] px-1 py-0.5 text-[11px] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
         >
           <ChevronRight
             size={13}
             className={cn("transition-transform", showProvenance && "rotate-90")}
           />
           {t("thread.provenance")}
-        </button>
-        <span className="ml-auto text-[11px] text-ink-faint">
-          {writes.length > 0 ? t("thread.copiesCount", { count: writes.length }) : null}
-        </span>
-        <button
-          onClick={() => void reviewDirection(direction.id)}
-          disabled={reviewing || writes.length === 0}
-          className="flex shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-1 text-[11px] text-ink-muted outline-none transition-colors hover:bg-brand-ghost hover:text-ink disabled:opacity-40"
-        >
-          {reviewing ? (
-            <Loader2 size={12} className="animate-spin" />
-          ) : (
-            <ScanEye size={12} className="text-brand" />
+          {writes.length > 0 && (
+            <span className="text-ink-faint/70">
+              · {t("thread.copiesCount", { count: writes.length })}
+            </span>
           )}
-          {reviewing ? t("thread.reviewing") : t("thread.review")}
         </button>
-        <Button
-          size="sm"
-          variant={action.variant}
-          disabled={!firstWrite}
-          onClick={() => firstWrite && viewDirection(direction.id, firstWrite.repo_id)}
-        >
-          <TerminalSquare size={13} />
-          {action.label}
-        </Button>
+        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5">
+          <button
+            onClick={() => {
+              setReviewSent(true);
+              window.setTimeout(() => setReviewSent(false), 2500);
+              void requestSkillReview(direction.id);
+            }}
+            disabled={writes.length === 0}
+            title={t("thread.reviewTip")}
+            className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] px-1.5 py-1 text-[11px] text-ink-muted outline-none transition-colors hover:bg-brand-ghost hover:text-ink disabled:opacity-40"
+          >
+            {reviewSent ? (
+              <Check size={12} className="text-running" />
+            ) : (
+              <ScanEye size={12} className="text-brand" />
+            )}
+            {reviewSent ? t("thread.reviewSent") : t("thread.review")}
+          </button>
+          <Button
+            size="sm"
+            variant={action.variant}
+            disabled={!firstWrite}
+            onClick={() => firstWrite && viewDirection(direction.id, firstWrite.repo_id)}
+          >
+            <TerminalSquare size={13} />
+            {action.label}
+          </Button>
+        </div>
       </div>
 
       {showProvenance && (
@@ -312,28 +305,6 @@ function DirectionCard({ direction }: { direction: Direction }) {
             checks.map((rc) => <ChecksRow key={rc.repo} rc={rc} />)
           ) : (
             <div className="text-[11px] text-ink-faint">{t("thread.noChecks")}</div>
-          )}
-          {review && !reviewing && (
-            <div
-              title={review.summary}
-              className={cn(
-                "flex min-w-0 items-center gap-1 truncate text-[11px]",
-                review.status === "pass"
-                  ? "text-running"
-                  : review.status === "fail"
-                    ? "text-danger"
-                    : "text-ink-faint",
-              )}
-            >
-              {review.status === "pass" ? (
-                <Check size={11} className="shrink-0" />
-              ) : review.status === "fail" ? (
-                <X size={11} className="shrink-0" />
-              ) : null}
-              <span className="truncate">
-                {review.status === "skipped" ? t("thread.reviewSkipped") : review.summary}
-              </span>
-            </div>
           )}
           {writes.map((w) => {
             const sess = Object.values(sessions).find(

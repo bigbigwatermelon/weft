@@ -24,7 +24,6 @@ import type {
   RepoProfile,
   RepoRef,
   ResolvedProposal,
-  ReviewVerdict,
   ThreadOverview,
   SessionInfo,
   SessionStatus,
@@ -196,9 +195,11 @@ interface Store {
   checkingDirections: Record<number, boolean>;
   verifyDirection: (directionId: number) => Promise<void>;
   /** Review-agent rung: on-demand pre-PR self-review verdict + in-flight set. */
-  reviewsByDirection: Record<number, ReviewVerdict>;
-  reviewingDirections: Record<number, boolean>;
-  reviewDirection: (directionId: number) => Promise<void>;
+  /** Run the global review skill inside the direction's own session. */
+  requestSkillReview: (directionId: number) => Promise<void>;
+  /** The configured review skill ("" = auto-detect superpowers'). */
+  reviewSkill: string;
+  setReviewSkill: (s: string) => void;
   focusSession: (sessionId: number) => void;
   resumeSession: (sessionId: number) => Promise<void>;
   killSession: (sessionId: number) => Promise<void>;
@@ -222,8 +223,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<Record<number, OpenSession>>({});
   const [checksByDirection, setChecksByDirection] = useState<Record<number, RepoChecks[]>>({});
   const [checkingDirections, setCheckingDirections] = useState<Record<number, boolean>>({});
-  const [reviewsByDirection, setReviewsByDirection] = useState<Record<number, ReviewVerdict>>({});
-  const [reviewingDirections, setReviewingDirections] = useState<Record<number, boolean>>({});
   // Idle tracking for the auto-verify loop: last PTY-output time per session,
   // and which directions we've already auto-checked this idle episode.
   const lastOutputRef = useRef<Record<number, number>>({});
@@ -266,6 +265,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setDefaultTool = useCallback((tl: string) => {
     localStorage.setItem("weft-default-tool", tl);
     setDefaultToolState(tl);
+  }, []);
+  // The global review skill: "" = auto-detect from the agent's own slash list.
+  const [reviewSkill, setReviewSkillState] = useState(
+    () => localStorage.getItem("weft-review-skill") ?? "",
+  );
+  const setReviewSkill = useCallback((s: string) => {
+    localStorage.setItem("weft-review-skill", s);
+    setReviewSkillState(s);
   }, []);
   const [dangerousMode, setDangerousModeState] = useState(
     () => localStorage.getItem("weft-dangerous") === "1",
@@ -828,19 +835,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Review-agent rung (§4.13): on-demand only (it costs tokens), so it's a
-  // human-pressed action, never part of the idle auto-verify loop.
-  const reviewDirection = useCallback(async (directionId: number) => {
-    setReviewingDirections((m) => ({ ...m, [directionId]: true }));
-    try {
-      const v = await api.reviewDirection(directionId);
-      setReviewsByDirection((m) => ({ ...m, [directionId]: v }));
-    } catch {
-      /* leave prior verdict */
-    } finally {
-      setReviewingDirections((m) => ({ ...m, [directionId]: false }));
-    }
-  }, []);
+  // Review = the global review skill running INSIDE the worker's own
+  // conversation (no built-in review engine; the repo's PR harness stays the
+  // authority). Auto-detect prefers superpowers' requesting-code-review when
+  // the agent reports it; the setting overrides.
+  const resolveReviewSkill = useCallback(() => {
+    const configured = reviewSkill.trim().replace(/^\//, "");
+    if (configured) return configured;
+    const all = [...Object.values(leadSlash), ...Object.values(workerSlash)].flat();
+    return (
+      all.find((c) => /(^|:)requesting-code-review$/.test(c)) ??
+      "superpowers:requesting-code-review"
+    );
+  }, [reviewSkill, leadSlash, workerSlash]);
+
+  const requestSkillReview = useCallback(
+    async (directionId: number) => {
+      const writes = await api.listWorktrees(directionId).catch(() => []);
+      const first = writes[0];
+      if (!first) return;
+      let sess = Object.values(sessionsRef.current).find(
+        (s) => s.directionId === directionId && s.status !== "exited",
+      );
+      if (!sess) {
+        await driveDirection(directionId, first.repo_id, false);
+        sess = Object.values(sessionsRef.current).find(
+          (s) => s.directionId === directionId && s.status !== "exited",
+        );
+      }
+      if (!sess) return;
+      const cmd = `/${resolveReviewSkill()}`;
+      if (sess.mode === "chat") {
+        await api.chatSend(sess.info.session_id, cmd);
+      } else {
+        await sendToSession(sess.info.session_id, cmd);
+      }
+    },
+    [driveDirection, resolveReviewSkill, sendToSession],
+  );
 
   const focusSession = useCallback((id: number) => setActiveSessionId(id), []);
 
@@ -1286,9 +1318,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     checksByDirection,
     checkingDirections,
     verifyDirection,
-    reviewsByDirection,
-    reviewingDirections,
-    reviewDirection,
+    requestSkillReview,
+    reviewSkill,
+    setReviewSkill,
     focusSession,
     resumeSession,
     killSession,

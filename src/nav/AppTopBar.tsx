@@ -187,9 +187,6 @@ export function AppTopBar() {
                 );
               })}
             </div>
-            <span className="hidden max-w-[260px] truncate text-[12px] text-ink-faint xl:inline">
-              {thread.title}
-            </span>
           </div>
         )}
         {inWorkspaceBoard && (

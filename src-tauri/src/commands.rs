@@ -251,32 +251,9 @@ pub async fn verify_direction(db: State<'_, Db>, direction_id: i32) -> R<Vec<Rep
     .map_err(e)
 }
 
-/// The review-agent rung (§4.13): a lightweight, on-demand pre-PR self-review of
-/// a direction's diff. Returns a pass/fail/skipped verdict — NOT the repo's
-/// authoritative PR review (§7: 别重造 review/CI). Claude-only for now.
-#[tauri::command]
-pub async fn review_direction(
-    db: State<'_, Db>,
-    direction_id: i32,
-) -> R<crate::review::ReviewVerdict> {
-    let wts = repo::list_worktrees(&db, Some(direction_id)).await.map_err(e)?;
-    let Some(w) = wts.into_iter().next() else {
-        return Ok(crate::review::ReviewVerdict {
-            status: "skipped".into(),
-            summary: "no working copy to review yet".into(),
-        });
-    };
-    let tool = repo::get_direction(&db, direction_id)
-        .await
-        .map_err(e)?
-        .map(|d| d.tool)
-        .unwrap_or_else(|| "claude".into());
-    tauri::async_runtime::spawn_blocking(move || {
-        crate::review::run_review(std::path::Path::new(&w.path), &tool)
-    })
-    .await
-    .map_err(e)
-}
+// The built-in review-agent rung is gone: review now runs as the user's global
+// review skill INSIDE the worker's own conversation (frontend sends the slash
+// command), and the repo's PR harness stays the authority (§7: 别重造 review/CI).
 
 #[tauri::command]
 pub async fn create_direction(

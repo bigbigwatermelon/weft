@@ -17,7 +17,6 @@ import type {
   RepoGraph,
   RepoRef,
   ResolvedProposal,
-  ReviewVerdict,
   SessionInfo,
   Thread,
   ThreadOverview,
@@ -181,9 +180,6 @@ export const api = {
   // Effective config (skills + rules) for a repo, tagged by layer + override.
   effectiveConfig: (repoPath: string) =>
     invoke<ConfigItem[]>("effective_config", { repoPath }),
-  // Review-agent rung: an on-demand pre-PR self-review of a direction's diff.
-  reviewDirection: (directionId: number) =>
-    invoke<ReviewVerdict>("review_direction", { directionId }),
   // Native folder picker; returns the chosen absolute path, or null if cancelled.
   pickFolder: async (title?: string) => {
     const sel = await openDialog({ directory: true, multiple: false, title });

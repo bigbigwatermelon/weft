@@ -29,7 +29,6 @@ pub mod lead_chat;
 mod planner;
 pub mod profile;
 mod pty;
-mod review;
 mod sidecar;
 mod tools;
 mod commands;
@@ -131,7 +130,6 @@ pub fn run() {
             commands::set_dangerous_mode,
             commands::set_guardrails,
             commands::effective_config,
-            commands::review_direction,
             commands::needs_you,
             commands::write_triggers,
             commands::approve_write_trigger,
