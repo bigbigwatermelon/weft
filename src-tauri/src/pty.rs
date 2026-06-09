@@ -477,7 +477,17 @@ async fn resume_impl(
     };
     let base = app.state::<crate::BusBase>().0.clone();
     let inj = crate::bus::inject::inject(&base, tid, &s.direction_id.to_string(), &s.tool, &cwd);
-    let active = spawn(&app, &s.tool, s.direction_id, &inj.args, &cwd, Some(&native), session_id, db.clone())
+    let ask = crate::bus::inject::inject_ask_hook(
+        &base,
+        tid,
+        &s.direction_id.to_string(),
+        &s.tool,
+        &cwd,
+    );
+    let mut args: Vec<String> = Vec::new();
+    args.extend(ask.args);
+    args.extend(inj.args);
+    let active = spawn(&app, &s.tool, s.direction_id, &args, &cwd, Some(&native), session_id, db.clone())
         .context("spawn agent --resume")?;
     state.sessions.lock().unwrap_or_else(|e| e.into_inner()).insert(session_id, active);
     Ok(SessionInfo {
