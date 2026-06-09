@@ -295,9 +295,32 @@ async fn call_planner(db: &Db, thread: i32, name: &str, args: &Value) -> Value {
                 serde_json::from_value(args.clone()).unwrap_or_default();
             let n = proposal.directions.len();
             match crate::planner::save_proposal(db, thread, &proposal).await {
-                Ok(()) => text_result(format!(
-                    "proposed {n} direction(s); the human will review and confirm in weft"
-                )),
+                Ok(()) => {
+                    // Anchor the proposal in the chat timeline at the moment it
+                    // happened — the console renders it as an interactive card.
+                    let content = serde_json::json!({
+                        "rationale": proposal.rationale,
+                        "count": n,
+                    })
+                    .to_string();
+                    let turn = crate::store::repo::next_turn_id(db, thread).await.unwrap_or(1) - 1;
+                    if let Ok(m) = crate::store::repo::insert_lead_message(
+                        db, thread, None, turn.max(1), "system", "proposal", &content, "complete",
+                    )
+                    .await
+                    {
+                        if let Some(app) = crate::APP_HANDLE.get() {
+                            use tauri::Emitter;
+                            let _ = app.emit(
+                                crate::lead_chat::engine::EVENT,
+                                crate::lead_chat::engine::Push::Message { thread_id: thread, message: m },
+                            );
+                        }
+                    }
+                    text_result(format!(
+                        "proposed {n} direction(s); the human will review and confirm in weft"
+                    ))
+                }
                 Err(e) => text_result(format!("error: {e}")),
             }
         }

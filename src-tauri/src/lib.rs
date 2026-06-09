@@ -37,6 +37,10 @@ mod commands;
 /// The bus server's base URL, e.g. "http://127.0.0.1:54321".
 pub struct BusBase(pub String);
 
+/// The app handle, for emitting events from contexts that predate the app
+/// (the bus server starts before the Tauri builder finishes). Set in setup().
+pub static APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
 /// Log a fatal startup error and exit cleanly (no panic/unwind).
 fn fatal(context: &str, err: impl std::fmt::Display) -> ! {
     eprintln!("[weft] fatal: {context}: {err}");
@@ -87,6 +91,7 @@ pub fn run() {
         .manage(asks)
         .manage(BusBase(bus_base))
         .setup(move |app| {
+            let _ = APP_HANDLE.set(app.handle().clone());
             coordinator::run(app.handle().clone(), wake_rx);
             gc::spawn_periodic(app.handle().clone());
             Ok(())
