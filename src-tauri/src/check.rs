@@ -72,6 +72,30 @@ pub fn infer_checks(dir: &Path) -> Vec<Check> {
     } else if dir.join("go.mod").exists() {
         out.push(check("build", "go", &["build", "./..."]));
         out.push(check("test", "go", &["test", "./..."]));
+    } else if dir.join("pyproject.toml").exists()
+        || dir.join("setup.py").exists()
+        || dir.join("requirements.txt").exists()
+    {
+        // Python has no single canonical runner, so — like Node's scripts — only
+        // add a rung when the repo actually CONFIGURES that tool (config file or a
+        // [tool.*] table), never an invented default. Cheap → expensive.
+        let pyproject = std::fs::read_to_string(dir.join("pyproject.toml")).unwrap_or_default();
+        let uses_ruff = dir.join("ruff.toml").exists()
+            || dir.join(".ruff.toml").exists()
+            || pyproject.contains("[tool.ruff");
+        if uses_ruff {
+            out.push(check("lint", "ruff", &["check", "."]));
+        }
+        let uses_mypy = dir.join("mypy.ini").exists() || pyproject.contains("[tool.mypy");
+        if uses_mypy {
+            out.push(check("typecheck", "mypy", &["."]));
+        }
+        let uses_pytest = dir.join("pytest.ini").exists()
+            || dir.join("conftest.py").exists()
+            || pyproject.contains("[tool.pytest");
+        if uses_pytest {
+            out.push(check("test", "pytest", &["-q"]));
+        }
     }
 
     // contract rung (§4.13 interface-contract conformance): a proto/buf repo gets
@@ -189,6 +213,32 @@ mod tests {
     fn unknown_repo_has_no_checks() {
         let d = tmp(&[("readme.txt", "hi")]);
         assert!(infer_checks(&d).is_empty());
+    }
+
+    #[test]
+    fn python_infers_only_configured_tools_cheap_first() {
+        let d = tmp(&[(
+            "pyproject.toml",
+            "[tool.ruff]\nline-length = 100\n[tool.mypy]\nstrict = true\n[tool.pytest.ini_options]\n",
+        )]);
+        let checks = infer_checks(&d);
+        let names: Vec<&str> = checks.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["lint", "typecheck", "test"]);
+        assert_eq!(checks[0].program, "ruff");
+        assert_eq!(checks[1].program, "mypy");
+        assert_eq!(checks[2].program, "pytest");
+    }
+
+    #[test]
+    fn python_without_tool_config_has_no_checks() {
+        // A bare Python repo (deps but no ruff/mypy/pytest config) gets NO rungs —
+        // we never invent a runner, same discipline as Node's defined-scripts-only.
+        let d = tmp(&[("requirements.txt", "requests\n"), ("pyproject.toml", "[project]\nname='x'\n")]);
+        assert!(infer_checks(&d).is_empty());
+        // conftest.py alone is enough evidence of pytest, though.
+        let d2 = tmp(&[("setup.py", "from setuptools import setup\n"), ("conftest.py", "")]);
+        let names: Vec<String> = infer_checks(&d2).into_iter().map(|c| c.name).collect();
+        assert_eq!(names, vec!["test"]);
     }
 
     #[test]
