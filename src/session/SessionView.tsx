@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, GitCompare, MessagesSquare, Square, SquareTerminal } from "lucide-react";
+import { ArrowLeft, GitCompare, MessagesSquare, ShieldQuestion, Square, SquareTerminal } from "lucide-react";
 import { useStore } from "../state/store";
+import { api } from "../lib/api";
 import type { SessionStatus } from "../lib/types";
 import { TerminalPanel } from "../panels/TerminalPanel";
 import { Transcript } from "./Transcript";
@@ -118,6 +119,25 @@ export function SessionView() {
           />
         </div>
       </header>
+
+      {/* §4.3 approval bar: mirror the native y/N prompt as buttons that write to
+          the PTY (a convenience over the native prompt, never a replacement). */}
+      {status === "waiting-approval" && (
+        <div className="flex items-center gap-2 border-b border-waiting/40 bg-waiting/10 px-3 py-2 text-[12.5px]">
+          <ShieldQuestion size={14} className="shrink-0 text-waiting" />
+          <span className="text-ink-muted">
+            <span className="capitalize text-ink">{info.tool}</span> {t("needs.wantsPermission")}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Button size="sm" variant="primary" onClick={() => void api.writePty(info.session_id, "y\n")}>
+              {t("common.allow")} · y
+            </Button>
+            <Button size="sm" variant="default" onClick={() => void api.writePty(info.session_id, "n\n")}>
+              {t("common.deny")} · n
+            </Button>
+          </div>
+        </div>
+      )}
 
       {view === "chat" ? (
         <Transcript cwd={info.worktree} tool={info.tool} running={running} />
