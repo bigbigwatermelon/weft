@@ -74,6 +74,17 @@ export interface SessionInfo {
   branch: string;
   tool: string;
   resumed: boolean;
+  native_id: string | null;
+}
+
+/** Read-only snapshot backing the observe surface (mirrors Rust ObserveRef). */
+export interface ObserveRef {
+  worktree: string;
+  branch: string;
+  tool: string;
+  session_id: number | null;
+  native_id: string | null;
+  status: string | null;
 }
 
 /** One executable verification rung's result (ARCHITECTURE §4.13). */

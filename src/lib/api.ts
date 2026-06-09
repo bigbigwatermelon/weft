@@ -6,6 +6,7 @@ import type {
   LeadInfo,
   NeedItem,
   NormEvent,
+  ObserveRef,
   PermissionAsk,
   Proposal,
   RepoChecks,
@@ -85,6 +86,10 @@ export const api = {
     invoke<LeadInfo>("plan_with_lead", { threadId, lang }),
   resumeSession: (sessionId: number) =>
     invoke<SessionInfo>("resume_session", { sessionId }),
+  sessionFor: (directionId: number, repoId: number) =>
+    invoke<ObserveRef | null>("session_for", { directionId, repoId }),
+  driveSession: (directionId: number, repoId: number, lang: string) =>
+    invoke<SessionInfo>("drive_session", { directionId, repoId, lang }),
   readTranscript: (cwd: string, tool: string) =>
     invoke<NormEvent[]>("read_transcript", { cwd, tool }),
   worktreeDiff: (cwd: string) =>
