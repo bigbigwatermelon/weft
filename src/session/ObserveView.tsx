@@ -26,6 +26,7 @@ export function ObserveView() {
   const { t } = useTranslation();
   const [ref, setRef] = useState<ObserveRef | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [driveError, setDriveError] = useState<string | null>(null);
   const [showDiff, setShowDiff] = useState(false);
   const [driving, setDriving] = useState(false);
 
@@ -84,8 +85,11 @@ export function ObserveView() {
   const onDrive = async () => {
     if (directionId == null || repoId == null) return;
     setDriving(true);
+    setDriveError(null);
     try {
       await driveDirection(directionId, repoId, true);
+    } catch (e) {
+      setDriveError(String(e));
     } finally {
       setDriving(false);
     }
@@ -142,6 +146,12 @@ export function ObserveView() {
             )}
           </div>
         </header>
+
+        {driveError && (
+          <div className="border-b border-border bg-[oklch(0.64_0.2_25/0.12)] px-3 py-1.5 text-[12px] text-danger">
+            {t("observe.driveFailed")}: {driveError}
+          </div>
+        )}
 
         {openAsks.length > 0 && (
           <div className="border-b border-border bg-surface/60 px-3 py-2">

@@ -283,6 +283,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setWorktrees({});
     setActiveThreadId(null);
     setActiveSessionId(null);
+    setViewing(null);
     setShowNeeds(false);
     setHomeTab("board");
     setRepoProfiles([]);
@@ -308,6 +309,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     async (threadId: number) => {
       setActiveThreadId(threadId);
       setActiveSessionId(null);
+      setViewing(null);
       setShowNeeds(false);
       setHomeTab("board");
       setShowBus(false);
@@ -339,6 +341,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const backToWorkspace = useCallback(() => {
     setActiveThreadId(null);
     setActiveSessionId(null);
+    setViewing(null);
     setShowNeeds(false);
     setHomeTab("board");
   }, []);
@@ -869,6 +872,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const goToAsk = useCallback(
     async (item: NeedItem) => {
       setShowNeeds(false);
+      setViewing(null);
       const live = Object.values(sessions).find(
         (s) => s.directionId === item.direction_id,
       );

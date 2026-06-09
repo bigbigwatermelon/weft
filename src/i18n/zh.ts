@@ -153,6 +153,7 @@ export const zh = {
     start: "开始",
     empty: "尚未物化。",
     answerPlaceholder: "输入回复，回车发送",
+    driveFailed: "无法续接该会话",
   },
   bus: {
     title: "会话总线",

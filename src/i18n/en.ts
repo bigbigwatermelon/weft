@@ -160,6 +160,7 @@ export const en = {
     start: "Start",
     empty: "Not materialized yet.",
     answerPlaceholder: "Type a reply, press Enter",
+    driveFailed: "Couldn't continue this session",
   },
   bus: {
     title: "Thread bus",
