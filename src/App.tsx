@@ -5,6 +5,7 @@ import { WorkspaceHome } from "./board/WorkspaceHome";
 import { SessionView } from "./session/SessionView";
 import { ObserveView } from "./session/ObserveView";
 import { DangerToast } from "./components/DangerToast";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 
 function Main() {
   const { activeSessionId, viewing, activeThreadId } = useStore();
@@ -15,11 +16,15 @@ function Main() {
 }
 
 function Shell() {
-  const { navCollapsed } = useStore();
+  const { navCollapsed, activeSessionId, viewing, activeThreadId } = useStore();
+  // Key the boundary by route so navigating away from a crashed screen clears it.
+  const routeKey = `${activeSessionId ?? ""}|${viewing ?? ""}|${activeThreadId ?? ""}`;
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
       {!navCollapsed && <WorkspaceNav />}
-      <Main />
+      <ErrorBoundary key={routeKey}>
+        <Main />
+      </ErrorBoundary>
       <DangerToast />
     </div>
   );

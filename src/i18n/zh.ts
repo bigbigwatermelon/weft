@@ -272,6 +272,11 @@ export const zh = {
     enabled: "危险模式已开启——agent 不再询问。",
     undo: "撤销",
   },
+  error: {
+    title: "这个界面崩溃了",
+    body: "其余界面与后台 agent 不受影响。",
+    retry: "重试",
+  },
   kind: {
     feature: "功能",
     bugfix: "缺陷",

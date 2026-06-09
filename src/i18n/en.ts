@@ -283,6 +283,11 @@ export const en = {
     enabled: "Dangerous mode on — agents won't ask anymore.",
     undo: "Undo",
   },
+  error: {
+    title: "This screen crashed",
+    body: "Other screens and background agents are unaffected.",
+    retry: "Retry",
+  },
   kind: {
     feature: "Feature",
     bugfix: "Bugfix",
