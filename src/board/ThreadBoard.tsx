@@ -71,7 +71,6 @@ export function ThreadBoard() {
   }, [activeThreadId, setReviewingProposal]);
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
-  const reviewing = reviewingProposal && proposal?.status === "proposed";
   const proposalPending =
     proposal?.status === "proposed" && proposal.directions.length > 0 && !reviewingProposal;
   const leadRunning =
@@ -151,7 +150,7 @@ export function ThreadBoard() {
               <span className="tabular-nums text-ink-faint">{messages.length}</span>
             )}
           </button>
-          {tab === "board" && !reviewing && dirs.length > 0 && (
+          {tab === "board" && dirs.length > 0 && (
             <Button variant="primary" onClick={() => setNewDir(true)}>
               <Plus size={14} />
               {t("thread.newDirection")}
@@ -267,7 +266,7 @@ function EmptyDiscuss({ onTalk }: { onTalk: () => void }) {
 }
 
 function DirectionCard({ direction }: { direction: Direction }) {
-  const { worktreesByDirection, repos, sessions, openSession, checksByDirection } = useStore();
+  const { worktreesByDirection, repos, sessions, viewDirection, checksByDirection } = useStore();
   const writes = worktreesByDirection[direction.id] ?? [];
   const checks = checksByDirection[direction.id];
 
@@ -301,7 +300,7 @@ function DirectionCard({ direction }: { direction: Direction }) {
               className="group flex items-center gap-0.5 rounded-[var(--radius-md)] transition-colors hover:bg-brand-ghost"
             >
               <button
-                onClick={() => void openSession(direction.id, w.repo_id)}
+                onClick={() => viewDirection(direction.id, w.repo_id)}
                 className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
               >
                 <span className="grid h-5 w-5 place-items-center rounded bg-raised">
