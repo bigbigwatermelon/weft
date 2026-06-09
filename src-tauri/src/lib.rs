@@ -144,7 +144,6 @@ pub fn run() {
             lead_chat::commands::lead_state,
             lead_chat::commands::list_lead_messages,
             pty::open_session,
-            pty::plan_with_lead,
             pty::resume_session,
             pty::session_for,
             pty::drive_session,

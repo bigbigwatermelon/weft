@@ -1,254 +1,218 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, MessagesSquare, RotateCcw, Sparkles, Square, SquareTerminal } from "lucide-react";
-import { useStore, type OpenSession } from "../state/store";
-import type { SessionStatus } from "../lib/types";
-import { TerminalPanel } from "../panels/TerminalPanel";
-import { Transcript } from "./Transcript";
-import { StatusChip } from "../components/ui/StatusChip";
-import { Button } from "../components/ui/Button";
-import { Composer } from "../components/Composer";
-import { Inspect } from "../components/Inspect";
-import { ToolIcon } from "../components/ToolIcon";
+import { Check, Send, SlashSquare, Square, SquareTerminal } from "lucide-react";
+import { useStore } from "../state/store";
+import { ChatTimeline } from "./ChatTimeline";
+import { api } from "../lib/api";
+import { resumeCommand } from "../lib/resume";
 import { cn } from "../lib/cn";
+import { Button } from "../components/ui/Button";
 
 /**
- * The thread's lead conversation as a full tab, mirroring a worker session:
- * observe (Chat) by default, switch to interactive (Terminal). When the lead
- * proposes a plan, a card surfaces here; reviewing happens on the Board tab.
+ * The issue console — a real chat, not a projection of the CLI's log. Messages
+ * live in weft's own store, replies stream token-by-token over the lead-chat
+ * event, and structured cards sit inline in the timeline. The engine survives
+ * restarts (resume) so history is always here and the composer always works.
  */
 export function LeadTab({ onReview }: { onReview: () => void }) {
   const {
-    leadSession,
-    startLead,
-    killSession,
-    proposal,
-    reviewingProposal,
-    setReviewingProposal,
     activeThreadId,
-    sessions,
+    leadMessages,
+    leadTurn,
+    leadSlash,
+    loadLeadChat,
+    sendLeadChat,
+    interruptLead,
+    setReviewingProposal,
   } = useStore();
-  const { t } = useTranslation();
-  const [view, setView] = useState<"chat" | "terminal">("chat");
-  // Bumped on each send so the transcript refreshes + snaps to bottom at once.
-  const [sentNonce, setSentNonce] = useState(0);
-  // Auto-start at most ONCE per thread. Keying off leadSession alone loops if the
-  // lead exits right after spawning (null → start → exit → null → start …).
-  const attemptedRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (leadSession || activeThreadId == null) return;
-    if (attemptedRef.current === activeThreadId) return;
-    attemptedRef.current = activeThreadId;
-    void startLead();
-  }, [leadSession, activeThreadId, startLead]);
+    if (activeThreadId != null) void loadLeadChat(activeThreadId);
+  }, [activeThreadId, loadLeadChat]);
 
-  if (!leadSession) {
-    // The lead finished its turn (PTY exited). Keep its transcript readable, with
-    // a Restart to continue the conversation — don't hide the work behind a button.
-    const exitedLead = Object.values(sessions).find(
-      (s) => s.kind === "lead" && s.threadId === activeThreadId && s.status === "exited",
-    );
-    if (exitedLead) {
-      return (
-        <LeadStopped
-          session={exitedLead}
-          onRestart={() => {
-            attemptedRef.current = activeThreadId;
-            void startLead();
-          }}
-        />
-      );
-    }
-    return <LeadStarting />;
-  }
-
-  const { info, status, nativeId } = leadSession;
-  const running = status === "running" || status === "starting";
-  const proposalPending =
-    proposal?.status === "proposed" &&
-    proposal.directions.length > 0 &&
-    !reviewingProposal;
+  if (activeThreadId == null) return null;
+  const msgs = leadMessages[activeThreadId] ?? [];
+  const turn = leadTurn[activeThreadId] ?? { state: "stopped" as const, queued: 0 };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
-        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] bg-raised px-2 py-0.5 text-[11px] capitalize text-ink-muted">
-          <ToolIcon tool={info.tool} size={12} />
-          {info.tool}
-        </span>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <div className="flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
-            <ViewTab active={view === "chat"} onClick={() => setView("chat")} title={t("lead.viewChat")}>
-              <MessagesSquare size={13} />
-            </ViewTab>
-            <ViewTab active={view === "terminal"} onClick={() => setView("terminal")} title={t("lead.viewTerminal")}>
-              <SquareTerminal size={13} />
-            </ViewTab>
-          </div>
-          <StatusChip status={status as SessionStatus} />
-          {running && (
-            <Button size="sm" variant="danger" onClick={() => void killSession(info.session_id)}>
-              <Square size={11} />
-              {t("session.kill")}
-            </Button>
-          )}
-          <Inspect
-            path={info.worktree}
-            nativeId={nativeId}
-            tool={info.tool}
-            className="h-7 w-7"
-          />
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {proposalPending && (
-          <motion.button
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-            onClick={() => {
-              setReviewingProposal(true);
-              onReview();
-            }}
-            className="group mx-3 mt-3 flex items-center gap-2.5 rounded-[var(--radius-md)] border border-accent/40 bg-accent-ghost px-3 py-2.5 text-left transition-colors hover:border-accent/70"
-          >
-            <Sparkles size={15} className="shrink-0 text-accent" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[12.5px] font-medium text-ink">
-                {t("lead.proposalReady", { count: proposal!.directions.length })}
-              </p>
-              <p className="truncate text-[11px] text-ink-muted">
-                {proposal!.rationale || t("lead.reviewCreate")}
-              </p>
-            </div>
-            <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-accent">
-              {t("lead.reviewCreate")}
-              <ArrowRight size={12} className="transition-transform group-hover:translate-x-0.5" />
-            </span>
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {view === "chat" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Transcript
-            cwd={info.worktree}
-            tool={info.tool}
-            running={running}
-            refreshSignal={sentNonce}
-          />
-          {running && <LeadComposer onSent={() => setSentNonce((n) => n + 1)} />}
-        </div>
-      ) : (
-        <motion.div
-          key={info.session_id}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.16 }}
-          className="min-h-0 flex-1 p-1.5"
-        >
-          <TerminalPanel sessionId={info.session_id} />
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-/**
- * The composer for the Lead conversation — what makes "home is a conversation"
- * (§ M-C) actually conversational from the Chat view, instead of forcing the
- * human into the raw Terminal tab to type. Sends via the store's bracketed-paste
- * path so multi-line prompts land intact in the TUI. Shares the one Composer
- * affordance with the bus (Enter sends; Shift+Enter adds a line).
- */
-function LeadComposer({ onSent }: { onSent?: () => void }) {
-  const { sendToLead } = useStore();
-  const { t } = useTranslation();
-  return (
-    <div className="border-t border-border bg-surface px-2.5 py-2">
-      <Composer
-        multiline
-        autoFocus
-        placeholder={t("lead.compose")}
-        onSend={(v) => {
-          void sendToLead(v);
-          onSent?.();
+    <div className="flex min-h-0 flex-1 flex-col bg-bg">
+      <ChatTimeline
+        messages={msgs}
+        busy={turn.state === "busy"}
+        onReviewProposal={() => {
+          setReviewingProposal(true);
+          onReview();
         }}
+      />
+      <ChatComposer
+        threadId={activeThreadId}
+        slashCommands={leadSlash[activeThreadId] ?? []}
+        busy={turn.state === "busy"}
+        stopped={turn.state === "stopped"}
+        queued={turn.queued}
+        onSend={(text) => void sendLeadChat(activeThreadId, text)}
+        onStop={() => void interruptLead(activeThreadId)}
       />
     </div>
   );
 }
 
-function ViewTab({
-  active,
-  onClick,
-  title,
-  children,
+/**
+ * The lead composer: Enter sends (Shift+Enter newline), a leading `/` opens the
+ * command palette fed by the CLI's own init-reported slash_commands — skills
+ * and commands work headless exactly as in the TUI, with a real picker on top.
+ */
+function ChatComposer({
+  threadId,
+  slashCommands,
+  busy,
+  stopped,
+  queued,
+  onSend,
+  onStop,
 }: {
-  active: boolean;
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      className={cn(
-        "grid h-6 w-7 place-items-center rounded-[var(--radius-sm)] transition-colors",
-        active ? "bg-raised text-ink shadow-[0_1px_2px_rgba(0,0,0,0.3)]" : "text-ink-faint hover:text-ink-muted",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-function LeadStarting() {
-  const { t } = useTranslation();
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-      <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] bg-accent-ghost">
-        <Sparkles size={20} className="animate-pulse text-accent" />
-      </div>
-      <p className="mt-3 text-[13px] text-ink-muted">{t("lead.starting")}</p>
-    </div>
-  );
-}
-
-/** An exited lead: its transcript stays readable; Restart continues the thread. */
-function LeadStopped({
-  session,
-  onRestart,
-}: {
-  session: OpenSession;
-  onRestart: () => void;
+  threadId: number;
+  slashCommands: string[];
+  busy: boolean;
+  stopped: boolean;
+  queued: number;
+  onSend: (text: string) => void;
+  onStop: () => void;
 }) {
   const { t } = useTranslation();
-  const { info, nativeId } = session;
+  const [text, setText] = useState("");
+  const [slashIdx, setSlashIdx] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 150)}px`;
+  }, [text]);
+
+  // Palette: leading "/" with no space yet → filter the CLI's command list.
+  const slashQuery = text.startsWith("/") && !text.includes(" ") ? text.slice(1) : null;
+  const slashMatches = useMemo(() => {
+    if (slashQuery == null || slashCommands.length === 0) return [];
+    const q = slashQuery.toLowerCase();
+    return slashCommands.filter((c) => c.toLowerCase().includes(q)).slice(0, 8);
+  }, [slashQuery, slashCommands]);
+  const paletteOpen = slashMatches.length > 0;
+
+  useEffect(() => setSlashIdx(0), [slashQuery]);
+
+  const send = () => {
+    const v = text.trim();
+    if (!v) return;
+    onSend(v);
+    setText("");
+  };
+
+  const complete = (cmd: string) => {
+    setText(`/${cmd} `);
+    ref.current?.focus();
+  };
+
+  const takeOver = async () => {
+    const st = await api.leadState(threadId);
+    if (!st.native_id) return;
+    await api.leadStop(threadId);
+    await navigator.clipboard.writeText(resumeCommand("claude", st.cwd, st.native_id));
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
-        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] bg-raised px-2 py-0.5 text-[11px] capitalize text-ink-muted">
-          <ToolIcon tool={info.tool} size={12} />
-          {info.tool}
-        </span>
-        <span className="text-[11px] text-ink-faint">{t("lead.stopped")}</span>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="primary" onClick={onRestart}>
-            <RotateCcw size={12} />
-            {t("lead.restart")}
+    <div className="border-t border-border bg-bg px-4 py-3">
+      <div className="relative mx-auto max-w-[820px] rounded-[var(--radius-lg)] border border-border bg-surface p-2 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.65)]">
+        {paletteOpen && (
+          <div className="absolute inset-x-2 bottom-full mb-2 overflow-hidden rounded-[var(--radius-md)] border border-border bg-raised shadow-[0_12px_40px_-20px_rgba(0,0,0,0.6)]">
+            {slashMatches.map((cmd, i) => (
+              <button
+                key={cmd}
+                onMouseEnter={() => setSlashIdx(i)}
+                onClick={() => complete(cmd)}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-[12.5px]",
+                  i === slashIdx ? "bg-brand-ghost text-ink" : "text-ink-muted",
+                )}
+              >
+                <SlashSquare size={12} className="shrink-0 text-brand" />/{cmd}
+              </button>
+            ))}
+          </div>
+        )}
+        <textarea
+          ref={ref}
+          autoFocus
+          rows={1}
+          value={text}
+          onChange={(e) => setText(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (paletteOpen) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSlashIdx((i) => (i + 1) % slashMatches.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSlashIdx((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                return;
+              }
+              if (e.key === "Tab" || e.key === "Enter") {
+                e.preventDefault();
+                complete(slashMatches[slashIdx]);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setText("");
+                return;
+              }
+            }
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          placeholder={t("lead.compose")}
+          className="max-h-[150px] min-h-[42px] w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-faint"
+        />
+        <div className="flex items-center gap-2 border-t border-border/70 px-1.5 pt-2">
+          <span className="hidden truncate text-[11px] text-ink-faint sm:block">
+            {stopped ? t("lead.engineStopped") : t("lead.slashHint")}
+          </span>
+          <span className="ml-auto" />
+          {queued > 0 && (
+            <span className="rounded-full bg-bg px-2 py-0.5 text-[10.5px] text-ink-faint">
+              {t("lead.queuedN", { count: queued })}
+            </span>
+          )}
+          <button
+            onClick={() => void takeOver()}
+            title={t("lead.takeOverTerminal")}
+            className="grid h-7 w-7 place-items-center rounded text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+          >
+            {copied ? <Check size={13} className="text-running" /> : <SquareTerminal size={13} />}
+          </button>
+          {copied && (
+            <span className="text-[10.5px] text-ink-faint">{t("lead.takeOverCopied")}</span>
+          )}
+          {busy ? (
+            <Button size="sm" variant="ghost" onClick={onStop}>
+              <Square size={12} />
+              {t("lead.stop")}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="primary" disabled={!text.trim()} onClick={send}>
+            <Send size={13} />
+            {t("lead.send")}
           </Button>
-          <Inspect path={info.worktree} nativeId={nativeId} tool={info.tool} className="h-7 w-7" />
         </div>
       </div>
-      <Transcript cwd={info.worktree} tool={info.tool} running={false} />
     </div>
   );
 }

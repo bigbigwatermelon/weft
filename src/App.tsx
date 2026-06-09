@@ -1,5 +1,6 @@
 import { StoreProvider, useStore } from "./state/store";
 import { WorkspaceNav } from "./nav/WorkspaceNav";
+import { AppTopBar } from "./nav/AppTopBar";
 import { ThreadBoard } from "./board/ThreadBoard";
 import { WorkspaceHome } from "./board/WorkspaceHome";
 import { NeedsYouView } from "./board/NeedsYouView";
@@ -8,7 +9,10 @@ import { ObserveView } from "./session/ObserveView";
 import { DangerToast } from "./components/DangerToast";
 import { Toasts } from "./components/Toast";
 import { CommandPalette } from "./components/CommandPalette";
+import { NeedsDock } from "./components/NeedsDock";
+import { FirstRunOnboarding } from "./components/FirstRunOnboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { SettingsScreen } from "./nav/SettingsDialog";
 import { useAppShortcuts } from "./state/shortcuts";
 
 function Main() {
@@ -23,21 +27,56 @@ function Main() {
 }
 
 function Shell() {
-  const { navCollapsed, activeSessionId, viewing, activeThreadId, showNeeds } = useStore();
+  const {
+    navCollapsed,
+    activeWorkspaceId,
+    activeSessionId,
+    viewing,
+    activeThreadId,
+    showNeeds,
+    homeTab,
+  } = useStore();
   useAppShortcuts();
+  if (
+    homeTab === "settings" &&
+    !showNeeds &&
+    activeSessionId == null &&
+    viewing == null &&
+    activeThreadId == null
+  ) {
+    return (
+      <div className="h-screen w-screen overflow-hidden bg-bg text-ink">
+        <SettingsScreen />
+        <Toasts />
+        <CommandPalette />
+      </div>
+    );
+  }
+  const showDock =
+    activeWorkspaceId != null &&
+    !showNeeds &&
+    (activeSessionId != null ||
+      viewing != null ||
+      activeThreadId != null ||
+      homeTab === "board");
   // Key the boundary by route so navigating away from a crashed screen clears it.
-  const routeKey = `${showNeeds ? "needs" : ""}|${activeSessionId ?? ""}|${viewing ?? ""}|${activeThreadId ?? ""}`;
+  const routeKey = `${showNeeds ? "needs" : ""}|${activeSessionId ?? ""}|${viewing ?? ""}|${activeThreadId ?? ""}|${homeTab}`;
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
       {!navCollapsed && <WorkspaceNav />}
-      <ErrorBoundary key={routeKey}>
-        <div className="flex min-w-0 flex-1 flex-col weft-screen-in">
-          <Main />
-        </div>
-      </ErrorBoundary>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <AppTopBar />
+        {showDock && <NeedsDock />}
+        <ErrorBoundary key={routeKey}>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col weft-screen-in">
+            <Main />
+          </div>
+        </ErrorBoundary>
+      </div>
       <DangerToast />
       <Toasts />
       <CommandPalette />
+      <FirstRunOnboarding />
     </div>
   );
 }

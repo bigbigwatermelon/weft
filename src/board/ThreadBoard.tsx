@@ -5,12 +5,10 @@ import * as DM from "@radix-ui/react-dropdown-menu";
 import {
   Check,
   ChevronDown,
+  ChevronRight,
   Layers,
-  LayoutGrid,
   Loader2,
   MessagesSquare,
-  Plus,
-  Radio,
   ScanEye,
   TerminalSquare,
   X,
@@ -20,19 +18,10 @@ import type { Direction, RepoChecks, SessionStatus } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { StatusDot } from "../components/ui/StatusChip";
 import { Inspect } from "../components/Inspect";
-import { ToolIcon } from "../components/ToolIcon";
-import { CreateDirectionDialog } from "../nav/dialogs";
-import { RailToggle } from "../components/RailToggle";
-import { BusDrawer } from "./BusDrawer";
+import { ToolIcon, toolFullName } from "../components/ToolIcon";
 import { ScopeReview } from "./ScopeReview";
 import { LeadTab } from "../session/LeadTab";
 import { cn } from "../lib/cn";
-
-const TOOL_LABEL: Record<string, string> = {
-  claude: "Claude",
-  codex: "Codex",
-  opencode: "OpenCode",
-};
 
 /** Task lifecycle column. "needs" is a weft overlay (an open ask / failing
  *  check); the rest are the agent/human-set stored status (§4.6). */
@@ -54,34 +43,21 @@ export function ThreadBoard() {
     proposal,
     reviewingProposal,
     setReviewingProposal,
-    leadSession,
-    messages,
-    showBus,
-    setShowBus,
+    threadTab,
+    setThreadTab,
     needs,
     asks,
     checksByDirection,
-    setTaskStatus,
   } = useStore();
   const { t } = useTranslation();
   const thread = threads.find((th) => th.id === activeThreadId);
-  const [newDir, setNewDir] = useState(false);
-  // 以对话为家 (M-C): an issue opens on the Lead conversation, not the board.
-  // The board is the companion view, one click away.
-  const [tab, setTab] = useState<"board" | "lead">("lead");
-  // drag-to-restatus a task between columns
-  const [dragId, setDragId] = useState<number | null>(null);
-  const [overCol, setOverCol] = useState<TaskState | null>(null);
   useEffect(() => {
-    setTab("lead");
+    setThreadTab("lead");
     setReviewingProposal(false);
-  }, [activeThreadId, setReviewingProposal]);
+  }, [activeThreadId, setReviewingProposal, setThreadTab]);
+
   if (!thread) return null;
   const dirs = directionsByThread[thread.id] ?? [];
-  const proposalPending =
-    proposal?.status === "proposed" && proposal.directions.length > 0 && !reviewingProposal;
-  const leadRunning =
-    leadSession?.status === "running" || leadSession?.status === "starting";
 
   // Column = the stored, agent/human-set status; an open ask/need or a failing
   // check overlays the task into Needs-you (the exception lane weft owns).
@@ -98,151 +74,43 @@ export function ThreadBoard() {
     return "queued";
   };
 
-  const TABS = [
-    { key: "board" as const, label: t("thread.tabBoard"), icon: LayoutGrid, dot: null as string | null },
-    {
-      key: "lead" as const,
-      label: t("lead.title"),
-      icon: MessagesSquare,
-      dot: proposalPending ? "bg-accent" : leadRunning ? "bg-running" : null,
-    },
-  ];
-
   return (
     <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-bg">
-      <header className="flex items-center gap-3 border-b border-border px-5 py-2.5">
-        <RailToggle />
-        <div className="flex shrink-0 items-center gap-1">
-          {TABS.map((tb) => {
-            const active = tab === tb.key;
-            return (
-              <button
-                key={tb.key}
-                onClick={() => {
-                  setTab(tb.key);
-                  if (tb.key === "board") setReviewingProposal(false);
-                }}
-                className={cn(
-                  "relative flex items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] px-2.5 py-1.5 text-[12.5px] transition-colors",
-                  active ? "text-ink" : "text-ink-faint hover:text-ink-muted",
-                )}
-              >
-                <tb.icon size={13} className={active ? "text-brand" : ""} />
-                {tb.label}
-                {tb.dot && (
-                  <span className={cn("h-1.5 w-1.5 rounded-full", tb.dot, "animate-pulse")} />
-                )}
-                {active && (
-                  <motion.span
-                    layoutId="thread-tab"
-                    className="absolute inset-x-1.5 -bottom-[9px] h-[2px] rounded-full bg-brand"
-                  />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[10px] uppercase text-ink-faint">
-            {t(`kind.${thread.kind}`, thread.kind)}
-          </span>
-          <button
-            onClick={() => setShowBus(!showBus)}
-            className="flex items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] border border-border px-2.5 py-1.5 text-[12px] text-ink-muted transition-colors hover:bg-surface hover:text-ink"
-          >
-            <Radio size={13} className="text-brand" />
-            {t("bus.activity")}
-            {messages.length > 0 && (
-              <span className="tabular-nums text-ink-faint">{messages.length}</span>
-            )}
-          </button>
-          {tab === "board" && dirs.length > 0 && (
-            <Button variant="primary" onClick={() => setNewDir(true)}>
-              <Plus size={14} />
-              {t("thread.newDirection")}
-            </Button>
-          )}
-        </div>
-      </header>
-
       <div className="flex min-h-0 flex-1 flex-col">
-        {tab === "lead" ? (
-          <LeadTab onReview={() => setTab("board")} />
+        {threadTab === "lead" ? (
+          <LeadTab onReview={() => setThreadTab("board")} />
         ) : reviewingProposal && proposal && proposal.status === "proposed" ? (
           <ScopeReview
             onBack={() => {
               setReviewingProposal(false);
-              setTab("lead");
+              setThreadTab("lead");
             }}
           />
         ) : dirs.length === 0 ? (
-          <EmptyDiscuss onTalk={() => setTab("lead")} />
+          <EmptyDiscuss onTalk={() => setThreadTab("lead")} />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
               {COLUMNS.map((col) => {
                 const cards = dirs.filter((d) => statusOf(d) === col.key);
-                // "needs" is weft-derived (open asks / failing checks), not a
-                // status a human sets — so it isn't a drop target.
-                const droppable = col.key !== "needs";
-                const isOver = droppable && overCol === col.key && dragId != null;
                 return (
                   <div key={col.key} className="flex w-[300px] shrink-0 flex-col gap-2">
                     <div className="flex items-center gap-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
                       <span className={cn("h-1.5 w-1.5 rounded-full", col.dot)} />
                       {t(col.label)}
                       <span className="tabular-nums text-ink-faint/70">{cards.length}</span>
-                      {col.key === "queued" && (
-                        <button
-                          onClick={() => setNewDir(true)}
-                          aria-label={t("thread.addDirection")}
-                          className="ml-auto grid h-5 w-5 place-items-center rounded text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
-                        >
-                          <Plus size={13} />
-                        </button>
-                      )}
                     </div>
                     <div
-                      onDragOver={(e) => {
-                        if (!droppable || dragId == null) return;
-                        e.preventDefault();
-                        setOverCol(col.key);
-                      }}
-                      onDragLeave={() => setOverCol((c) => (c === col.key ? null : c))}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (droppable && dragId != null) void setTaskStatus(dragId, col.key);
-                        setDragId(null);
-                        setOverCol(null);
-                      }}
-                      className={cn(
-                        "flex min-h-0 flex-1 flex-col gap-2 rounded-[var(--radius-lg)] p-2 transition-colors",
-                        isOver
-                          ? "bg-brand-ghost ring-1 ring-inset ring-brand/40"
-                          : "bg-surface/40",
-                      )}
+                      className="flex min-h-0 flex-1 flex-col gap-2 rounded-[var(--radius-lg)] bg-surface/40 p-2"
                     >
                       {cards.map((d) => (
-                        <div
-                          key={d.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setDragId(d.id);
-                            e.dataTransfer.effectAllowed = "move";
-                          }}
-                          onDragEnd={() => {
-                            setDragId(null);
-                            setOverCol(null);
-                          }}
-                          className={cn("cursor-grab active:cursor-grabbing", dragId === d.id && "opacity-40")}
-                        >
+                        <div key={d.id}>
                           <DirectionCard direction={d} />
                         </div>
                       ))}
                       {cards.length === 0 && (
                         <div className="flex flex-1 items-center justify-center py-6 text-[11px] text-ink-faint/60">
-                          {isOver ? t("thread.dropHere") : t("thread.colEmpty")}
+                          {t("thread.colEmpty")}
                         </div>
                       )}
                     </div>
@@ -254,8 +122,6 @@ export function ThreadBoard() {
         )}
       </div>
 
-      <BusDrawer directions={dirs} />
-      <CreateDirectionDialog open={newDir} onOpenChange={setNewDir} threadId={thread.id} />
     </section>
   );
 }
@@ -285,6 +151,8 @@ function DirectionCard({ direction }: { direction: Direction }) {
     repos,
     sessions,
     viewDirection,
+    needs,
+    asks,
     checksByDirection,
     reviewsByDirection,
     reviewingDirections,
@@ -295,95 +163,126 @@ function DirectionCard({ direction }: { direction: Direction }) {
   const checks = checksByDirection[direction.id];
   const review = reviewsByDirection[direction.id];
   const reviewing = !!reviewingDirections[direction.id];
+  const [showProvenance, setShowProvenance] = useState(false);
 
-  // Trust at a glance (§4.6): roll the acceptance rungs up to one card-level
-  // signal — green when all pass, red (count) when any fail, nothing when none.
   const allChecks = (checks ?? []).flatMap((rc) => rc.checks);
   const failed = allChecks.filter((c) => c.status === "fail").length;
+  const passed = allChecks.filter((c) => c.status === "pass").length;
+  const hasNeed =
+    needs.some((n) => n.direction_id === direction.id) ||
+    asks.some((a) => a.dir === String(direction.id));
+  const firstWrite = writes[0];
+
+  const testsKind =
+    failed > 0 ? "fail" : allChecks.length > 0 && passed === allChecks.length ? "pass" : "pend";
+  const reviewKind =
+    review?.status === "pass" ? "pass" : review?.status === "fail" ? "fail" : "pend";
+  const action = hasNeed
+    ? { label: t("thread.handle"), variant: "primary" as const }
+    : direction.status === "review"
+      ? { label: t("thread.reviewPr"), variant: "primary" as const }
+      : { label: t("thread.openSession"), variant: "default" as const };
 
   return (
     <motion.div
       layout
-      className="flex flex-col rounded-[var(--radius-lg)] border border-border bg-surface"
+      className={cn(
+        "flex flex-col rounded-[var(--radius-lg)] border bg-surface text-left transition-colors hover:border-border-strong",
+        hasNeed ? "border-waiting/45" : "border-border",
+      )}
     >
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
-        <span className="flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-ink">
-          <Layers size={13} className="shrink-0 text-ink-faint" />
-          <span className="truncate">{direction.name}</span>
-        </span>
+      <div className="flex items-start gap-2 px-3 py-2.5">
+        <ToolIcon tool={direction.tool} size={15} className="mt-0.5" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-semibold leading-snug text-ink">
+            {direction.name}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-border bg-bg px-1.5 py-0.5 text-[10.5px] text-ink-faint">
+              {toolFullName(direction.tool)}
+            </span>
+            <span className="rounded-full border border-border bg-bg px-1.5 py-0.5 text-[10.5px] text-ink-faint">
+              {taskStatusLabel(t, direction.status)}
+            </span>
+          </div>
+        </div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
-          {allChecks.length > 0 &&
-            (failed > 0 ? (
-              <span className="flex items-center gap-1 rounded-full bg-danger/15 px-1.5 py-0.5 text-[11px] font-medium text-danger">
-                <X size={10} />
-                {t("thread.acceptFail", { count: failed })}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 rounded-full bg-running/15 px-1.5 py-0.5 text-[11px] font-medium text-running">
-                <Check size={10} />
-                {t("thread.acceptPass")}
-              </span>
-            ))}
-          <span className="flex items-center gap-1.5 rounded-full bg-raised px-2 py-0.5 text-[11px] text-ink-muted">
-            <ToolIcon tool={direction.tool} size={12} />
-            {TOOL_LABEL[direction.tool] ?? direction.tool}
-          </span>
+          {hasNeed && (
+            <span className="rounded-full bg-waiting/15 px-1.5 py-0.5 text-[10.5px] font-medium text-waiting">
+              {t("thread.colNeeds")}
+            </span>
+          )}
           <StatusMenu direction={direction} />
         </div>
       </div>
 
-      {/* write repos — openable session slots. Each is an isolated working copy;
-          the real path/branch lives in Inspect (§4.7), not on the card face. */}
-      <ul className="flex flex-col gap-0.5 px-1.5 py-1.5">
-        {writes.map((w) => {
-          const repo = repos.find((r) => r.id === w.repo_id);
-          const sess = Object.values(sessions).find(
-            (s) => s.directionId === direction.id && s.repoId === w.repo_id,
-          );
-          return (
-            <li
-              key={w.id}
-              className="group flex items-center gap-0.5 rounded-[var(--radius-md)] transition-colors hover:bg-brand-ghost"
-            >
+      <div className="flex flex-wrap gap-1.5 px-3 pb-2">
+        {writes.length === 0 ? (
+          <span className="rounded-full border border-dashed border-border px-2 py-0.5 text-[11px] text-ink-faint">
+            {t("thread.noWriteCopy")}
+          </span>
+        ) : (
+          writes.map((w) => {
+            const repo = repos.find((r) => r.id === w.repo_id);
+            const sess = Object.values(sessions).find(
+              (s) => s.directionId === direction.id && s.repoId === w.repo_id,
+            );
+            return (
               <button
+                key={w.id}
                 onClick={() => viewDirection(direction.id, w.repo_id)}
-                className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent/30 bg-accent-ghost px-2 py-0.5 text-[11px] text-accent transition-colors hover:border-accent/60"
               >
-                <span className="grid h-5 w-5 place-items-center rounded bg-raised">
-                  <TerminalSquare size={12} className="text-brand" />
-                </span>
-                <span className="truncate text-[12px] text-ink">
-                  {repo?.name ?? `repo ${w.repo_id}`}
-                </span>
-                {sess && (
-                  <span className="ml-auto flex items-center">
-                    <StatusDot status={sess.status as SessionStatus} />
-                  </span>
-                )}
+                <TerminalSquare size={11} className="shrink-0" />
+                <span className="truncate font-mono">{repo?.name ?? `repo ${w.repo_id}`}</span>
+                {sess && <StatusDot status={sess.status as SessionStatus} />}
               </button>
-              <Inspect
-                path={w.path}
-                branch={w.branch}
-                nativeId={sess?.nativeId}
-                tool={sess?.info.tool ?? direction.tool}
-                size={13}
-                className="mr-1 h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-              />
-            </li>
-          );
-        })}
-      </ul>
+            );
+          })
+        )}
+      </div>
 
-      {checks && checks.length > 0 && (
-        <div className="flex flex-col gap-1.5 border-t border-border px-3 py-2">
-          {checks.map((rc) => (
-            <ChecksRow key={rc.repo} rc={rc} />
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-1.5 border-y border-border px-3 py-2">
+        <TrustSignal
+          kind={testsKind}
+          label={
+            allChecks.length > 0
+              ? t("thread.testsProgress", { passed, count: allChecks.length })
+              : t("thread.testsPending")
+          }
+        />
+        <TrustSignal
+          kind={testsKind}
+          label={failed > 0 ? t("thread.acceptFail", { count: failed }) : t("thread.typesSignal")}
+        />
+        <TrustSignal kind="pend" label={t("thread.contractSignal")} />
+        <TrustSignal
+          kind={reviewKind}
+          label={
+            review?.status === "pass"
+              ? t("thread.reviewPassed")
+              : review?.status === "fail"
+                ? t("thread.reviewFailed")
+                : t("thread.reviewSignal")
+          }
+        />
+      </div>
 
-      {/* review-agent rung (§4.13): on-demand pre-PR self-review, never auto */}
-      <div className="flex items-center gap-2 border-t border-border px-3 py-1.5">
+      <div className="flex items-center gap-2 px-3 py-2">
+        <button
+          type="button"
+          onClick={() => setShowProvenance((open) => !open)}
+          className="flex items-center gap-1 rounded-[var(--radius-sm)] px-1 py-0.5 text-[11px] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+        >
+          <ChevronRight
+            size={13}
+            className={cn("transition-transform", showProvenance && "rotate-90")}
+          />
+          {t("thread.provenance")}
+        </button>
+        <span className="ml-auto text-[11px] text-ink-faint">
+          {writes.length > 0 ? t("thread.copiesCount", { count: writes.length }) : null}
+        </span>
         <button
           onClick={() => void reviewDirection(direction.id)}
           disabled={reviewing || writes.length === 0}
@@ -396,36 +295,105 @@ function DirectionCard({ direction }: { direction: Direction }) {
           )}
           {reviewing ? t("thread.reviewing") : t("thread.review")}
         </button>
-        {review && !reviewing && (
-          <span
-            title={review.summary}
-            className={cn(
-              "flex min-w-0 items-center gap-1 truncate text-[11px]",
-              review.status === "pass"
-                ? "text-running"
-                : review.status === "fail"
-                  ? "text-danger"
-                  : "text-ink-faint",
-            )}
-          >
-            {review.status === "pass" ? (
-              <Check size={11} className="shrink-0" />
-            ) : review.status === "fail" ? (
-              <X size={11} className="shrink-0" />
-            ) : null}
-            <span className="truncate">
-              {review.status === "skipped" ? t("thread.reviewSkipped") : review.summary}
-            </span>
-          </span>
-        )}
+        <Button
+          size="sm"
+          variant={action.variant}
+          disabled={!firstWrite}
+          onClick={() => firstWrite && viewDirection(direction.id, firstWrite.repo_id)}
+        >
+          <TerminalSquare size={13} />
+          {action.label}
+        </Button>
       </div>
+
+      {showProvenance && (
+        <div className="flex flex-col gap-1.5 border-t border-border bg-bg/35 px-3 py-2">
+          {checks && checks.length > 0 ? (
+            checks.map((rc) => <ChecksRow key={rc.repo} rc={rc} />)
+          ) : (
+            <div className="text-[11px] text-ink-faint">{t("thread.noChecks")}</div>
+          )}
+          {review && !reviewing && (
+            <div
+              title={review.summary}
+              className={cn(
+                "flex min-w-0 items-center gap-1 truncate text-[11px]",
+                review.status === "pass"
+                  ? "text-running"
+                  : review.status === "fail"
+                    ? "text-danger"
+                    : "text-ink-faint",
+              )}
+            >
+              {review.status === "pass" ? (
+                <Check size={11} className="shrink-0" />
+              ) : review.status === "fail" ? (
+                <X size={11} className="shrink-0" />
+              ) : null}
+              <span className="truncate">
+                {review.status === "skipped" ? t("thread.reviewSkipped") : review.summary}
+              </span>
+            </div>
+          )}
+          {writes.map((w) => {
+            const sess = Object.values(sessions).find(
+              (s) => s.directionId === direction.id && s.repoId === w.repo_id,
+            );
+            return (
+              <div key={w.id} className="flex items-center gap-2 text-[11px] text-ink-faint">
+                <span className="min-w-0 flex-1 truncate font-mono">{w.branch}</span>
+                <Inspect
+                  path={w.path}
+                  branch={w.branch}
+                  nativeId={sess?.nativeId}
+                  tool={sess?.info.tool ?? direction.tool}
+                  size={13}
+                  className="h-6 w-6 shrink-0"
+                />
+              </div>
+            );
+          })}
+        </div>
+      )}
     </motion.div>
   );
 }
 
-/** Keyboard/click path to restatus a task (the drag handles mouse only). Sets
- *  the stored status (§4.6); "needs" is weft-derived, so it isn't offered. Wires
- *  the long-orphaned thread.setStatus affordance and makes the board a11y-complete. */
+type TFn = ReturnType<typeof useTranslation>["t"];
+
+function taskStatusLabel(t: TFn, status: Direction["status"]) {
+  if (status === "working") return t("thread.colRunning");
+  if (status === "review") return t("thread.colReview");
+  if (status === "done") return t("thread.colDone");
+  return t("thread.colQueued");
+}
+
+type TrustKind = "pass" | "fail" | "pend";
+
+function TrustSignal({ kind, label }: { kind: TrustKind; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex max-w-full items-center gap-1 rounded-full px-1.5 py-0.5 text-[10.5px] font-medium",
+        kind === "pass" && "bg-running/15 text-running",
+        kind === "fail" && "bg-[oklch(0.64_0.2_25/0.15)] text-danger",
+        kind === "pend" && "border border-border bg-bg text-ink-faint",
+      )}
+    >
+      {kind === "pass" ? (
+        <Check size={10} className="shrink-0" />
+      ) : kind === "fail" ? (
+        <X size={10} className="shrink-0" />
+      ) : (
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-ink-faint/70" />
+      )}
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+/** Keyboard/click path to restatus a task. Sets the stored status (§4.6);
+ *  "needs" is weft-derived, so it isn't offered. */
 function StatusMenu({ direction }: { direction: Direction }) {
   const { setTaskStatus } = useStore();
   const { t } = useTranslation();
@@ -498,4 +466,3 @@ function ChecksRow({ rc }: { rc: RepoChecks }) {
     </div>
   );
 }
-

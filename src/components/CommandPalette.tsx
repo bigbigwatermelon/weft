@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  Activity,
   CircleDot,
   CornerDownLeft,
-  FileCog,
   HelpCircle,
   LayoutDashboard,
   Network,
@@ -18,8 +16,6 @@ import {
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
 import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
-import { SettingsDialog } from "../nav/SettingsDialog";
-import { EffectiveConfigDialog } from "./EffectiveConfigDialog";
 import { cn } from "../lib/cn";
 
 type Command = {
@@ -62,7 +58,7 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   // The palette owns its dialogs (it's always mounted, unlike the rail which
   // unmounts when collapsed), so actions work regardless of sidebar state.
-  const [dialog, setDialog] = useState<null | "ws" | "thread" | "settings" | "config">(null);
+  const [dialog, setDialog] = useState<null | "ws" | "thread">(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
@@ -123,22 +119,11 @@ export function CommandPalette() {
         },
       },
       {
-        key: "nav-activity",
-        group: t("palette.go"),
-        label: t("palette.activity"),
-        icon: <Activity size={14} />,
-        hint: "⌘2",
-        run: () => {
-          backToWorkspace();
-          setHomeTab("overview");
-        },
-      },
-      {
         key: "nav-repos",
         group: t("palette.go"),
         label: t("palette.repos"),
         icon: <Network size={14} />,
-        hint: "⌘3",
+        hint: "⌘2",
         run: () => openRepoMap(),
       },
       {
@@ -170,13 +155,6 @@ export function CommandPalette() {
         run: () => setDialog("ws"),
       },
       {
-        key: "act-config",
-        group: t("palette.action"),
-        label: t("palette.config"),
-        icon: <FileCog size={14} />,
-        run: () => setDialog("config"),
-      },
-      {
         key: "act-theme",
         group: t("palette.action"),
         label: t("palette.theme"),
@@ -188,7 +166,10 @@ export function CommandPalette() {
         group: t("palette.action"),
         label: t("settings.title"),
         icon: <Settings size={14} />,
-        run: () => setDialog("settings"),
+        run: () => {
+          backToWorkspace();
+          setHomeTab("settings");
+        },
       },
     ];
     return [...issues, ...nav, ...actions];
@@ -331,8 +312,6 @@ export function CommandPalette() {
 
       <CreateThreadDialog open={dialog === "thread"} onOpenChange={(o) => !o && setDialog(null)} />
       <CreateWorkspaceDialog open={dialog === "ws"} onOpenChange={(o) => !o && setDialog(null)} />
-      <SettingsDialog open={dialog === "settings"} onOpenChange={(o) => !o && setDialog(null)} />
-      <EffectiveConfigDialog open={dialog === "config"} onOpenChange={(o) => !o && setDialog(null)} />
     </>
   );
 }

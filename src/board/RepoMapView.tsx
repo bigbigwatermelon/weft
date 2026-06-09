@@ -12,7 +12,6 @@ import { RepoGraph } from "./RepoGraph";
  */
 export function RepoMapView({ embedded = false }: { embedded?: boolean }) {
   const { repoProfiles, refreshRepoMap } = useStore();
-  const { t } = useTranslation();
 
   useEffect(() => {
     void refreshRepoMap();
@@ -28,13 +27,6 @@ export function RepoMapView({ embedded = false }: { embedded?: boolean }) {
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
-      <header className="flex items-center gap-2.5 border-b border-border px-5 py-2.5">
-        <span className="grid h-6 w-6 place-items-center rounded-[var(--radius-sm)] bg-brand-ghost">
-          <Network size={14} className="text-brand" />
-        </span>
-        <h1 className="text-[16px] font-semibold tracking-tight text-ink">{t("nav.repoMap")}</h1>
-        <span className="ml-auto text-[12px] text-ink-faint">{t("repomap.subtitle")}</span>
-      </header>
       {body}
     </section>
   );

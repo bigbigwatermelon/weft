@@ -5,9 +5,12 @@ import {
   Boxes,
   CircleDashed,
   FileText,
+  GitBranch,
   Maximize2,
   Minus,
   Package,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Plus,
   RefreshCw,
@@ -28,11 +31,11 @@ const ROLE_ICON: Record<string, ComponentType<LucideProps>> = {
   unknown: CircleDashed,
 };
 
-const NODE_W = 250;
-const NODE_H = 116;
-const COL_GAP = 112;
-const ROW_GAP = 28;
-const PAD = 24;
+const NODE_W = 188;
+const NODE_H = 92;
+const COL_GAP = 70;
+const ROW_GAP = 16;
+const PAD = 18;
 const MIN_Z = 0.35;
 const MAX_Z = 2.5;
 const clampZ = (z: number) => Math.min(MAX_Z, Math.max(MIN_Z, z));
@@ -47,6 +50,27 @@ const clampZ = (z: number) => Math.min(MAX_Z, Math.max(MIN_Z, z));
 export function RepoGraph() {
   const { repoProfiles, repoEdges, reprofileRepo } = useStore();
   const { t } = useTranslation();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [profileOpen, setProfileOpen] = useState(true);
+  const seededSelection = useRef(false);
+
+  // Seed the profile pane once so the repo map starts useful, while still
+  // letting the user close the pane afterwards.
+  useEffect(() => {
+    if (repoProfiles.length === 0) {
+      seededSelection.current = false;
+      setSelectedId(null);
+      return;
+    }
+    if (!seededSelection.current) {
+      seededSelection.current = true;
+      setSelectedId(repoProfiles[0].repo_id);
+      return;
+    }
+    if (selectedId != null && !repoProfiles.some((p) => p.repo_id === selectedId)) {
+      setSelectedId(repoProfiles[0].repo_id);
+    }
+  }, [repoProfiles, selectedId]);
 
   const layout = useMemo(() => {
     const ids = repoProfiles.map((p) => p.repo_id);
@@ -97,7 +121,7 @@ export function RepoGraph() {
     if (!el) return;
     const cw = el.clientWidth;
     const ch = el.clientHeight;
-    const z = clampZ(Math.min((cw - 96) / layout.width, (ch - 96) / layout.height, 1));
+    const z = clampZ(Math.min((cw - 56) / layout.width, (ch - 56) / layout.height, 1));
     setZoom(z);
     setPan({ x: (cw - layout.width * z) / 2, y: (ch - layout.height * z) / 2 });
   }, [layout.width, layout.height]);
@@ -139,8 +163,8 @@ export function RepoGraph() {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // let node interactions (re-profile) through; only the background pans
-    if ((e.target as HTMLElement).closest("[data-repo-node]")) return;
+    // let node interactions (re-profile) and the zoom controls through; only the background pans
+    if ((e.target as HTMLElement).closest("[data-repo-node], [data-graph-controls]")) return;
     drag.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -161,145 +185,380 @@ export function RepoGraph() {
   };
 
   return (
-    <div
-      ref={containerRef}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerLeave={endDrag}
-      className="relative h-full w-full cursor-grab select-none overflow-hidden bg-bg [touch-action:none] active:cursor-grabbing"
-    >
+    <div className="flex h-full min-h-0 w-full gap-3 bg-bg p-4">
       <div
-        className="absolute left-0 top-0 origin-top-left"
-        style={{
-          width: layout.width,
-          height: layout.height,
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-        }}
+        ref={containerRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerLeave={endDrag}
+        className="relative min-w-0 flex-1 cursor-grab select-none overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface/35 [touch-action:none] active:cursor-grabbing"
       >
-        <svg className="absolute inset-0" width={layout.width} height={layout.height} fill="none">
-          <defs>
-            <marker
-              id="weft-arrow"
-              viewBox="0 0 8 8"
-              refX="6"
-              refY="4"
-              markerWidth="6"
-              markerHeight="6"
-              orient="auto-start-reverse"
-            >
-              <path d="M0 0 L8 4 L0 8 z" className="fill-border-strong" />
-            </marker>
-          </defs>
-          {repoEdges.map((e, i) => {
-            const dependent = layout.pos.get(e.from);
-            const dependency = layout.pos.get(e.to);
-            if (!dependent || !dependency) return null;
-            // Arrow points dependency -> dependent (core -> api -> web-app): the
-            // foundation feeds its consumers, reading left to right.
-            const x1 = dependency.x + NODE_W; // dependency, right edge (start)
-            const y1 = dependency.y + NODE_H / 2;
-            const x2 = dependent.x; // dependent, left edge (arrowhead)
-            const y2 = dependent.y + NODE_H / 2;
-            const mx = (x1 + x2) / 2;
+        <div
+          className="absolute left-0 top-0 origin-top-left"
+          style={{
+            width: layout.width,
+            height: layout.height,
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          }}
+        >
+          <svg className="absolute inset-0" width={layout.width} height={layout.height} fill="none">
+            <defs>
+              <marker
+                id="weft-arrow"
+                viewBox="0 0 8 8"
+                refX="6"
+                refY="4"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path d="M0 0 L8 4 L0 8 z" className="fill-border-strong" />
+              </marker>
+            </defs>
+            {repoEdges.map((e, i) => {
+              const dependent = layout.pos.get(e.from);
+              const dependency = layout.pos.get(e.to);
+              if (!dependent || !dependency) return null;
+              const x1 = dependency.x + NODE_W;
+              const y1 = dependency.y + NODE_H / 2;
+              const x2 = dependent.x;
+              const y2 = dependent.y + NODE_H / 2;
+              const mx = (x1 + x2) / 2;
+              const active = selectedId === e.from || selectedId === e.to;
+              return (
+                <path
+                  key={i}
+                  d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
+                  className={cn(active ? "stroke-brand" : "stroke-border-strong")}
+                  strokeWidth={active ? 2 : 1.5}
+                  opacity={active ? 0.9 : 0.55}
+                  markerEnd="url(#weft-arrow)"
+                />
+              );
+            })}
+          </svg>
+
+          {repoProfiles.map((p) => {
+            const pt = layout.pos.get(p.repo_id);
+            if (!pt) return null;
+            const Icon = ROLE_ICON[p.role] ?? CircleDashed;
+            const dependents = repoEdges.filter((e) => e.to === p.repo_id).length;
+            const core = dependents >= 2;
+            const selected = selectedId === p.repo_id;
             return (
-              <path
-                key={i}
-                d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
-                className="stroke-border-strong"
-                strokeWidth={1.5}
-                markerEnd="url(#weft-arrow)"
-              />
+              <div
+                key={p.repo_id}
+                data-repo-node
+                onClick={() => {
+                  setSelectedId(p.repo_id);
+                  setProfileOpen(true);
+                }}
+                className={cn(
+                  "group absolute flex flex-col gap-1.5 overflow-hidden rounded-[var(--radius-md)] border bg-surface px-3 py-2.5 text-left transition-[transform,border-color,background-color] hover:-translate-y-px",
+                  selected
+                    ? "border-brand/60 bg-brand-ghost/60"
+                    : core
+                      ? "border-accent/50"
+                      : "border-border hover:border-border-strong",
+                )}
+                style={{ left: pt.x, top: pt.y, width: NODE_W, height: NODE_H }}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-raised">
+                    <Icon size={12} className={selected ? "text-brand" : "text-ink-muted"} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
+                    {p.repo_name}
+                  </span>
+                  {p.stale && (
+                    <span
+                      title={t("repomap.staleTitle")}
+                      className="h-1.5 w-1.5 shrink-0 rounded-full bg-waiting"
+                    />
+                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void reprofileRepo(p.repo_id);
+                    }}
+                    aria-label={t("repomap.reprofile")}
+                    title={t("repomap.reprofile")}
+                    className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:bg-brand-ghost hover:text-ink group-hover:opacity-100"
+                  >
+                    <RefreshCw size={11} />
+                  </button>
+                </div>
+
+                <div className="flex flex-nowrap items-center gap-1 overflow-hidden">
+                  <span className="shrink-0 rounded-full bg-bg px-1.5 py-px text-[10px] text-ink-faint">
+                    {t(`repomap.role_${p.role}`, p.role)}
+                  </span>
+                  {p.stack.slice(0, 3).map((s) => (
+                    <span
+                      key={s}
+                      className="shrink-0 rounded bg-bg px-1.5 py-px font-mono text-[10px] text-ink-faint"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                  {core && (
+                    <span
+                      title={t("repomap.rippleTitle", { count: dependents })}
+                      className="ml-auto shrink-0 rounded-full bg-accent-ghost px-1.5 py-px text-[10px] font-medium text-accent"
+                    >
+                      {t("repomap.coreDependents", { count: dependents })}
+                    </span>
+                  )}
+                </div>
+
+                <NodeSummary profile={p} />
+              </div>
             );
           })}
-        </svg>
+        </div>
 
-        {repoProfiles.map((p) => {
-          const pt = layout.pos.get(p.repo_id);
-          if (!pt) return null;
-          const Icon = ROLE_ICON[p.role] ?? CircleDashed;
-          const dependents = repoEdges.filter((e) => e.to === p.repo_id).length;
-          const core = dependents >= 2;
-          return (
-            <div
-              key={p.repo_id}
-              data-repo-node
-              className={cn(
-                "group absolute flex flex-col gap-1.5 overflow-hidden rounded-[var(--radius-lg)] border bg-surface px-3 py-2.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]",
-                core ? "border-accent/50" : "border-border",
-              )}
-              style={{ left: pt.x, top: pt.y, width: NODE_W, height: NODE_H }}
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 flex items-end justify-end gap-3">
+          <div
+            data-graph-controls
+            className="pointer-events-auto flex items-center gap-0.5 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_4px_16px_-6px_rgba(0,0,0,0.4)]"
+          >
+            <ZoomBtn onClick={() => zoomButton(0.83)} label={t("repomap.zoomOut")}>
+              <Minus size={14} />
+            </ZoomBtn>
+            <button
+              onClick={fit}
+              title={t("repomap.fit")}
+              className="min-w-[44px] rounded px-1.5 py-1 text-center text-[11px] tabular-nums text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
             >
-              <div className="flex items-center gap-1.5">
-                <span className="grid h-5 w-5 shrink-0 place-items-center rounded bg-raised">
-                  <Icon size={12} className="text-ink-muted" />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
-                  {p.repo_name}
-                </span>
-                {p.stale && (
-                  <span
-                    title={t("repomap.staleTitle")}
-                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-waiting"
-                  />
-                )}
-                <button
-                  onClick={() => void reprofileRepo(p.repo_id)}
-                  aria-label={t("repomap.reprofile")}
-                  title={t("repomap.reprofile")}
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:bg-brand-ghost hover:text-ink group-hover:opacity-100"
-                >
-                  <RefreshCw size={11} />
-                </button>
-              </div>
+              {Math.round(zoom * 100)}%
+            </button>
+            <ZoomBtn onClick={() => zoomButton(1.2)} label={t("repomap.zoomIn")}>
+              <Plus size={14} />
+            </ZoomBtn>
+            <ZoomBtn onClick={fit} label={t("repomap.fit")}>
+              <Maximize2 size={13} />
+            </ZoomBtn>
+          </div>
+        </div>
+      </div>
 
-              <div className="flex flex-nowrap items-center gap-1 overflow-hidden">
-                <span className="shrink-0 rounded-full bg-bg px-1.5 py-px text-[10px] text-ink-faint">
-                  {t(`repomap.role_${p.role}`, p.role)}
-                </span>
-                {p.stack.slice(0, 3).map((s) => (
-                  <span
-                    key={s}
-                    className="shrink-0 rounded bg-bg px-1.5 py-px font-mono text-[10px] text-ink-faint"
-                  >
-                    {s}
-                  </span>
-                ))}
-                {core && (
-                  <span
-                    title={t("repomap.rippleTitle", { count: dependents })}
-                    className="ml-auto shrink-0 rounded-full bg-accent-ghost px-1.5 py-px text-[10px] font-medium text-accent"
-                  >
-                    {t("repomap.coreDependents", { count: dependents })}
-                  </span>
-                )}
-              </div>
+      {profileOpen ? (
+        <RepoProfilePane
+          profile={repoProfiles.find((p) => p.repo_id === selectedId)}
+          edges={repoEdges}
+          profiles={repoProfiles}
+          onSelect={(id) => {
+            setSelectedId(id);
+            setProfileOpen(true);
+          }}
+          onCollapse={() => setProfileOpen(false)}
+        />
+      ) : (
+        <CollapsedProfileRail onOpen={() => setProfileOpen(true)} />
+      )}
+    </div>
+  );
+}
 
-              <NodeSummary profile={p} />
+function RepoProfilePane({
+  profile,
+  profiles,
+  edges,
+  onSelect,
+  onCollapse,
+}: {
+  profile?: RepoProfile;
+  profiles: RepoProfile[];
+  edges: { from: number; to: number; via: string }[];
+  onSelect: (id: number) => void;
+  onCollapse: () => void;
+}) {
+  const { t } = useTranslation();
+  const { reprofileRepo } = useStore();
+  if (!profile) return <EmptyProfilePane />;
+
+  const deps = edges
+    .filter((e) => e.from === profile.repo_id)
+    .map((e) => ({ edge: e, repo: profiles.find((p) => p.repo_id === e.to) }))
+    .filter((x): x is { edge: { from: number; to: number; via: string }; repo: RepoProfile } => !!x.repo);
+  const usedBy = edges
+    .filter((e) => e.to === profile.repo_id)
+    .map((e) => ({ edge: e, repo: profiles.find((p) => p.repo_id === e.from) }))
+    .filter((x): x is { edge: { from: number; to: number; via: string }; repo: RepoProfile } => !!x.repo);
+  const Icon = ROLE_ICON[profile.role] ?? CircleDashed;
+
+  return (
+    <aside className="flex w-[360px] shrink-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface">
+      <div className="border-b border-border px-4 py-3">
+        <div className="flex min-h-10 items-center gap-2.5">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-md)] bg-brand-ghost">
+            <Icon size={16} className="text-brand" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="truncate font-mono text-[16px] font-semibold text-ink">
+                {profile.repo_name}
+              </h2>
+              <span className="shrink-0 rounded-full border border-border bg-bg px-2 py-0.5 text-[11px] text-ink-muted">
+                {t(`repomap.role_${profile.role}`, profile.role)}
+              </span>
             </div>
-          );
-        })}
+            {profile.stale && (
+              <span className="mt-1 inline-flex text-[11px] text-waiting">{t("repomap.stale")}</span>
+            )}
+          </div>
+          <button
+            onClick={() => void reprofileRepo(profile.repo_id)}
+            title={t("repomap.reprofile")}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+          >
+            <RefreshCw size={14} />
+          </button>
+          <button
+            onClick={onCollapse}
+            aria-label={t("repomap.collapseProfile")}
+            title={t("repomap.collapseProfile")}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+          >
+            <PanelRightClose size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* zoom controls */}
-      <div className="absolute bottom-4 right-4 flex items-center gap-0.5 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_4px_16px_-6px_rgba(0,0,0,0.4)]">
-        <ZoomBtn onClick={() => zoomButton(0.83)} label={t("repomap.zoomOut")}>
-          <Minus size={14} />
-        </ZoomBtn>
-        <button
-          onClick={fit}
-          title={t("repomap.fit")}
-          className="min-w-[44px] rounded px-1.5 py-1 text-center text-[11px] tabular-nums text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
-        >
-          {Math.round(zoom * 100)}%
-        </button>
-        <ZoomBtn onClick={() => zoomButton(1.2)} label={t("repomap.zoomIn")}>
-          <Plus size={14} />
-        </ZoomBtn>
-        <ZoomBtn onClick={fit} label={t("repomap.fit")}>
-          <Maximize2 size={13} />
-        </ZoomBtn>
+      <div className="min-h-0 flex-1 overflow-auto px-4 py-4">
+        <ProfileSection title={t("repomap.oneLine")}>
+          <NodeSummary profile={profile} />
+        </ProfileSection>
+
+        <div className="grid grid-cols-2 gap-3">
+          <ProfileSection title={t("repomap.stack")}>
+            <ChipList values={profile.stack} empty={t("repomap.none")} mono />
+          </ProfileSection>
+          <ProfileSection title={t("repomap.source")}>
+            <span className="text-[13px] text-ink-muted">
+              {t(`repomap.source_${profile.source}`, profile.source)}
+            </span>
+          </ProfileSection>
+        </div>
+
+        <ProfileSection title={t("repomap.published")}>
+          <ChipList values={profile.published} empty={t("repomap.none")} mono />
+        </ProfileSection>
+
+        <ProfileSection title={t("repomap.dependsOn")}>
+          <RepoLinks items={deps} empty={t("repomap.noDeps")} onSelect={onSelect} />
+        </ProfileSection>
+
+        <ProfileSection title={t("repomap.usedBy")}>
+          <RepoLinks items={usedBy} empty={t("repomap.noUsedBy")} onSelect={onSelect} reverse />
+        </ProfileSection>
+
+        {profile.profiled_commit && (
+          <div className="mt-4 flex items-center gap-1.5 text-[11px] text-ink-faint">
+            <GitBranch size={12} />
+            <span>{t("repomap.profiledAt")}</span>
+            <span className="font-mono">{profile.profiled_commit.slice(0, 8)}</span>
+          </div>
+        )}
       </div>
+    </aside>
+  );
+}
+
+function CollapsedProfileRail({ onOpen }: { onOpen: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={t("repomap.expandProfile")}
+      title={t("repomap.expandProfile")}
+      className="flex w-10 shrink-0 items-start justify-center rounded-[var(--radius-lg)] border border-border bg-surface pt-3 text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
+    >
+      <PanelRightOpen size={15} />
+    </button>
+  );
+}
+
+function EmptyProfilePane() {
+  const { t } = useTranslation();
+  return (
+    <aside className="flex w-[360px] shrink-0 flex-col items-center justify-center rounded-[var(--radius-lg)] border border-border bg-surface px-6 text-center">
+      <CircleDashed size={22} className="text-ink-faint" />
+      <p className="mt-3 text-[13px] font-medium text-ink">{t("repomap.selectRepo")}</p>
+      <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">
+        {t("repomap.selectRepoBody")}
+      </p>
+    </aside>
+  );
+}
+
+function ProfileSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="mb-4">
+      <h3 className="mb-1.5 text-[11px] font-medium uppercase text-ink-faint">{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+function ChipList({ values, empty, mono }: { values: string[]; empty: string; mono?: boolean }) {
+  if (values.length === 0) return <span className="text-[13px] text-ink-faint">{empty}</span>;
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {values.map((value) => (
+        <span
+          key={value}
+          className={cn(
+            "rounded-[var(--radius-sm)] border border-border bg-bg px-2 py-1 text-[11px] text-ink-muted",
+            mono && "font-mono",
+          )}
+        >
+          {value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function RepoLinks({
+  items,
+  empty,
+  onSelect,
+  reverse,
+}: {
+  items: { repo: RepoProfile; edge: { via: string } }[];
+  empty: string;
+  onSelect: (id: number) => void;
+  reverse?: boolean;
+}) {
+  const { t } = useTranslation();
+  if (items.length === 0) return <span className="text-[13px] text-ink-faint">{empty}</span>;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {items.map(({ repo, edge }) => (
+        <button
+          key={repo.repo_id}
+          onClick={() => onSelect(repo.repo_id)}
+          className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-bg px-2.5 py-2 text-left transition-colors hover:border-border-strong hover:bg-raised"
+        >
+          <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">
+            {reverse ? `${repo.repo_name}` : repo.repo_name}
+          </span>
+          {edge.via && (
+            <span className="max-w-[120px] truncate text-[11px] text-ink-faint">
+              {t("repomap.via", { via: edge.via })}
+            </span>
+          )}
+        </button>
+      ))}
     </div>
   );
 }

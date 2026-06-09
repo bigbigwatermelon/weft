@@ -6,7 +6,6 @@ import {
   Check,
   CheckCheck,
   GitBranch,
-  HelpCircle,
   Layers,
   Send,
   ShieldCheck,
@@ -17,7 +16,7 @@ import { useStore } from "../state/store";
 import type { NeedItem, PermissionAsk, WriteTrigger } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { RailToggle } from "../components/RailToggle";
+import { ToolIcon, toolFullName } from "../components/ToolIcon";
 import type { TFunction } from "i18next";
 
 /**
@@ -28,30 +27,11 @@ import type { TFunction } from "i18next";
  */
 export function NeedsYouView() {
   const { needs, asks, writeTriggers } = useStore();
-  const { t } = useTranslation();
   const reduce = useReducedMotion();
   const total = needs.length + asks.length + writeTriggers.length;
 
   return (
     <section className="flex min-w-0 flex-1 flex-col bg-bg">
-      <header className="flex items-center gap-2.5 border-b border-border px-5 py-2.5">
-        <RailToggle />
-        <span className="grid h-6 w-6 place-items-center rounded-[var(--radius-sm)] bg-waiting/15">
-          <HelpCircle size={14} className="text-waiting" />
-        </span>
-        <h1 className="text-[16px] font-semibold tracking-tight text-ink">
-          {t("needs.title")}
-        </h1>
-        {total > 0 && (
-          <span className="rounded-full bg-waiting/15 px-2 py-0.5 text-[11px] font-medium tabular-nums text-waiting">
-            {total}
-          </span>
-        )}
-        <span className="ml-auto text-[12px] text-ink-faint">
-          {t("needs.subtitle")}
-        </span>
-      </header>
-
       <div className="min-h-0 flex-1 overflow-y-auto">
         {total === 0 ? (
           <EmptyNeeds />
@@ -175,7 +155,8 @@ export function PermissionRow({ ask }: { ask: PermissionAsk }) {
     <div className="overflow-hidden rounded-[var(--radius-lg)] border border-approval/40 bg-surface">
       <div className="flex items-center gap-2 px-3.5 pt-3 text-[12px]">
         <ShieldQuestion size={13} className="shrink-0 text-approval" />
-        <span className="font-medium capitalize text-ink">{ask.tool}</span>
+        <ToolIcon tool={ask.tool} size={13} />
+        <span className="font-medium text-ink">{toolFullName(ask.tool)}</span>
         <span className="text-ink-faint">{t("needs.wantsPermission")}</span>
         <span className="ml-auto whitespace-nowrap text-ink-faint tabular-nums">
           {ago(ask.ts, t)}

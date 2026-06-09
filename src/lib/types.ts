@@ -117,12 +117,35 @@ export interface RepoChecks {
   checks: CheckResult[];
 }
 
-/** An ephemeral lead (planning) session spawned to propose a decomposition. */
-export interface LeadInfo {
-  session_id: number;
+/** One row in a chat timeline (lead console / chat-mode workers). */
+export interface LeadMessage {
+  id: number;
   thread_id: number;
+  session_id: number | null;
+  turn_id: number;
+  role: "user" | "assistant" | "system";
+  kind: "text" | "tool" | "command" | "proposal" | "approval" | "worker_event" | "meta";
+  /** kind-shaped JSON string, e.g. {"text": "..."} for kind=text */
+  content: string;
+  status: "streaming" | "complete" | "interrupted" | "error" | "queued";
+  created_at: string;
+}
+
+/** Incremental pushes on the `lead-chat` Tauri event (engine → UI). */
+export type LeadChatPush =
+  | { type: "message"; thread_id: number; message: LeadMessage }
+  | { type: "delta"; thread_id: number; message_id: number; text: string }
+  | { type: "finalize"; thread_id: number; message_id: number; status: string }
+  | { type: "turn"; thread_id: number; state: "busy" | "idle" | "stopped"; queued: number }
+  | { type: "init"; thread_id: number; native_id: string; slash_commands: string[] };
+
+/** Snapshot of the lead engine, for mount-time hydration. */
+export interface LeadStateInfo {
+  state: "busy" | "idle" | "stopped";
+  queued: number;
+  native_id: string | null;
+  slash_commands: string[];
   cwd: string;
-  tool: string;
 }
 
 /** UI-side runtime status for a live session panel. */

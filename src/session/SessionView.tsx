@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, GitCompare, MessagesSquare, ShieldQuestion, Square, SquareTerminal } from "lucide-react";
+import {
+  GitCompare,
+  Keyboard,
+  MessagesSquare,
+  ShieldQuestion,
+  Square,
+  SquareTerminal,
+} from "lucide-react";
 import { useStore } from "../state/store";
 import { api } from "../lib/api";
 import type { SessionStatus } from "../lib/types";
@@ -12,18 +19,23 @@ import { StatusChip } from "../components/ui/StatusChip";
 import { Button } from "../components/ui/Button";
 import { Composer } from "../components/Composer";
 import { Inspect } from "../components/Inspect";
-import { RailToggle } from "../components/RailToggle";
-import { ToolIcon } from "../components/ToolIcon";
+import { toolFullName } from "../components/ToolIcon";
+import { Dialog, DialogContent } from "../components/ui/Dialog";
 import { cn } from "../lib/cn";
+
+const KEYMAP = [
+  { key: "session.keymapKeyCommand", owner: "product", action: "session.keymapCommand" },
+  { key: "session.keymapKeyComposer", owner: "product", action: "session.keymapComposer" },
+  { key: "session.keymapKeyPanels", owner: "product", action: "session.keymapPanels" },
+  { key: "session.keymapKeyInterrupt", owner: "terminal", action: "session.keymapInterrupt" },
+  { key: "session.keymapKeyPass", owner: "terminal", action: "session.keymapPass" },
+] as const;
 
 export function SessionView() {
   const {
     sessions,
     activeSessionId,
     killSession,
-    backToBoard,
-    repos,
-    directionsByThread,
     sendToSession,
   } = useStore();
   const { t } = useTranslation();
@@ -35,6 +47,7 @@ export function SessionView() {
     transcripted ? "chat" : "terminal",
   );
   const [showDiff, setShowDiff] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
   // Bumped on each send so the transcript refreshes + snaps to bottom at once.
   const [sentNonce, setSentNonce] = useState(0);
   useEffect(() => {
@@ -50,53 +63,25 @@ export function SessionView() {
   const running = status === "running" || status === "starting";
   // Product words, not plumbing: "<repo> · <direction>". The real worktree
   // path / branch / native id live in Inspect (§4.7).
-  const repoName =
-    repos.find((r) => r.id === active.repoId)?.name ?? "working copy";
-  const dirName =
-    directionsByThread[active.threadId]?.find((d) => d.id === active.directionId)?.name ??
-    "task";
-
   return (
     <div className="flex min-w-0 flex-1">
       <section className="flex min-w-0 flex-1 flex-col bg-bg">
-      {/* session header */}
-      <header className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2">
-        <RailToggle />
-        <button
-          onClick={backToBoard}
-          aria-label={t("session.back")}
-          className="-ml-1 grid h-7 w-7 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
-        >
-          <ArrowLeft size={15} />
-        </button>
-        <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] bg-raised px-2 py-0.5 text-[11px] font-medium capitalize text-ink-muted">
-          <ToolIcon tool={info.tool} size={12} />
-          {info.tool}
-        </span>
-        {isLead ? (
-          <span className="flex items-center gap-1.5 text-[13px]">
-            <span className="rounded-full bg-accent-ghost px-2 py-0.5 text-[11px] font-medium text-accent">
-              {t("session.lead")}
-            </span>
-            <span className="text-ink-muted">{t("session.leadPlanning")}</span>
+        <header className="flex items-center gap-2 border-b border-border bg-surface px-3 py-2">
+          {!isLead && (
+            <div className="flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
+              <ViewTab active={view === "chat"} onClick={() => setView("chat")} title={t("lead.viewChat")}>
+                <MessagesSquare size={13} />
+              </ViewTab>
+              <ViewTab active={view === "terminal"} onClick={() => setView("terminal")} title={t("lead.viewTerminal")}>
+                <SquareTerminal size={13} />
+              </ViewTab>
+            </div>
+          )}
+          <StatusChip status={status as SessionStatus} />
+          <span className="hidden min-w-0 truncate font-mono text-[11.5px] text-ink-faint md:block">
+            {info.branch}
           </span>
-        ) : (
-          <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink">
-            <span className="truncate font-medium">{repoName}</span>
-            <span className="text-ink-faint">·</span>
-            <span className="truncate text-ink-muted">{dirName}</span>
-          </span>
-        )}
-
-        <div className="ml-auto flex shrink-0 items-center gap-2">
-          <div className="flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
-            <ViewTab active={view === "chat"} onClick={() => setView("chat")} title={t("lead.viewChat")}>
-              <MessagesSquare size={13} />
-            </ViewTab>
-            <ViewTab active={view === "terminal"} onClick={() => setView("terminal")} title={t("lead.viewTerminal")}>
-              <SquareTerminal size={13} />
-            </ViewTab>
-          </div>
+          <span className="min-w-0 flex-1" />
           {!isLead && (
             <button
               onClick={() => setShowDiff(true)}
@@ -107,7 +92,14 @@ export function SessionView() {
               <GitCompare size={13} />
             </button>
           )}
-          <StatusChip status={status as SessionStatus} />
+          <button
+            onClick={() => setShowKeys(true)}
+            title={t("session.keymap")}
+            aria-label={t("session.keymap")}
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+          >
+            <Keyboard size={13} />
+          </button>
           {running && (
             <Button size="sm" variant="danger" onClick={() => void killSession(info.session_id)}>
               <Square size={11} />
@@ -121,67 +113,152 @@ export function SessionView() {
             tool={info.tool}
             className="h-7 w-7 shrink-0"
           />
-        </div>
-      </header>
+        </header>
 
-      {/* §4.3 approval bar: mirror the native y/N prompt as buttons that write to
-          the PTY (a convenience over the native prompt, never a replacement). */}
-      {status === "waiting-approval" && (
-        <div className="flex items-center gap-2 border-b border-waiting/40 bg-waiting/10 px-3 py-2 text-[12.5px]">
-          <ShieldQuestion size={14} className="shrink-0 text-waiting" />
-          <span className="text-ink-muted">
-            <span className="capitalize text-ink">{info.tool}</span> {t("needs.wantsPermission")}
-          </span>
-          <div className="ml-auto flex shrink-0 items-center gap-1.5">
-            <Button size="sm" variant="primary" onClick={() => void api.writePty(info.session_id, "y\n")}>
-              {t("common.allow")} · y
-            </Button>
-            <Button size="sm" variant="default" onClick={() => void api.writePty(info.session_id, "n\n")}>
-              {t("common.deny")} · n
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {view === "chat" ? (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <Transcript
-            cwd={info.worktree}
-            tool={info.tool}
-            running={running}
-            refreshSignal={sentNonce}
-          />
-          {running && (
-            <div className="border-t border-border bg-surface px-2.5 py-2">
-              <Composer
-                multiline
-                placeholder={isLead ? t("lead.compose") : t("session.message")}
-                onSend={(v) => {
-                  void sendToSession(info.session_id, v);
-                  setSentNonce((n) => n + 1);
-                }}
-              />
+        {/* §4.3 approval bar: mirror the native y/N prompt as buttons that write to
+            the PTY (a convenience over the native prompt, never a replacement). */}
+        {status === "waiting-approval" && (
+          <div className="flex items-center gap-2 border-b border-waiting/40 bg-waiting/10 px-3 py-2 text-[12.5px]">
+            <ShieldQuestion size={14} className="shrink-0 text-waiting" />
+            <span className="text-ink-muted">
+              <span className="text-ink">{toolFullName(info.tool)}</span> {t("needs.wantsPermission")}
+            </span>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5">
+              <Button size="sm" variant="primary" onClick={() => void api.writePty(info.session_id, "y\n")}>
+                {t("common.allow")} · y
+              </Button>
+              <Button size="sm" variant="default" onClick={() => void api.writePty(info.session_id, "n\n")}>
+                {t("common.deny")} · n
+              </Button>
             </div>
-          )}
-        </div>
-      ) : (
-        /* embedded native TUI — keyed so each session gets a fresh terminal */
-        <motion.div
-          key={info.session_id}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.16 }}
-          className="min-h-0 flex-1 p-1.5"
-        >
-          <TerminalPanel sessionId={info.session_id} />
-        </motion.div>
-      )}
+          </div>
+        )}
+
+        {isLead || view === "chat" ? (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <Transcript
+              cwd={info.worktree}
+              tool={info.tool}
+              running={running}
+              refreshSignal={sentNonce}
+            />
+            {running && (
+              <div className="border-t border-border bg-surface px-2.5 py-2">
+                <Composer
+                  multiline
+                  placeholder={isLead ? t("lead.compose") : t("session.message")}
+                  onSend={(v) => {
+                    void sendToSession(info.session_id, v);
+                    setSentNonce((n) => n + 1);
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+          /* embedded native TUI — keyed so each session gets a fresh terminal */
+          <motion.div
+            key={info.session_id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.16 }}
+            className="min-h-0 flex-1 p-3"
+          >
+            <TerminalFrame cwd={info.worktree} focused={running}>
+              <TerminalPanel sessionId={info.session_id} />
+            </TerminalFrame>
+          </motion.div>
+        )}
       </section>
 
       {!isLead && (
         <DiffPanel cwd={info.worktree} open={showDiff} onClose={() => setShowDiff(false)} />
       )}
+      <KeymapDialog open={showKeys} onOpenChange={setShowKeys} />
     </div>
+  );
+}
+
+function TerminalFrame({
+  cwd,
+  focused,
+  children,
+}: {
+  cwd: string;
+  focused: boolean;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className={cn(
+        "flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius-lg)] border bg-[#1a1814]",
+        focused ? "border-brand/55" : "border-border",
+      )}
+    >
+      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-white/10 bg-[#211f1a] px-3">
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ff6b57]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#ffbf4a]" />
+        <span className="h-2.5 w-2.5 rounded-full bg-[#36c56f]" />
+        <span className="ml-2 min-w-0 truncate font-mono text-[11px] text-[#b9b4aa]">
+          {cwd}
+        </span>
+        {focused && (
+          <span className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand/35 bg-brand-ghost px-2 py-0.5 text-[11px] text-brand">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+            {t("session.typingHere")}
+          </span>
+        )}
+      </div>
+      <div className="min-h-0 flex-1 p-2">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function KeymapDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        title={t("session.keymap")}
+        description={t("session.keymapDesc")}
+        className="w-[min(560px,calc(100vw-2rem))]"
+      >
+        <div className="flex flex-col gap-1.5">
+          {KEYMAP.map((row) => (
+            <div
+              key={row.key}
+              className="flex items-center gap-2 rounded-[var(--radius-md)] border border-border bg-bg px-2.5 py-2 text-[12px]"
+            >
+              <kbd className="min-w-[92px] rounded border border-border bg-raised px-2 py-1 text-center font-mono text-[11px] text-ink">
+                {t(row.key)}
+              </kbd>
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-2 py-0.5 text-[11px]",
+                  row.owner === "product"
+                    ? "bg-brand-ghost text-brand"
+                    : "bg-accent-ghost text-accent",
+                )}
+              >
+                {t(`session.keymapOwner_${row.owner}`)}
+              </span>
+              <span className="min-w-0 flex-1 text-ink-muted">
+                {t(row.action)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -213,4 +290,3 @@ function ViewTab({
     </button>
   );
 }
-

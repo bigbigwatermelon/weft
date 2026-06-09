@@ -4,10 +4,12 @@ import type {
   BusMsg,
   ConfigItem,
   Direction,
-  LeadInfo,
+  LeadMessage,
+  LeadStateInfo,
   NeedItem,
   NormEvent,
   ObserveRef,
+  // (LeadInfo retired with the PTY lead)
   PermissionAsk,
   Proposal,
   RepoChecks,
@@ -84,8 +86,19 @@ export const api = {
 
   openSession: (directionId: number, repoId: number, lang: string) =>
     invoke<SessionInfo>("open_session", { directionId, repoId, lang }),
-  planWithLead: (threadId: number, lang: string) =>
-    invoke<LeadInfo>("plan_with_lead", { threadId, lang }),
+
+  // Lead chat engine: weft-owned conversation (headless stream-json claude).
+  leadSend: (threadId: number, text: string, lang: string) =>
+    invoke<void>("lead_send", { threadId, text, lang }),
+  leadInterrupt: (threadId: number) =>
+    invoke<void>("lead_interrupt", { threadId }),
+  leadEnsure: (threadId: number, lang: string) =>
+    invoke<void>("lead_ensure", { threadId, lang }),
+  leadStop: (threadId: number) => invoke<void>("lead_stop", { threadId }),
+  leadState: (threadId: number) =>
+    invoke<LeadStateInfo>("lead_state", { threadId }),
+  listLeadMessages: (threadId: number) =>
+    invoke<LeadMessage[]>("list_lead_messages", { threadId }),
   resumeSession: (sessionId: number) =>
     invoke<SessionInfo>("resume_session", { sessionId }),
   sessionFor: (directionId: number, repoId: number) =>

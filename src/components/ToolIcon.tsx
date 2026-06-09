@@ -6,6 +6,16 @@ const SRC: Record<string, string> = {
   opencode: "/tools/opencode.svg",
 };
 
+const FULL_NAME: Record<string, string> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  opencode: "OpenCode",
+};
+
+export function toolFullName(tool: string) {
+  return FULL_NAME[tool] ?? tool;
+}
+
 /** The official mark for a coding tool (claude / codex / opencode). */
 export function ToolIcon({
   tool,
@@ -21,7 +31,7 @@ export function ToolIcon({
   return (
     <img
       src={src}
-      alt={tool}
+      alt={toolFullName(tool)}
       width={size}
       height={size}
       draggable={false}

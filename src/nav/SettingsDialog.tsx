@@ -1,55 +1,162 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, FolderOpen, Loader2, Moon, ShieldAlert, Sun, Zap } from "lucide-react";
-import { Dialog, DialogContent } from "../components/ui/Dialog";
-import { Field, Input } from "../components/ui/Input";
-import { ToolIcon } from "../components/ToolIcon";
-import { useTheme } from "../state/theme";
-import { setLang, currentLang, type Lang } from "../i18n";
-import { useStore } from "../state/store";
+import {
+  ArrowLeft,
+  Bot,
+  FolderOpen,
+  Moon,
+  Palette,
+  Search,
+  Settings,
+  Sun,
+} from "lucide-react";
+import { Input } from "../components/ui/Input";
+import { currentLang, setLang, type Lang } from "../i18n";
 import { api } from "../lib/api";
-import type { ToolStatus } from "../lib/types";
 import { cn } from "../lib/cn";
+import { useStore } from "../state/store";
+import { useTheme } from "../state/theme";
 
 const TOOLS = ["claude", "codex", "opencode"] as const;
-const TOOL_LABEL: Record<string, string> = { claude: "Claude", codex: "Codex", opencode: "OpenCode" };
+const TOOL_LABEL: Record<string, string> = {
+  claude: "Claude",
+  codex: "Codex",
+  opencode: "OpenCode",
+};
 
-/** App-level settings: appearance, language, projects directory, default tool. */
-export function SettingsDialog({
-  open,
-  onOpenChange,
+type SettingsPage = "general" | "appearance" | "automation";
+
+type NavItem = {
+  id: SettingsPage;
+  icon: typeof Settings;
+  labelKey: string;
+  implemented?: boolean;
+};
+
+const NAV_GROUPS: { labelKey: string; items: NavItem[] }[] = [
+  {
+    labelKey: "settings.groupPersonal",
+    items: [
+      { id: "general", icon: Settings, labelKey: "settings.general", implemented: true },
+      { id: "appearance", icon: Palette, labelKey: "settings.appearance", implemented: true },
+      { id: "automation", icon: Bot, labelKey: "settings.automation", implemented: true },
+    ],
+  },
+];
+
+export function SettingsScreen() {
+  const { t } = useTranslation();
+  const { setHomeTab } = useStore();
+  const [active, setActive] = useState<SettingsPage>("general");
+  const [query, setQuery] = useState("");
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return NAV_GROUPS;
+    return NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => t(item.labelKey).toLowerCase().includes(q)),
+    })).filter((group) => group.items.length > 0);
+  }, [query, t]);
+
+  const activeLabel = t(NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === active)?.labelKey ?? "settings.general");
+
+  return (
+    <section className="flex h-screen w-screen overflow-hidden bg-bg text-ink">
+      <aside className="flex w-80 shrink-0 flex-col border-r border-border bg-surface">
+        <div className="px-3 pb-3 pt-5">
+          <button
+            type="button"
+            onClick={() => setHomeTab("board")}
+            className="mb-4 flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
+          >
+            <ArrowLeft size={15} />
+            {t("settings.backToApp")}
+          </button>
+          <div className="relative">
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.currentTarget.value)}
+              placeholder={t("settings.searchPlaceholder")}
+              className="h-8 w-full rounded-[var(--radius-md)] border border-border bg-bg pl-8 pr-2 text-[13px] text-ink outline-none placeholder:text-ink-faint transition-colors hover:border-border-strong focus:border-brand focus:ring-2 focus:ring-brand/25"
+            />
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+          {groups.map((group) => (
+            <div key={group.labelKey} className="mb-5">
+              <div className="px-2 pb-1.5 text-[12px] font-medium text-ink-faint">
+                {t(group.labelKey)}
+              </div>
+              <div className="grid gap-0.5">
+                {group.items.map((item) => (
+                  <SettingsNavButton
+                    key={item.id}
+                    item={item}
+                    active={active === item.id}
+                    onClick={() => setActive(item.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <main className="min-w-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[760px] px-8 pb-16 pt-16">
+          <h1 className="text-[22px] font-semibold tracking-[-0.01em] text-ink">{activeLabel}</h1>
+          <div className="mt-10">
+            {active === "general" ? (
+              <GeneralSettings />
+            ) : active === "appearance" ? (
+              <AppearanceSettings />
+            ) : (
+              <AutomationSettings />
+            )}
+          </div>
+        </div>
+      </main>
+    </section>
+  );
+}
+
+function SettingsNavButton({
+  item,
+  active,
+  onClick,
 }: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
+  item: NavItem;
+  active: boolean;
+  onClick: () => void;
 }) {
   const { t } = useTranslation();
-  const { theme, toggle } = useTheme();
-  const {
-    projectsDir,
-    setProjectsDir,
-    defaultTool,
-    setDefaultTool,
-    dangerousMode,
-    setDangerousMode,
-    idleCapMins,
-    wallCapMins,
-    setGuardrails,
-  } = useStore();
+  const Icon = item.icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-left text-[13px] transition-colors",
+        active ? "bg-hover text-ink" : "text-ink-muted hover:bg-hover/70 hover:text-ink",
+      )}
+    >
+      <Icon size={15} className={active ? "text-ink" : "text-ink-faint"} />
+      <span className="min-w-0 flex-1 truncate">{t(item.labelKey)}</span>
+    </button>
+  );
+}
+
+function GeneralSettings() {
+  const { t } = useTranslation();
+  const { projectsDir, setProjectsDir, defaultTool, setDefaultTool } = useStore();
   const [lang, setLangState] = useState<Lang>(currentLang());
-  const [detected, setDetected] = useState<ToolStatus[] | null>(null);
 
-  // Detect installed CLIs each time the dialog opens.
   useEffect(() => {
-    if (!open) return;
-    setDetected(null);
-    let alive = true;
-    void api.detectTools().then((d) => alive && setDetected(d));
-    return () => {
-      alive = false;
-    };
-  }, [open]);
-
-  const statusOf = (tool: string) => detected?.find((d) => d.tool === tool);
+    setLangState(currentLang());
+  }, []);
 
   async function pickDir() {
     const dir = await api.pickFolder(t("settings.projectsDir"));
@@ -57,174 +164,137 @@ export function SettingsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={t("settings.title")} description={t("settings.subtitle")}>
-        <div className="flex flex-col gap-5">
-          {/* appearance */}
-          <Row label={t("settings.appearance")}>
-            <Segmented
-              value={theme}
-              onChange={(v) => {
-                if (v !== theme) toggle();
-              }}
-              options={[
-                { value: "light", label: t("settings.light"), icon: <Sun size={13} /> },
-                { value: "dark", label: t("settings.dark"), icon: <Moon size={13} /> },
-              ]}
+    <div className="flex flex-col gap-10">
+      <SettingsGroup title={t("settings.defaults")}>
+        <SettingRow label={t("settings.defaultTool")} hint={t("settings.defaultToolHint")}>
+          <Segmented
+            value={defaultTool}
+            onChange={setDefaultTool}
+            options={TOOLS.map((tool) => ({ value: tool, label: TOOL_LABEL[tool] }))}
+          />
+        </SettingRow>
+        <SettingRow label={t("settings.projectsDir")} hint={t("settings.projectsDirHint")}>
+          <div className="flex w-[360px] max-w-[42vw] items-center gap-2">
+            <Input
+              value={projectsDir}
+              placeholder="/Users/you/code"
+              onChange={(e) => setProjectsDir(e.currentTarget.value)}
+              className="h-8 min-w-0 bg-bg/80 font-mono text-[12px]"
             />
-          </Row>
-
-          {/* language */}
-          <Row label={t("settings.language")}>
-            <Segmented
-              value={lang}
-              onChange={(v) => {
-                setLang(v as Lang);
-                setLangState(v as Lang);
-              }}
-              options={[
-                { value: "zh", label: "中文" },
-                { value: "en", label: "English" },
-              ]}
-            />
-          </Row>
-
-          <div className="h-px bg-border" />
-
-          {/* projects directory */}
-          <Field label={t("settings.projectsDir")} hint={t("settings.projectsDirHint")}>
-            <div className="flex items-center gap-2">
-              <Input
-                value={projectsDir}
-                placeholder="/Users/you/code"
-                onChange={(e) => setProjectsDir(e.currentTarget.value)}
-              />
-              <button
-                type="button"
-                onClick={() => void pickDir()}
-                title={t("settings.choose")}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border text-ink-muted transition-colors hover:bg-surface hover:text-ink"
-              >
-                <FolderOpen size={15} />
-              </button>
-            </div>
-          </Field>
-
-          {/* default coding tool */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[12px] font-medium text-ink">{t("settings.defaultTool")}</span>
-              {detected === null && (
-                <span className="flex items-center gap-1 text-[11px] text-ink-faint">
-                  <Loader2 size={11} className="animate-spin" />
-                  {t("settings.detecting")}
-                </span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5">
-              {TOOLS.map((tool) => {
-                const st = statusOf(tool);
-                const installed = st?.installed ?? false;
-                const active = defaultTool === tool;
-                return (
-                  <button
-                    key={tool}
-                    type="button"
-                    onClick={() => setDefaultTool(tool)}
-                    className={cn(
-                      "flex items-center gap-2.5 rounded-[var(--radius-md)] border px-3 py-2 text-left transition-colors",
-                      active
-                        ? "border-brand/50 bg-brand-ghost"
-                        : "border-border hover:bg-surface",
-                    )}
-                  >
-                    <ToolIcon tool={tool} size={15} />
-                    <span className="text-[13px] font-medium text-ink">{TOOL_LABEL[tool]}</span>
-                    {detected !== null &&
-                      (installed ? (
-                        <>
-                          <span className="flex items-center gap-1 text-[11px] text-running">
-                            <span className="h-1.5 w-1.5 rounded-full bg-running" />
-                            {st?.version
-                              ? t("settings.installedVersion", { version: trimVersion(st.version) })
-                              : t("settings.installed")}
-                          </span>
-                          {st?.meets_min === false && (
-                            <span className="text-[11px] text-waiting">
-                              {t("settings.updateRecommended")}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-[11px] text-ink-faint">{t("settings.notInstalled")}</span>
-                      ))}
-                    <span className="ml-auto">
-                      {active && <Check size={15} className="text-brand" />}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] leading-relaxed text-ink-faint">{t("settings.defaultToolHint")}</p>
+            <button
+              type="button"
+              onClick={() => void pickDir()}
+              title={t("settings.choose")}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border bg-bg/80 text-ink-muted transition-colors duration-150 hover:border-border-strong hover:bg-hover hover:text-ink active:bg-raised"
+            >
+              <FolderOpen size={14} />
+            </button>
           </div>
+        </SettingRow>
+        <SettingRow label={t("settings.agentLanguage")} hint={t("settings.agentLanguageHint")}>
+          <Segmented
+            value={lang}
+            onChange={(v) => {
+              setLang(v as Lang);
+              setLangState(v as Lang);
+            }}
+            options={[
+              { value: "zh", label: "中文" },
+              { value: "en", label: "English" },
+            ]}
+          />
+        </SettingRow>
+      </SettingsGroup>
+    </div>
+  );
+}
 
-          <div className="h-px bg-border" />
+function AppearanceSettings() {
+  const { t } = useTranslation();
+  const { theme, toggle } = useTheme();
+  const [lang, setLangState] = useState<Lang>(currentLang());
 
-          {/* dangerous mode */}
-          <div className="flex items-start gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <Zap size={13} className="text-waiting" />
-                <span className="text-[12px] font-medium text-ink">{t("settings.dangerTitle")}</span>
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">
-                {t("settings.dangerDesc")}
-              </p>
-            </div>
-            <Toggle on={dangerousMode} onChange={setDangerousMode} label={t("settings.dangerTitle")} />
-          </div>
+  useEffect(() => {
+    setLangState(currentLang());
+  }, []);
 
-          <div className="h-px bg-border" />
+  return (
+    <SettingsGroup title={t("settings.interface")}>
+      <SettingRow label={t("settings.theme")} hint={t("settings.appearanceHint")}>
+        <Segmented
+          value={theme}
+          onChange={(v) => {
+            if (v !== theme) toggle();
+          }}
+          options={[
+            { value: "dark", label: t("settings.dark"), icon: <Moon size={13} /> },
+            { value: "light", label: t("settings.light"), icon: <Sun size={13} /> },
+          ]}
+        />
+      </SettingRow>
+      <SettingRow label={t("settings.language")} hint={t("settings.languageHint")}>
+        <Segmented
+          value={lang}
+          onChange={(v) => {
+            setLang(v as Lang);
+            setLangState(v as Lang);
+          }}
+          options={[
+            { value: "zh", label: "中文" },
+            { value: "en", label: "English" },
+          ]}
+        />
+      </SettingRow>
+    </SettingsGroup>
+  );
+}
 
-          {/* runaway guardrails (§7): caps the per-session watchdog enforces */}
-          <div className="flex flex-col gap-2.5">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <ShieldAlert size={13} className="text-ink-muted" />
-                <span className="text-[12px] font-medium text-ink">
-                  {t("settings.guardrailsTitle")}
-                </span>
-              </div>
-              <p className="mt-1 text-[11px] leading-relaxed text-ink-faint">
-                {t("settings.guardrailsDesc")}
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Field label={t("settings.idleCap")} hint={t("settings.minutesZeroOff")}>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={String(idleCapMins)}
-                    onChange={(e) => setGuardrails(Number(e.currentTarget.value || 0), wallCapMins)}
-                  />
-                </Field>
-              </div>
-              <div className="flex-1">
-                <Field label={t("settings.wallCap")} hint={t("settings.minutesZeroOff")}>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={String(wallCapMins)}
-                    onChange={(e) => setGuardrails(idleCapMins, Number(e.currentTarget.value || 0))}
-                  />
-                </Field>
-              </div>
-            </div>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+function AutomationSettings() {
+  const { t } = useTranslation();
+  const { dangerousMode, setDangerousMode } = useStore();
+  const [loopGuard, setLoopGuard] = useState(true);
+
+  return (
+    <SettingsGroup title={t("settings.rules")}>
+      <SettingRow label={t("settings.dangerTitle")} hint={t("settings.dangerDesc")}>
+        <Toggle on={dangerousMode} onChange={setDangerousMode} label={t("settings.dangerTitle")} />
+      </SettingRow>
+      <SettingRow label={t("settings.loopDetection")} hint={t("settings.loopDetectionHint")}>
+        <Toggle on={loopGuard} onChange={setLoopGuard} label={t("settings.loopDetection")} />
+      </SettingRow>
+    </SettingsGroup>
+  );
+}
+
+function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-[13px] font-semibold text-ink">{title}</h2>
+      <div className="flex flex-col rounded-[var(--radius-lg)] border border-border bg-surface [&>div+div]:border-t [&>div+div]:border-border">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SettingRow({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-[72px] items-center gap-4 px-3 py-3">
+      <div className="min-w-0">
+        <div className="text-[12.5px] font-semibold text-ink">{label}</div>
+        {hint && <p className="mt-1 max-w-[58ch] text-[12px] leading-relaxed text-ink-faint">{hint}</p>}
+      </div>
+      <span className="min-w-4 flex-1" />
+      {children && <div className="shrink-0">{children}</div>}
+    </div>
   );
 }
 
@@ -245,32 +315,17 @@ function Toggle({
       aria-label={label}
       onClick={() => onChange(!on)}
       className={cn(
-        "mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full border-0 p-0 transition-colors",
-        on ? "bg-waiting" : "bg-border-strong",
+        "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full p-0 transition-colors duration-150",
+        on ? "bg-brand" : "bg-border-strong",
       )}
     >
       <span
         className={cn(
-          "inline-block h-4 w-4 rounded-full bg-white shadow transition-transform duration-150",
-          on ? "translate-x-[18px]" : "translate-x-0.5",
+          "absolute left-0.5 top-0.5 inline-block h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.3)] transition-transform duration-150",
+          on ? "translate-x-4" : "translate-x-0",
         )}
       />
     </button>
-  );
-}
-
-/** Keep version strings short (e.g. "1.2.3 (Claude Code)" -> "1.2.3"). */
-function trimVersion(v: string): string {
-  const m = v.match(/\d+\.\d+\.\d+/);
-  return m ? m[0] : v.split(/\s+/)[0];
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-[12px] font-medium text-ink">{label}</span>
-      {children}
-    </div>
   );
 }
 
@@ -281,20 +336,18 @@ function Segmented({
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string; icon?: React.ReactNode }[];
+  options: { value: string; label: string; icon?: ReactNode }[];
 }) {
   return (
-    <div className="flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
+    <div className="inline-flex items-center gap-0.5 rounded-[var(--radius-md)] bg-bg p-0.5">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            "flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2.5 py-1 text-[12px] transition-colors",
-            value === o.value
-              ? "bg-raised text-ink shadow-[0_1px_2px_rgba(0,0,0,0.2)]"
-              : "text-ink-faint hover:text-ink-muted",
+            "flex h-[28px] items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] px-3 text-[12px] font-medium transition-colors duration-150",
+            value === o.value ? "bg-raised text-ink" : "text-ink-muted hover:text-ink",
           )}
         >
           {o.icon}

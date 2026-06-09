@@ -13,6 +13,8 @@ import { currentLang } from "../i18n";
 import type {
   BusMsg,
   Direction,
+  LeadChatPush,
+  LeadMessage,
   NeedItem,
   PermissionAsk,
   Proposal,
@@ -30,6 +32,9 @@ import type {
   Worktree,
   WriteTrigger,
 } from "../lib/types";
+
+export type HomeTab = "board" | "repos" | "settings";
+export type ThreadTab = "lead" | "board";
 
 export interface OpenSession {
   info: SessionInfo;
@@ -58,12 +63,18 @@ interface Store {
   messages: BusMsg[];
   postHuman: (to: string | null, text: string) => Promise<void>;
 
-  /** The active thread's persistent lead conversation, if one is running. */
-  leadSession: OpenSession | null;
-  /** Start the thread's lead (idempotent — reuses a live one). */
-  startLead: () => Promise<void>;
-  /** Send a composed message into the lead's PTY (bracketed paste + enter). */
-  sendToLead: (text: string) => Promise<void>;
+  /** Lead chat: weft-owned timeline per thread (engine pushes, no polling). */
+  leadMessages: Record<number, LeadMessage[]>;
+  /** Lead engine turn state per thread: busy/idle/stopped + queue depth. */
+  leadTurn: Record<number, { state: "busy" | "idle" | "stopped"; queued: number }>;
+  /** Slash commands the lead's CLI reports as available (init event). */
+  leadSlash: Record<number, string[]>;
+  /** Hydrate a thread's timeline from DB + make sure the engine runs. */
+  loadLeadChat: (threadId: number) => Promise<void>;
+  /** Send a human message to the lead (optimistic; engine queues when busy). */
+  sendLeadChat: (threadId: number, text: string) => Promise<void>;
+  /** Interrupt the lead's current turn. */
+  interruptLead: (threadId: number) => Promise<void>;
   /** Send a composed message into any session's PTY (bracketed paste + enter). */
   sendToSession: (sessionId: number, text: string) => Promise<void>;
   /** The thread-bus drawer (demoted from a permanent rail). */
@@ -90,6 +101,9 @@ interface Store {
   /** Whether the board canvas is showing the proposal's scope-confirm. */
   reviewingProposal: boolean;
   setReviewingProposal: (v: boolean) => void;
+  /** Active issue-level tab: console first, board second. */
+  threadTab: ThreadTab;
+  setThreadTab: (tab: ThreadTab) => void;
 
   /** Open agent→human questions across the workspace; the Needs-you surface. */
   needs: NeedItem[];
@@ -115,9 +129,9 @@ interface Store {
   /** The curator's repo map: profiles + dependency edges. */
   repoProfiles: RepoProfile[];
   repoEdges: RepoEdge[];
-  /** Which workspace-home tab is active (Overview · Repos). */
-  homeTab: "board" | "overview" | "repos";
-  setHomeTab: (t: "board" | "overview" | "repos") => void;
+  /** Which workspace-home tab is active (Board · Repos). */
+  homeTab: HomeTab;
+  setHomeTab: (t: HomeTab) => void;
   /** Jump to the workspace home's Repos tab. */
   openRepoMap: () => void;
   refreshRepoMap: () => Promise<void>;
@@ -215,12 +229,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [showNeeds, setShowNeeds] = useState(false);
   const [repoProfiles, setRepoProfiles] = useState<RepoProfile[]>([]);
   const [repoEdges, setRepoEdges] = useState<RepoEdge[]>([]);
-  const [homeTab, setHomeTab] = useState<"board" | "overview" | "repos">("board");
+  const [homeTab, setHomeTab] = useState<HomeTab>("board");
   const [proposal, setProposal] = useState<ResolvedProposal | null>(null);
   const [overview, setOverview] = useState<ThreadOverview[]>([]);
   // Thread-bus drawer + proposal-review state.
   const [showBus, setShowBus] = useState(false);
   const [reviewingProposal, setReviewingProposal] = useState(false);
+  const [threadTab, setThreadTab] = useState<ThreadTab>("lead");
   const [navCollapsed, setNavCollapsed] = useState(() => window.innerWidth < 820);
 
   // App settings, persisted to localStorage.
@@ -341,6 +356,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setViewing(null);
       setShowNeeds(false);
       setHomeTab("board");
+      setThreadTab("lead");
       setShowBus(false);
       setReviewingProposal(false);
       try {
@@ -373,6 +389,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setViewing(null);
     setShowNeeds(false);
     setHomeTab("board");
+    setThreadTab("lead");
   }, []);
 
   const createWorkspace = useCallback(
@@ -603,42 +620,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [loadThreadChildren, dispatchDirection],
   );
 
-  // Start (or reuse) the thread's persistent lead conversation. Unlike a worker,
-  // the lead is embedded in the dock, not opened full-screen, and it stays alive
-  // across the thread's life so the human can keep talking to it.
-  const startLead = useCallback(async () => {
-    if (activeThreadId == null) return;
-    const thread = activeThreadId;
-    const live = Object.values(sessionsRef.current).find(
-      (s) => s.kind === "lead" && s.threadId === thread && s.status !== "exited",
-    );
-    if (live) return; // already running — the dock shows it
-    const lead = await api.planWithLead(thread, currentLang());
-    // Hand-built SessionInfo (lead has no backend SessionInfo); keep fields in sync with the type.
-    const info: SessionInfo = {
-      session_id: lead.session_id,
-      repo: "",
-      worktree: lead.cwd,
-      branch: "",
-      tool: lead.tool,
-      resumed: false,
-      native_id: null,
-    };
-    lastOutputRef.current[lead.session_id] = Date.now();
-    setSessions((m) => ({
-      ...m,
-      [lead.session_id]: {
-        info,
-        status: "running",
-        directionId: -1,
-        repoId: -1,
-        threadId: thread,
-        nativeId: null,
-        kind: "lead",
-      },
-    }));
-  }, [activeThreadId]);
-
   // Inject a composed human message into any session's PTY. Bracketed paste keeps
   // multi-line prompts intact in the TUI, then Enter submits.
   const sendToSession = useCallback(async (sessionId: number, text: string) => {
@@ -647,17 +628,88 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await api.writePty(sessionId, `\x1b[200~${body}\x1b[201~\r`);
   }, []);
 
-  const sendToLead = useCallback(
-    async (text: string) => {
-      const thread = activeThreadId;
-      const lead = Object.values(sessionsRef.current).find(
-        (s) => s.kind === "lead" && s.threadId === thread && s.status !== "exited",
-      );
-      if (!lead) return;
-      await sendToSession(lead.info.session_id, text);
-    },
-    [activeThreadId, sendToSession],
-  );
+  // ── Lead chat (weft-owned conversation; engine pushes via `lead-chat`) ──
+  const [leadMessages, setLeadMessages] = useState<Record<number, LeadMessage[]>>({});
+  const [leadTurn, setLeadTurn] = useState<
+    Record<number, { state: "busy" | "idle" | "stopped"; queued: number }>
+  >({});
+  const [leadSlash, setLeadSlash] = useState<Record<number, string[]>>({});
+
+  useEffect(() => {
+    const un = listen<LeadChatPush>("lead-chat", (e) => {
+      const p = e.payload;
+      if (p.type === "message") {
+        setLeadMessages((m) => {
+          const list = m[p.thread_id] ?? [];
+          if (list.some((x) => x.id === p.message.id)) return m;
+          return { ...m, [p.thread_id]: [...list, p.message] };
+        });
+      } else if (p.type === "delta") {
+        setLeadMessages((m) => ({
+          ...m,
+          [p.thread_id]: (m[p.thread_id] ?? []).map((x) => {
+            if (x.id !== p.message_id) return x;
+            let text = "";
+            try {
+              text = (JSON.parse(x.content).text as string) ?? "";
+            } catch {
+              /* fresh row */
+            }
+            return { ...x, content: JSON.stringify({ text: text + p.text }) };
+          }),
+        }));
+      } else if (p.type === "finalize") {
+        setLeadMessages((m) => ({
+          ...m,
+          [p.thread_id]: (m[p.thread_id] ?? []).map((x) =>
+            x.id === p.message_id
+              ? { ...x, status: p.status as LeadMessage["status"] }
+              : x,
+          ),
+        }));
+      } else if (p.type === "turn") {
+        setLeadTurn((t) => ({
+          ...t,
+          [p.thread_id]: { state: p.state, queued: p.queued },
+        }));
+      } else if (p.type === "init") {
+        setLeadSlash((s) => ({ ...s, [p.thread_id]: p.slash_commands }));
+      }
+    });
+    return () => {
+      void un.then((f) => f());
+    };
+  }, []);
+
+  const loadLeadChat = useCallback(async (threadId: number) => {
+    const msgs = await api.listLeadMessages(threadId);
+    setLeadMessages((m) => ({
+      ...m,
+      [threadId]: msgs.filter((x) => x.kind !== "meta"),
+    }));
+    // Fire the engine up so init delivers slash commands + the console is live.
+    void api.leadEnsure(threadId, currentLang()).catch(() => {});
+    try {
+      const st = await api.leadState(threadId);
+      setLeadTurn((t) => ({
+        ...t,
+        [threadId]: { state: st.state, queued: st.queued },
+      }));
+      if (st.slash_commands.length > 0) {
+        setLeadSlash((s) => ({ ...s, [threadId]: st.slash_commands }));
+      }
+    } catch {
+      /* engine state is cosmetic at load time */
+    }
+  }, []);
+
+  const sendLeadChat = useCallback(async (threadId: number, text: string) => {
+    await api.leadSend(threadId, text, currentLang());
+  }, []);
+
+  const interruptLead = useCallback(async (threadId: number) => {
+    await api.leadInterrupt(threadId);
+  }, []);
 
   const setTaskStatus = useCallback(async (directionId: number, status: string) => {
     // optimistic: flip the card now, then persist
@@ -958,21 +1010,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [activeWorkspaceId, refreshNeeds]);
 
-  // The lead is persistent and lives in the dock, so while it's running we poll
-  // for its proposal and surface it as a card (the lead keeps running — the human
-  // can keep talking and the lead can re-propose). It does NOT take over the board.
-  const leadForActive =
-    activeThreadId != null
-      ? Object.values(sessions).find(
-          (s) =>
-            s.kind === "lead" &&
-            s.threadId === activeThreadId &&
-            s.status !== "exited",
-        )
-      : undefined;
-  const leadActiveId = leadForActive?.info.session_id ?? null;
+  // While an issue is open, keep its proposal fresh (the lead re-proposes over
+  // the chat engine; the timeline card is the anchor, this state feeds the
+  // scope-confirm canvas). Cheap local read, so a simple poll is fine.
   useEffect(() => {
-    if (activeThreadId == null || leadActiveId == null) return;
+    if (activeThreadId == null) return;
     const thread = activeThreadId;
     let alive = true;
     const tick = async () => {
@@ -989,7 +1031,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       alive = false;
       clearInterval(h);
     };
-  }, [activeThreadId, leadActiveId]);
+  }, [activeThreadId]);
 
   // Auto-verify loop (ARCHITECTURE §4.13): when a worker's PTY goes quiet for a
   // while it has likely finished its turn — run that direction's checks once per
@@ -1067,8 +1109,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [activeThreadId, directionsByThread, reviveDirection]);
 
-  const leadSession = leadForActive ?? null;
-
   const value: Store = {
     workspaces,
     activeWorkspaceId,
@@ -1081,9 +1121,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     activeSessionId,
     messages,
     postHuman,
-    leadSession,
-    startLead,
-    sendToLead,
+    leadMessages,
+    leadTurn,
+    leadSlash,
+    loadLeadChat,
+    sendLeadChat,
+    interruptLead,
     sendToSession,
     showBus,
     setShowBus,
@@ -1091,6 +1134,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setNavCollapsed,
     reviewingProposal,
     setReviewingProposal,
+    threadTab,
+    setThreadTab,
     projectsDir,
     setProjectsDir,
     defaultTool,

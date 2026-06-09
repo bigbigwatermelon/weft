@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
+import * as RD from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
-import { Check, FolderOpen } from "lucide-react";
+import { FolderOpen, Network, X } from "lucide-react";
 import { Dialog, DialogContent } from "../components/ui/Dialog";
 import { Button } from "../components/ui/Button";
 import { Input, Field } from "../components/ui/Input";
@@ -9,37 +10,27 @@ import { useStore } from "../state/store";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 
-/** Generic single-text-field create dialog. */
-function TextDialog({
-  open,
-  onOpenChange,
-  title,
-  description,
-  label,
-  placeholder,
-  cta,
-  onSubmit,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  title: string;
-  description?: string;
-  label: string;
-  placeholder: string;
-  cta: string;
-  onSubmit: (value: string) => Promise<void>;
-}) {
+export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
+  const { createWorkspace } = useStore();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const { t } = useTranslation();
+
+  useEffect(() => {
+    if (!open) {
+      setValue("");
+      setBusy(false);
+      setErr(null);
+    }
+  }, [open]);
+
   async function submit() {
     if (!value.trim() || busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await onSubmit(value.trim());
-      setValue("");
+      await createWorkspace(value.trim());
       onOpenChange(false);
     } catch (e) {
       setErr(String(e));
@@ -48,52 +39,69 @@ function TextDialog({
     }
   }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={title} description={description}>
+    <RD.Root open={open} onOpenChange={onOpenChange}>
+      <RD.Portal>
+        <RD.Overlay className="weft-overlay fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px]" />
+        <RD.Content
+          className={cn(
+            "weft-pop fixed left-1/2 top-1/2 z-50 w-[min(500px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden",
+            "rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_20px_58px_-28px_rgba(0,0,0,0.9)]",
+          )}
+        >
+          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-md)] bg-brand-ghost text-brand">
+              <Network size={15} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <RD.Title className="text-[14px] font-semibold text-ink">
+                {t("dialog.newWorkspaceTitle")}
+              </RD.Title>
+            </div>
+            <RD.Close
+              aria-label={t("common.close")}
+              className="-mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-1"
+            >
+              <X size={15} />
+            </RD.Close>
+          </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
           }}
-          className="flex flex-col gap-4"
+          className="flex flex-col"
         >
-          <Field label={label}>
+          <div className="flex flex-col gap-4 px-5 py-5">
             <Input
               autoFocus
-              placeholder={placeholder}
+              placeholder={t("dialog.workspaceNamePlaceholder")}
               value={value}
               onChange={(e) => setValue(e.currentTarget.value)}
+              className="h-9"
             />
-          </Field>
-          {err && <p className="text-[12px] text-danger">{err}</p>}
-          <div className="flex justify-end gap-2">
+            {err && <p className="text-[12px] text-danger">{err}</p>}
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-border bg-bg/70 px-5 py-3">
+            <div className="ml-auto flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" variant="primary" disabled={!value.trim() || busy}>
-              {busy ? t("dialog.creating") : cta}
+            <Button
+              type="submit"
+              variant="primary"
+              className="h-9 px-4"
+              disabled={!value.trim() || busy}
+            >
+              {busy ? t("dialog.creating") : t("dialog.createWorkspace")}
             </Button>
+            </div>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
-  const { createWorkspace } = useStore();
-  const { t } = useTranslation();
-  return (
-    <TextDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t("dialog.newWorkspaceTitle")}
-      description={t("dialog.newWorkspaceDesc")}
-      label={t("dialog.workspaceName")}
-      placeholder={t("dialog.workspaceNamePlaceholder")}
-      cta={t("dialog.createWorkspace")}
-      onSubmit={createWorkspace}
-    />
+        </RD.Content>
+      </RD.Portal>
+    </RD.Root>
   );
 }
 
@@ -180,7 +188,7 @@ export function AddRepoDialog({ open, onOpenChange }: DProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={t("dialog.addRepoTitle")} description={t("dialog.addRepoDesc")}>
+      <DialogContent title={t("dialog.addRepoTitle")}>
         <div className="mb-4 flex items-center rounded-[var(--radius-md)] bg-bg p-0.5">
           {(["local", "clone", "new"] as RepoMode[]).map((m) => (
             <button
@@ -270,14 +278,6 @@ export function AddRepoDialog({ open, onOpenChange }: DProps) {
                 onChange={(e) => setName(e.currentTarget.value)}
               />
             </Field>
-          )}
-
-          {mode !== "local" && dest.trim() && finalName && (
-            <p className="-mt-1 text-[11px] text-ink-faint">
-              {t(mode === "clone" ? "dialog.cloneHint" : "dialog.newHint", {
-                path: `${dest.trim().replace(/\/+$/, "")}/${finalName}`,
-              })}
-            </p>
           )}
 
           {err && <p className="text-[12px] leading-relaxed text-danger">{err}</p>}
@@ -389,151 +389,6 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
             </Button>
             <Button type="submit" variant="primary" disabled={!title.trim() || busy}>
               {busy ? t("dialog.creating") : t("dialog.createThread")}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export function CreateDirectionDialog({
-  open,
-  onOpenChange,
-  threadId,
-}: DProps & { threadId: number }) {
-  const { repos, createDirection, defaultTool } = useStore();
-  const { t } = useTranslation();
-  const [name, setName] = useState("main");
-  const [tool, setTool] = useState(defaultTool);
-  const [repoId, setRepoId] = useState<number | null>(null);
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  const ready = !!name.trim() && repoId != null && !!reason.trim();
-
-  async function submit() {
-    if (!ready || busy || repoId == null) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      await createDirection(threadId, name.trim(), tool, repoId, reason.trim());
-      onOpenChange(false);
-      setRepoId(null);
-      setReason("");
-      setName("main");
-    } catch (e) {
-      setErr(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        title={t("dialog.newDirectionTitle")}
-        description={t("dialog.newDirectionDesc")}
-        className="w-[min(520px,calc(100vw-2rem))]"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            void submit();
-          }}
-          className="flex flex-col gap-4"
-        >
-          <div className="grid grid-cols-[1fr_auto] gap-3">
-            <Field label={t("dialog.directionName")}>
-              <Input
-                autoFocus
-                placeholder="main"
-                value={name}
-                onChange={(e) => setName(e.currentTarget.value)}
-              />
-            </Field>
-            <Field label={t("dialog.tool")}>
-              <div className="w-32">
-                <Select
-                  value={tool}
-                  onValueChange={setTool}
-                  ariaLabel={t("dialog.tool")}
-                  options={[
-                    { value: "claude", label: "Claude Code" },
-                    { value: "codex", label: "Codex" },
-                    { value: "opencode", label: "OpenCode" },
-                  ]}
-                />
-              </div>
-            </Field>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-ink-muted">
-              {t("dialog.writeRepo")}
-            </span>
-            {repos.length === 0 ? (
-              <p className="rounded-[var(--radius-md)] border border-dashed border-border px-3 py-4 text-center text-[12px] text-ink-faint">
-                {t("scope.addReposFirst")}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-0.5 rounded-[var(--radius-md)] border border-border bg-bg/50 p-1">
-                {repos.map((r) => {
-                  const on = repoId === r.id;
-                  return (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => setRepoId(r.id)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors",
-                        on ? "bg-running/10" : "hover:bg-raised",
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          "grid h-4 w-4 shrink-0 place-items-center rounded-full border transition-colors",
-                          on
-                            ? "border-running bg-running/20 text-running"
-                            : "border-border text-transparent",
-                        )}
-                      >
-                        <Check size={11} />
-                      </span>
-                      <span className={cn("text-[13px]", on ? "text-ink" : "text-ink-muted")}>
-                        {r.name}
-                      </span>
-                      <span className="font-mono text-[11px] text-ink-faint">
-                        @{r.base_ref}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            <span className="text-[11px] text-ink-faint">{t("dialog.writeRepoHint")}</span>
-          </div>
-
-          <Field label={t("dialog.reason")}>
-            <Input
-              placeholder={t("dialog.reasonPlaceholder")}
-              value={reason}
-              onChange={(e) => setReason(e.currentTarget.value)}
-            />
-          </Field>
-
-          {err && <p className="text-[12px] text-danger">{err}</p>}
-          <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              disabled={!ready || busy}
-            >
-              {busy ? t("dialog.materializing") : t("dialog.createDirection")}
             </Button>
           </div>
         </form>

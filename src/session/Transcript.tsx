@@ -1,31 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ComponentType } from "react";
+import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  FilePen,
-  FileText,
-  ListTodo,
-  type LucideProps,
-  Radio,
-  Search,
-  SquareTerminal,
-  Wrench,
-} from "lucide-react";
+import { ChevronRight, Sparkles } from "lucide-react";
 import { api } from "../lib/api";
 import type { NormEvent } from "../lib/types";
 import { Markdown } from "../components/Markdown";
-
-/** Map a (cleaned) tool name to a glyph so the pills are scannable. */
-function toolIcon(name: string): ComponentType<LucideProps> {
-  const n = name.toLowerCase();
-  if (/(bash|exec_command|shell|run)/.test(n)) return SquareTerminal;
-  if (/(write|edit|apply_patch|patch)/.test(n)) return FilePen;
-  if (/(grep|glob|rg|ripgrep|ls|find|list)/.test(n)) return Search;
-  if (/read|view|cat/.test(n)) return FileText;
-  if (/(bus_|broadcast|ask_human|announce|interface|inbox|status)/.test(n)) return Radio;
-  if (/todo/.test(n)) return ListTodo;
-  return Wrench;
-}
+import { cn } from "../lib/cn";
+import { compactToolTarget, toolIcon, toolLabel } from "./transcriptBits";
 
 /**
  * Observe-mode chat for any agent (lead or worker): renders the session's
@@ -39,16 +20,27 @@ export function Transcript({
   tool,
   running,
   refreshSignal,
+  before,
+  className,
+  contentClassName,
+  variant = "default",
+  hideTools = false,
 }: {
   cwd: string;
   tool: string;
   running?: boolean;
   /** Bump to force an immediate re-read + snap-to-bottom (e.g. after you send). */
   refreshSignal?: number;
+  before?: ReactNode;
+  className?: string;
+  contentClassName?: string;
+  variant?: "default" | "console";
+  hideTools?: boolean;
 }) {
   const { t } = useTranslation();
   const [events, setEvents] = useState<NormEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [activeTool, setActiveTool] = useState<Extract<NormEvent, { kind: "tool" }> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -97,12 +89,30 @@ export function Transcript({
     if (atBottomRef.current) endRef.current?.scrollIntoView({ block: "end" });
   }, [events.length, running]);
 
+  useEffect(() => {
+    if (variant !== "console" || !running) {
+      setActiveTool(null);
+      return;
+    }
+    const latest = [...events].reverse().find((event) => event.kind === "tool");
+    if (!latest) return;
+    setActiveTool(latest);
+    const h = window.setTimeout(() => setActiveTool(null), 6500);
+    return () => window.clearTimeout(h);
+  }, [events, running, variant]);
+
   const onScroll = () => {
     const el = scrollRef.current;
     if (el) atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  if (loaded && events.length === 0) {
+  const messageEvents =
+    variant === "console" ? events.filter((event) => event.kind !== "tool") : events;
+  const visibleEvents = hideTools
+    ? messageEvents.filter((event) => event.kind !== "tool")
+    : messageEvents;
+
+  if (loaded && visibleEvents.length === 0 && !before) {
     return (
       <div className="flex flex-1 items-center justify-center px-6 text-center">
         <p className="text-[12px] leading-relaxed text-ink-faint">
@@ -116,41 +126,99 @@ export function Transcript({
     <div
       ref={scrollRef}
       onScroll={onScroll}
-      className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-3"
+      className={cn("flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-3 py-3", className)}
     >
-      {events.map((e, i) =>
-        e.kind === "tool" ? (
-          (() => {
-            const Icon = toolIcon(e.name);
-            return (
-              <div key={i} className="flex items-center gap-1.5 text-[11px] text-ink-faint">
-                <Icon size={11} className="shrink-0 text-ink-faint/70" />
-                <span className="font-medium text-ink-muted">{e.name}</span>
-                {e.summary && (
-                  <span className="truncate font-mono text-ink-faint">{e.summary}</span>
-                )}
-              </div>
-            );
-          })()
-        ) : e.role === "user" ? (
-          <div key={i} className="flex justify-end">
-            <p className="max-w-[88%] whitespace-pre-wrap break-words rounded-[var(--radius-md)] bg-brand-ghost px-3 py-2 text-[12.5px] leading-relaxed text-ink">
-              {e.text}
-            </p>
+      {before}
+      <div className={cn("flex flex-col gap-2.5", contentClassName)}>
+        {visibleEvents.map((e, i) => (
+          <TranscriptEvent key={i} event={e} variant={variant} />
+        ))}
+        {activeTool && <TranscriptEvent event={activeTool} variant={variant} />}
+        {running && variant !== "console" && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-1 text-[11px] text-ink-faint",
+            )}
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-running" />
+            {t("lead.working")}
           </div>
-        ) : (
-          <div key={i} className="break-words">
-            <Markdown text={e.text} />
-          </div>
-        ),
-      )}
-      {running && (
-        <div className="flex items-center gap-1.5 px-1 text-[11px] text-ink-faint">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-running" />
-          {t("lead.working")}
-        </div>
-      )}
+        )}
+      </div>
       <div ref={endRef} />
+    </div>
+  );
+}
+
+function TranscriptEvent({
+  event,
+  variant,
+}: {
+  event: NormEvent;
+  variant: "default" | "console";
+}) {
+  if (variant !== "console") {
+    if (event.kind === "tool") {
+      const Icon = toolIcon(event.name);
+      return (
+        <div className="flex items-center gap-1.5 text-[11px] text-ink-faint">
+          <Icon size={11} className="shrink-0 text-ink-faint/70" />
+          <span className="font-medium text-ink-muted">{event.name}</span>
+          {event.summary && (
+            <span className="truncate font-mono text-ink-faint">{event.summary}</span>
+          )}
+        </div>
+      );
+    }
+    if (event.role === "user") {
+      return (
+        <div className="flex justify-end">
+          <p className="max-w-[88%] whitespace-pre-wrap break-words rounded-[var(--radius-md)] bg-brand-ghost px-3 py-2 text-[12.5px] leading-relaxed text-ink">
+            {event.text}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="break-words">
+        <Markdown text={event.text} />
+      </div>
+    );
+  }
+
+  if (event.kind === "tool") {
+    const Icon = toolIcon(event.name);
+    const { target, added, removed } = compactToolTarget(event.name, event.summary);
+    return (
+      <div className="flex max-w-full items-center gap-2 px-1.5 py-1 text-[13px] text-ink-faint">
+        <Icon size={15} className="shrink-0 text-ink-faint" />
+        <span className="shrink-0 font-medium text-ink-muted">{toolLabel(event.name)}</span>
+        <span className="min-w-0 truncate font-mono text-brand">{target}</span>
+        {added && <span className="shrink-0 font-mono text-running">+{added}</span>}
+        {removed && <span className="shrink-0 font-mono text-danger">-{removed}</span>}
+        <ChevronRight size={15} className="shrink-0 text-ink-faint/70" />
+      </div>
+    );
+  }
+
+  if (event.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <p className="max-w-[72%] whitespace-pre-wrap break-words rounded-[var(--radius-lg)] border border-brand/25 bg-brand-ghost px-3.5 py-2.5 text-[13px] leading-relaxed text-ink">
+          {event.text}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] bg-brand-ghost text-brand">
+        <Sparkles size={14} />
+      </span>
+      <div className="min-w-0 flex-1 rounded-[var(--radius-lg)] border border-border bg-surface px-3.5 py-3 shadow-[0_12px_34px_-28px_rgba(0,0,0,0.65)]">
+        <Markdown text={event.text} />
+      </div>
     </div>
   );
 }

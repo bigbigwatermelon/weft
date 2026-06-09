@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, GitCompare, Play } from "lucide-react";
+import { GitCompare, Play } from "lucide-react";
 import { useStore } from "../state/store";
 import { api } from "../lib/api";
 import type { ObserveRef, SessionStatus } from "../lib/types";
@@ -9,16 +9,12 @@ import { DiffPanel } from "./DiffPanel";
 import { StatusChip } from "../components/ui/StatusChip";
 import { Button } from "../components/ui/Button";
 import { Inspect } from "../components/Inspect";
-import { RailToggle } from "../components/RailToggle";
-import { ToolIcon } from "../components/ToolIcon";
+import { ToolIcon, toolFullName } from "../components/ToolIcon";
 
 export function ObserveView() {
   const {
     viewing,
-    closeObserve,
     driveDirection,
-    repos,
-    directionsByThread,
     sessions,
     needs,
     answerAsk,
@@ -65,11 +61,6 @@ export function ObserveView() {
   const liveSession = Object.values(sessions).find(
     (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",
   );
-  const repoName = repos.find((r) => r.id === repoId)?.name ?? "working copy";
-  const dirName =
-    Object.values(directionsByThread)
-      .flat()
-      .find((d) => d.id === directionId)?.name ?? "task";
   const openAsks = needs.filter((n) => n.direction_id === directionId);
 
   // Label: attach (live) → continue (has native id) → start (never dispatched).
@@ -98,28 +89,13 @@ export function ObserveView() {
   return (
     <div className="flex min-w-0 flex-1">
       <section className="flex min-w-0 flex-1 flex-col bg-bg">
-        <header className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2">
-          <RailToggle />
-          <button
-            onClick={closeObserve}
-            aria-label={t("session.back")}
-            className="-ml-1 grid h-7 w-7 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
-          >
-            <ArrowLeft size={15} />
-          </button>
-          {ref && (
-            <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] bg-raised px-2 py-0.5 text-[11px] font-medium capitalize text-ink-muted">
-              <ToolIcon tool={ref.tool} size={12} />
-              {ref.tool}
-            </span>
-          )}
-          <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-ink">
-            <span className="truncate font-medium">{repoName}</span>
-            <span className="text-ink-faint">·</span>
-            <span className="truncate text-ink-muted">{dirName}</span>
-          </span>
-
-          <div className="ml-auto flex shrink-0 items-center gap-2">
+        <header className="flex items-center justify-end gap-2 border-b border-border bg-surface px-3 py-2">
+            {ref && (
+              <span className="mr-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] bg-bg px-2 py-0.5 text-[11px] font-medium text-ink-muted">
+                <ToolIcon tool={ref.tool} size={12} />
+                {toolFullName(ref.tool)}
+              </span>
+            )}
             {ref && (
               <button
                 onClick={() => setShowDiff(true)}
@@ -144,7 +120,6 @@ export function ObserveView() {
                 className="h-7 w-7 shrink-0"
               />
             )}
-          </div>
         </header>
 
         {driveError && (

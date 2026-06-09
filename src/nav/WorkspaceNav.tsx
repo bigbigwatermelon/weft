@@ -3,14 +3,12 @@ import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import * as DM from "@radix-ui/react-dropdown-menu";
 import {
-  Activity,
   Check,
   ChevronDown,
   FolderGit2,
   FolderPlus,
   HelpCircle,
   LayoutGrid,
-  PanelLeftClose,
   Plus,
   Search,
   Settings,
@@ -22,7 +20,6 @@ import type { Thread } from "../lib/types";
 import { cn } from "../lib/cn";
 import { openCommandPalette } from "../components/CommandPalette";
 import { AddRepoDialog, CreateThreadDialog, CreateWorkspaceDialog } from "./dialogs";
-import { SettingsDialog } from "./SettingsDialog";
 
 export function WorkspaceNav() {
   const {
@@ -32,7 +29,6 @@ export function WorkspaceNav() {
     selectWorkspace,
     backToWorkspace,
     needsByWorkspace,
-    setNavCollapsed,
     homeTab,
     setHomeTab,
     activeThreadId,
@@ -44,7 +40,7 @@ export function WorkspaceNav() {
   } = useStore();
   // Live workspace-wide pending count for the Needs-you focal entry.
   const needsCount = needs.length + asks.length + writeTriggers.length;
-  const [dlg, setDlg] = useState<null | "ws" | "repo" | "thread" | "settings">(null);
+  const [dlg, setDlg] = useState<null | "ws" | "repo" | "thread">(null);
   const active = workspaces.find((w) => w.id === activeWorkspaceId);
   const { t } = useTranslation();
   // Any OTHER workspace waiting on the human → flag it on the switcher.
@@ -56,32 +52,25 @@ export function WorkspaceNav() {
 
   return (
     <nav className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="flex items-center gap-2 px-3 pb-2.5 pt-3">
+      <div className="flex flex-col gap-2 px-3 pb-2.5 pt-3">
         <button
           onClick={backToWorkspace}
           title={t("nav.home")}
-          className="flex select-none items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 transition-colors hover:bg-brand-ghost"
+          className="flex w-fit select-none items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 transition-colors hover:bg-brand-ghost"
         >
           <img src="/weft-mark.svg" alt="" className="h-[18px] w-[18px]" draggable={false} />
           <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">weft</span>
         </button>
-        <span className="text-ink-faint">/</span>
-        <WorkspacePicker
-          workspaces={workspaces}
-          activeId={activeWorkspaceId}
-          needsByWorkspace={needsByWorkspace}
-          otherNeeds={otherNeeds}
-          onSelect={(id) => void selectWorkspace(id)}
-          onNew={() => setDlg("ws")}
-        />
-        <button
-          onClick={() => setNavCollapsed(true)}
-          aria-label={t("nav.collapseSidebar")}
-          title={t("nav.collapseSidebar")}
-          className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink"
-        >
-          <PanelLeftClose size={15} />
-        </button>
+        <div className="rounded-[var(--radius-md)] border border-border bg-bg/55 p-1">
+          <WorkspacePicker
+            workspaces={workspaces}
+            activeId={activeWorkspaceId}
+            needsByWorkspace={needsByWorkspace}
+            otherNeeds={otherNeeds}
+            onSelect={(id) => void selectWorkspace(id)}
+            onNew={() => setDlg("ws")}
+          />
+        </div>
       </div>
 
       <div className="mx-2 mb-1 border-t border-border" />
@@ -101,95 +90,110 @@ export function WorkspaceNav() {
       </div>
 
       {/* primary actions */}
-      <div className="flex flex-col gap-0.5 px-2 py-1">
-        <button
-          onClick={() => setDlg("thread")}
-          disabled={!active}
-          className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-brand-ghost disabled:opacity-40"
-        >
-          <SquarePen size={14} className="text-brand" />
-          {t("nav.newThread")}
-        </button>
-        <button
-          onClick={() => setDlg("repo")}
-          disabled={!active}
-          className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink disabled:opacity-40"
-        >
-          <FolderPlus size={14} className="text-ink-faint" />
-          {t("dialog.addRepo")}
-        </button>
-      </div>
+      {active ? (
+        <>
+          <div className="flex flex-col gap-0.5 px-2 py-1">
+            <button
+              onClick={() => setDlg("thread")}
+              className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-brand-ghost"
+            >
+              <SquarePen size={14} className="text-brand" />
+              {t("nav.newThread")}
+            </button>
+            <button
+              onClick={() => setDlg("repo")}
+              className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
+            >
+              <FolderPlus size={14} className="text-ink-faint" />
+              {t("dialog.addRepo")}
+            </button>
+          </div>
 
-      <div className="mx-2 my-1 border-t border-border" />
+          <div className="mx-2 my-1 border-t border-border" />
 
-      {/* workspace views — the home tabs, moved into the rail (Linear-style).
-          Needs-you leads: the exception queue is the focal surface (PRODUCT §7),
-          reachable from anywhere with the live workspace-wide pending count. */}
-      <ul className="flex flex-col gap-0.5 px-2 py-1">
-        <WsNavItem
-          icon={HelpCircle}
-          label={t("needs.title")}
-          attnCount={needsCount}
-          active={showNeeds}
-          onClick={() => openNeeds()}
-        />
-        <WsNavItem
-          icon={LayoutGrid}
-          label={t("thread.tabBoard")}
-          active={onHome && homeTab === "board"}
-          onClick={() => {
-            backToWorkspace();
-            setHomeTab("board");
-          }}
-        />
-        <WsNavItem
-          icon={Activity}
-          label={t("workspace.tabOverview")}
-          active={onHome && homeTab === "overview"}
-          onClick={() => {
-            backToWorkspace();
-            setHomeTab("overview");
-          }}
-        />
-        <WsNavItem
-          icon={FolderGit2}
-          label={t("workspace.tabRepos")}
-          active={onHome && homeTab === "repos"}
-          onClick={() => {
-            backToWorkspace();
-            setHomeTab("repos");
-          }}
-        />
-      </ul>
-
-      <div className="mx-2 my-1 border-t border-border" />
-
-      <div className="px-3 py-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
-          {t("nav.threads")}
-        </span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
-        {threads.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[12px] leading-relaxed text-ink-faint">
-            {active ? t("nav.noThreads") : t("nav.createWorkspaceFirst")}
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5">
-            {threads.map((t) => (
-              <ThreadRow key={t.id} thread={t} />
-            ))}
+          {/* workspace views — the home tabs, moved into the rail (Linear-style).
+              Needs-you leads: the exception queue is the focal surface (PRODUCT §7),
+              reachable from anywhere with the live workspace-wide pending count. */}
+          <ul className="flex flex-col gap-0.5 px-2 py-1">
+            <WsNavItem
+              icon={HelpCircle}
+              label={t("needs.title")}
+              attnCount={needsCount}
+              active={showNeeds}
+              onClick={() => openNeeds()}
+            />
+            <WsNavItem
+              icon={LayoutGrid}
+              label={t("thread.tabBoard")}
+              active={onHome && homeTab === "board"}
+              onClick={() => {
+                backToWorkspace();
+                setHomeTab("board");
+              }}
+            />
+            <WsNavItem
+              icon={FolderGit2}
+              label={t("workspace.tabRepos")}
+              active={onHome && homeTab === "repos"}
+              onClick={() => {
+                backToWorkspace();
+                setHomeTab("repos");
+              }}
+            />
           </ul>
-        )}
-      </div>
+
+          <div className="mx-2 my-1 border-t border-border" />
+
+          <div className="px-3 py-1.5">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-faint">
+              {t("nav.threads")}
+            </span>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+            {threads.length === 0 ? (
+              <p className="px-2 py-6 text-center text-[12px] leading-relaxed text-ink-faint">
+                {t("nav.noThreads")}
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-0.5">
+                {threads.map((t) => (
+                  <ThreadRow key={t.id} thread={t} />
+                ))}
+              </ul>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="px-2 py-1">
+            <button
+              onClick={() => setDlg("ws")}
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-brand-ghost"
+            >
+              <Plus size={14} className="text-brand" />
+              {t("nav.newWorkspace")}
+            </button>
+          </div>
+          <div className="flex-1" />
+        </>
+      )}
 
       <footer className="border-t border-border p-2">
         <button
-          onClick={() => setDlg("settings")}
-          className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
+          onClick={() => {
+            backToWorkspace();
+            setHomeTab("settings");
+          }}
+          className={cn(
+            "flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] transition-colors hover:bg-brand-ghost hover:text-ink",
+            onHome && homeTab === "settings" ? "bg-brand-ghost text-ink" : "text-ink-muted",
+          )}
         >
-          <Settings size={14} className="text-ink-faint" />
+          <Settings
+            size={14}
+            className={onHome && homeTab === "settings" ? "text-brand" : "text-ink-faint"}
+          />
           {t("settings.title")}
         </button>
       </footer>
@@ -197,7 +201,6 @@ export function WorkspaceNav() {
       <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
       <CreateThreadDialog open={dlg === "thread"} onOpenChange={(o) => !o && setDlg(null)} />
       <AddRepoDialog open={dlg === "repo"} onOpenChange={(o) => !o && setDlg(null)} />
-      <SettingsDialog open={dlg === "settings"} onOpenChange={(o) => !o && setDlg(null)} />
     </nav>
   );
 }
@@ -224,14 +227,21 @@ function WsNavItem({
   return (
     <li
       className={cn(
-        "group flex items-center rounded-[var(--radius-md)] transition-colors",
+        "group relative flex items-center rounded-[var(--radius-md)] transition-colors",
         active ? "bg-brand-ghost" : "hover:bg-brand-ghost",
       )}
     >
+      {active && (
+        <motion.span
+          layoutId="nav-workspace-active"
+          className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-full bg-brand"
+        />
+      )}
       <button
         onClick={onClick}
+        aria-current={active ? "page" : undefined}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-[13px]",
+          "flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 pl-2.5 text-left text-[13px]",
           active ? "text-ink" : "text-ink-muted",
         )}
       >
@@ -296,6 +306,9 @@ function ThreadRow({ thread }: { thread: Thread }) {
             className="absolute left-0 top-1/2 h-5 w-[2px] -translate-y-1/2 rounded-full bg-brand"
           />
         )}
+        <span className="shrink-0 font-mono text-[11px] font-medium tabular-nums text-ink-faint">
+          #{thread.id}
+        </span>
         <span className="truncate text-[13px]">{thread.title}</span>
         {liveCount > 0 && (
           <span className="flex items-center gap-1 text-[10px] text-running">
@@ -345,8 +358,8 @@ function WorkspacePicker({
   const { t } = useTranslation();
   return (
     <DM.Root>
-      <DM.Trigger className="flex min-w-0 items-center gap-1 rounded-[var(--radius-md)] px-1.5 py-1 text-[13px] font-medium text-ink outline-none transition-colors hover:bg-brand-ghost data-[state=open]:bg-brand-ghost">
-        <span className="max-w-[150px] truncate">{active?.name ?? t("nav.noWorkspace")}</span>
+      <DM.Trigger className="flex w-full min-w-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink outline-none transition-colors hover:bg-brand-ghost data-[state=open]:bg-brand-ghost">
+        <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? t("nav.noWorkspace")}</span>
         {otherNeeds && (
           <span title={t("nav.otherWorkspaceNeeds")} className="h-1.5 w-1.5 shrink-0 rounded-full bg-waiting" />
         )}

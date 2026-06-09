@@ -8,7 +8,7 @@ import { useStore } from "./store";
  * (and copy/paste) pass straight through. ⌘K is the palette's (handled there).
  *
  *   ⌘\        toggle the sidebar
- *   ⌘1/2/3    workspace board / activity / repo map
+ *   ⌘1/2      workspace board / repo map
  *   ⌘[        go up one level (session → board → workspace)
  *
  * No chrome — keeps the "精简" home headerless while making the whole app
@@ -43,11 +43,6 @@ export function useAppShortcuts() {
           setHomeTab("board");
           break;
         case "2":
-          e.preventDefault();
-          backToWorkspace();
-          setHomeTab("overview");
-          break;
-        case "3":
           e.preventDefault();
           openRepoMap();
           break;

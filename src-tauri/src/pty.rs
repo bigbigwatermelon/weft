@@ -691,14 +691,6 @@ pub fn kill_session(state: State<PtyState>, session_id: i32) -> Result<(), Strin
     Ok(())
 }
 
-#[derive(Serialize, Clone)]
-pub struct LeadInfo {
-    pub session_id: i32,
-    pub thread_id: i32,
-    pub cwd: String,
-    pub tool: String,
-}
-
 /// The conversational lead prompt. The lead is the human's main collaborator for
 /// the thread: it discusses the work, and the plan EMERGES from that conversation
 /// rather than from a one-shot propose-and-exit. It proposes when (and only when)
@@ -715,80 +707,9 @@ after more discussion. Prefer splitting frontend/backend/shared work to run in p
 shared contract first."
 }
 
-/// Spawn (or replace) the thread's PERSISTENT read-only lead conversation: a
-/// fresh agent in a per-thread scratch dir with the planner MCP injected and the
-/// conversational lead prompt seeded. No worktree, no DB row — the lead plans via
-/// the planner MCP; the human keeps talking to it in the dock and confirms its
-/// proposals in the scope-confirm step. Keyed in PtyState by a synthetic negative
-/// id (`-thread_id`) so it never collides with worker ids and is stable per thread.
-#[tauri::command]
-pub async fn plan_with_lead(
-    app: AppHandle,
-    db: State<'_, Db>,
-    state: State<'_, PtyState>,
-    thread_id: i32,
-    lang: Option<String>,
-) -> Result<LeadInfo, String> {
-    plan_with_lead_impl(app, &db, &state, thread_id, lang.as_deref().unwrap_or("en"))
-        .await
-        .map_err(|e| e.to_string())
-}
-
-async fn plan_with_lead_impl(
-    app: AppHandle,
-    db: &Db,
-    state: &PtyState,
-    thread_id: i32,
-    lang: &str,
-) -> Result<LeadInfo> {
-    // Validate the thread exists (the lead reads its task via the planner MCP).
-    repo::get_thread(db, thread_id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
-    // Lead default tool (leadAgent override is a later milestone).
-    let tool = "claude".to_string();
-
-    let cwd = crate::paths::weft_home()?
-        .join("leads")
-        .join(thread_id.to_string());
-    std::fs::create_dir_all(&cwd).context("create lead scratch dir")?;
-    // git-init the scratch dir so claude's session store (keyed by cwd) and the
-    // injected config behave like any other cwd; harmless if it already exists.
-    let _ = std::process::Command::new("git")
-        .args(["init", "-q"])
-        .current_dir(&cwd)
-        .status();
-
-    let base = app.state::<crate::BusBase>().0.clone();
-    let inj = crate::bus::inject::inject_planner(&base, thread_id, &tool, &cwd);
-    // The lead is read-only planning, but install the Ask Bridge too so any
-    // permission prompt it hits still surfaces instead of stalling.
-    let ask = crate::bus::inject::inject_ask_hook(&base, thread_id, "lead", &tool, &cwd);
-
-    // Seed the planning prompt as the agent's initial positional message. It must
-    // come BEFORE --mcp-config: claude's --mcp-config is variadic and would
-    // otherwise swallow the prompt as a second config path (ENAMETOOLONG).
-    let mut args = vec![format!("{}{}", lead_prompt(), lang_directive(lang))];
-    args.extend(ask.args);
-    args.extend(inj.args);
-
-    let session_id = -thread_id; // synthetic, ephemeral, collision-free
-    // Replace any prior live lead session for this thread.
-    if let Some(mut a) = state.sessions.lock().unwrap_or_else(|e| e.into_inner()).remove(&session_id) {
-        a.alive.store(false, Ordering::SeqCst);
-        let _ = a.child.kill();
-    }
-    let active = spawn(&app, &tool, -1, &args, &cwd, None, session_id, db.clone())
-        .context("spawn lead")?;
-    state.sessions.lock().unwrap_or_else(|e| e.into_inner()).insert(session_id, active);
-
-    Ok(LeadInfo {
-        session_id,
-        thread_id,
-        cwd: cwd.to_string_lossy().to_string(),
-        tool,
-    })
-}
+// The PTY plan_with_lead path is retired: the lead now runs on the headless
+// chat engine (lead_chat::commands), which reuses lead_prompt()/lang_directive()
+// and the same scratch-dir + injection wiring.
 
 #[cfg(test)]
 mod watchdog_tests {
