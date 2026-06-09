@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Layers, X } from "lucide-react";
+import { Layers, Plus, SquarePen, X } from "lucide-react";
 import { useStore } from "../state/store";
 import type { ThreadOverview } from "../lib/types";
+import { Button } from "../components/ui/Button";
+import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
 import { cn } from "../lib/cn";
 
 /** A thread's phase, derived from its tasks + live state (the workspace board). */
@@ -54,17 +56,7 @@ export function WorkspaceKanban() {
   };
 
   if (overview.length === 0) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-        <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
-          <Layers size={20} className="text-ink-faint" />
-        </div>
-        <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("workspace.emptyTitleHas")}</h2>
-        <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
-          {t("workspace.emptyBodyHas")}
-        </p>
-      </div>
-    );
+    return <EmptyBoard />;
   }
 
   // Cross-thread contention: repos written by ≥2 issues — the workspace-level
@@ -126,6 +118,40 @@ export function WorkspaceKanban() {
         })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** First-run / empty board: distinguishes "no workspace" from "no issues yet"
+ *  and gives the one CTA that moves you forward — not just a dead-end message. */
+function EmptyBoard() {
+  const { activeWorkspaceId } = useStore();
+  const { t } = useTranslation();
+  const [dlg, setDlg] = useState<null | "ws" | "thread">(null);
+  const hasWs = activeWorkspaceId != null;
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
+        <Layers size={20} className="text-ink-faint" />
+      </div>
+      <h2 className="mt-3 text-[14px] font-semibold text-ink">
+        {hasWs ? t("workspace.emptyTitleHas") : t("workspace.emptyTitleNoWs")}
+      </h2>
+      <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
+        {hasWs ? t("workspace.emptyBodyHas") : t("workspace.emptyBodyNoWs")}
+      </p>
+      <Button
+        variant="primary"
+        className="mt-4"
+        onClick={() => setDlg(hasWs ? "thread" : "ws")}
+      >
+        {hasWs ? <SquarePen size={14} /> : <Plus size={14} />}
+        {hasWs ? t("nav.newThread") : t("nav.newWorkspace")}
+      </Button>
+
+      <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
+      <CreateThreadDialog open={dlg === "thread"} onOpenChange={(o) => !o && setDlg(null)} />
     </div>
   );
 }
