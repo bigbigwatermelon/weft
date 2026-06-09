@@ -29,11 +29,12 @@ export function TerminalPanel({ sessionId }: { sessionId: number }) {
       fontFamily: 'ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace',
       fontSize: 12.5,
       lineHeight: 1.2,
+      // LOOM: warm-graphite well, teal "warp" cursor. Always dark (TUIs assume dark).
       theme: {
-        background: "#16151c",
-        foreground: "#e9e8f2",
-        cursor: "#8b7bff",
-        selectionBackground: "#2c2747",
+        background: "#1a1814",
+        foreground: "#f0eee8",
+        cursor: "#54c0cc",
+        selectionBackground: "#21343a",
       },
       cursorBlink: true,
       scrollback: 8000,
