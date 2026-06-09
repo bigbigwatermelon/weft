@@ -43,10 +43,12 @@ export const en = {
     empty: "No matches",
     issue: "Issue",
     go: "Go to",
+    action: "Actions",
     board: "Workspace board",
     activity: "Activity",
     repos: "Repo map",
     toggleSidebar: "Toggle sidebar",
+    theme: "Toggle theme",
   },
   workspace: {
     tabOverview: "Activity",

@@ -7,9 +7,16 @@ import {
   LayoutDashboard,
   Network,
   PanelLeft,
+  Plus,
   Search,
+  Settings,
+  SquarePen,
+  SunMoon,
 } from "lucide-react";
 import { useStore } from "../state/store";
+import { useTheme } from "../state/theme";
+import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
+import { SettingsDialog } from "../nav/SettingsDialog";
 import { cn } from "../lib/cn";
 
 type Command = {
@@ -41,10 +48,15 @@ export function CommandPalette() {
     openRepoMap,
     navCollapsed,
     setNavCollapsed,
+    activeWorkspaceId,
   } = useStore();
+  const { toggle: toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(0);
+  // The palette owns its dialogs (it's always mounted, unlike the rail which
+  // unmounts when collapsed), so actions work regardless of sidebar state.
+  const [dialog, setDialog] = useState<null | "ws" | "thread" | "settings">(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Global hotkey in capture phase so it fires before a focused terminal grabs
@@ -120,7 +132,41 @@ export function CommandPalette() {
         run: () => setNavCollapsed(!navCollapsed),
       },
     ];
-    return [...issues, ...nav];
+    const actions: Command[] = [
+      ...(activeWorkspaceId != null
+        ? [
+            {
+              key: "act-issue",
+              group: t("palette.action"),
+              label: t("nav.newThread"),
+              icon: <SquarePen size={14} />,
+              run: () => setDialog("thread"),
+            },
+          ]
+        : []),
+      {
+        key: "act-workspace",
+        group: t("palette.action"),
+        label: t("nav.newWorkspace"),
+        icon: <Plus size={14} />,
+        run: () => setDialog("ws"),
+      },
+      {
+        key: "act-theme",
+        group: t("palette.action"),
+        label: t("palette.theme"),
+        icon: <SunMoon size={14} />,
+        run: () => toggleTheme(),
+      },
+      {
+        key: "act-settings",
+        group: t("palette.action"),
+        label: t("settings.title"),
+        icon: <Settings size={14} />,
+        run: () => setDialog("settings"),
+      },
+    ];
+    return [...issues, ...nav, ...actions];
   }, [
     threads,
     selectThread,
@@ -129,6 +175,8 @@ export function CommandPalette() {
     openRepoMap,
     navCollapsed,
     setNavCollapsed,
+    activeWorkspaceId,
+    toggleTheme,
     t,
   ]);
 
@@ -170,18 +218,18 @@ export function CommandPalette() {
     }
   }
 
-  if (!open) return null;
-
   // Group consecutive commands by their group label for section headers.
   let lastGroup = "";
 
   return (
-    <div className="fixed inset-0 z-[90]">
-      <div
-        className="weft-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
-        data-state="open"
-        onClick={close}
-      />
+    <>
+      {open && (
+        <div className="fixed inset-0 z-[90]">
+          <div
+            className="weft-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            data-state="open"
+            onClick={close}
+          />
       <div className="absolute inset-x-0 top-[14vh] flex justify-center px-4">
         <div
           className="weft-pop flex max-h-[60vh] w-[min(560px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.6)]"
@@ -242,5 +290,11 @@ export function CommandPalette() {
         </div>
       </div>
     </div>
+      )}
+
+      <CreateThreadDialog open={dialog === "thread"} onOpenChange={(o) => !o && setDialog(null)} />
+      <CreateWorkspaceDialog open={dialog === "ws"} onOpenChange={(o) => !o && setDialog(null)} />
+      <SettingsDialog open={dialog === "settings"} onOpenChange={(o) => !o && setDialog(null)} />
+    </>
   );
 }

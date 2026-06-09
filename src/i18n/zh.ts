@@ -42,10 +42,12 @@ export const zh = {
     empty: "无匹配",
     issue: "issue",
     go: "前往",
+    action: "动作",
     board: "工作区看板",
     activity: "活动",
     repos: "仓库地图",
     toggleSidebar: "切换侧边栏",
+    theme: "切换主题",
   },
   workspace: {
     tabOverview: "活动",
