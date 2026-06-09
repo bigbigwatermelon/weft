@@ -27,6 +27,7 @@ export function ObserveView() {
     workerSlash,
     workerActivity,
     loadLeadChat,
+    sendToDirection,
   } = useStore();
   const { t } = useTranslation();
   const [ref, setRef] = useState<ObserveRef | null>(null);
@@ -204,7 +205,16 @@ export function ObserveView() {
       </section>
 
       {ref && (
-        <DiffPanel cwd={ref.worktree} open={showDiff} onClose={() => setShowDiff(false)} />
+        <DiffPanel
+          cwd={ref.worktree}
+          open={showDiff}
+          onClose={() => setShowDiff(false)}
+          onAsk={
+            directionId != null && repoId != null
+              ? (text) => void sendToDirection(directionId, repoId, text)
+              : undefined
+          }
+        />
       )}
     </div>
   );

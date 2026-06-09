@@ -302,6 +302,10 @@ export const en = {
     filesChanged_one: "{{count}} file",
     filesChanged_other: "{{count}} files",
     untrackedOnly: "Only new (untracked) files so far.",
+    ask: "Ask about this file",
+    askLine: "Click this line to ask",
+    askPlaceholder: "Ask the worker about this change… (Enter sends; wakes it)",
+    askContext: "About this change in `{{path}}`:",
   },
   observe: {
     attach: "Attach",

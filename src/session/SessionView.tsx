@@ -222,7 +222,14 @@ export function SessionView() {
       </section>
 
       {!isLead && (
-        <DiffPanel cwd={info.worktree} open={showDiff} onClose={() => setShowDiff(false)} />
+        <DiffPanel
+          cwd={info.worktree}
+          open={showDiff}
+          onClose={() => setShowDiff(false)}
+          onAsk={(text) =>
+            void (isChat ? api.chatSend(info.session_id, text) : sendToSession(info.session_id, text))
+          }
+        />
       )}
       <KeymapDialog open={showKeys} onOpenChange={setShowKeys} />
     </div>

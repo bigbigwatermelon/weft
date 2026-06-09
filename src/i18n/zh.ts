@@ -293,6 +293,10 @@ export const zh = {
     empty: "还没有改动。",
     filesChanged_other: "{{count}} 个文件",
     untrackedOnly: "目前只有新增（未跟踪）文件。",
+    ask: "就这个文件提问",
+    askLine: "点击这一行提问",
+    askPlaceholder: "问 worker 这处改动…（Enter 发送，自动唤醒）",
+    askContext: "关于 `{{path}}` 这处改动：",
   },
   observe: {
     attach: "接管",

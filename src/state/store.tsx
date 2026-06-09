@@ -197,6 +197,8 @@ interface Store {
   /** Review-agent rung: on-demand pre-PR self-review verdict + in-flight set. */
   /** Run the global review skill inside the direction's own session. */
   requestSkillReview: (directionId: number) => Promise<void>;
+  /** Deliver a message to a (direction, repo)'s worker, waking it if needed. */
+  sendToDirection: (directionId: number, repoId: number, text: string) => Promise<void>;
   /** The configured review skill ("" = auto-detect superpowers'). */
   reviewSkill: string;
   setReviewSkill: (s: string) => void;
@@ -868,6 +870,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     );
   }, [reviewSkill, leadSlash, workerSlash]);
 
+  // Deliver a composed message to a (direction, repo)'s worker — waking it
+  // first when nothing is live (chat engines resume; PTY re-drives). The
+  // delivery half of diff annotations and skill reviews.
+  const sendToDirection = useCallback(
+    async (directionId: number, repoId: number, text: string) => {
+      let sess = Object.values(sessionsRef.current).find(
+        (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",
+      );
+      if (!sess) {
+        await driveDirection(directionId, repoId, false);
+        sess = Object.values(sessionsRef.current).find(
+          (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",
+        );
+      }
+      if (!sess) return;
+      if (sess.mode === "chat") {
+        await api.chatSend(sess.info.session_id, text);
+      } else {
+        await sendToSession(sess.info.session_id, text);
+      }
+    },
+    [driveDirection, sendToSession],
+  );
+
   const requestSkillReview = useCallback(
     async (directionId: number) => {
       const writes = await api.listWorktrees(directionId).catch(() => []);
@@ -1360,6 +1386,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     checkingDirections,
     verifyDirection,
     requestSkillReview,
+    sendToDirection,
     reviewSkill,
     setReviewSkill,
     autoReview,

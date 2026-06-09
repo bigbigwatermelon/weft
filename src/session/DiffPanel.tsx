@@ -17,10 +17,13 @@ export function DiffPanel({
   cwd,
   open,
   onClose,
+  onAsk,
 }: {
   cwd: string;
   open: boolean;
   onClose: () => void;
+  /** Deliver a diff annotation to the responsible worker (see DiffView). */
+  onAsk?: (text: string) => void;
 }) {
   const { t } = useTranslation();
   const [w, setW] = useState(() =>
@@ -92,7 +95,7 @@ export function DiffPanel({
             <X size={15} />
           </button>
         </header>
-        <DiffView cwd={cwd} />
+        <DiffView cwd={cwd} onAsk={onAsk} />
       </aside>
     </div>
   );

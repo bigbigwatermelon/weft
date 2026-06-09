@@ -1,21 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, ChevronRight, FileText } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, MessageSquarePlus, Send } from "lucide-react";
 import { api } from "../lib/api";
 import type { WorktreeDiff } from "../lib/types";
 import { cn } from "../lib/cn";
+import { Tooltip } from "../components/ui/Tooltip";
 
 /**
  * Worker review surface: the worktree's net git diff (file stats + unified
  * patch), polled live, as collapsible per-file sections. Lets you see exactly
- * what the worker changed without dropping into the terminal.
+ * what the worker changed without dropping into the terminal. With `onAsk`,
+ * any file header or diff line becomes an annotation: ask a question in place
+ * and it lands in the worker's own conversation (waking it if needed).
  */
-export function DiffView({ cwd }: { cwd: string }) {
+export function DiffView({
+  cwd,
+  onAsk,
+}: {
+  cwd: string;
+  /** Deliver an annotation question to the responsible worker. */
+  onAsk?: (text: string) => void;
+}) {
   const { t } = useTranslation();
   const [diff, setDiff] = useState<WorktreeDiff | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [touched, setTouched] = useState(false);
+  /** The annotation being composed: a file, optionally pinned to one line. */
+  const [ask, setAsk] = useState<{ path: string; line?: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -74,27 +86,60 @@ export function DiffView({ cwd }: { cwd: string }) {
           const expanded = isOpen(f.path);
           return (
             <div key={f.path} className="border-b border-border/60">
-              <button
-                onClick={() => toggle(f.path)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-surface"
-              >
-                {expanded ? (
-                  <ChevronDown size={13} className="shrink-0 text-ink-faint" />
-                ) : (
-                  <ChevronRight size={13} className="shrink-0 text-ink-faint" />
+              <div className="group flex w-full items-center gap-2 px-3 py-2 transition-colors hover:bg-surface">
+                <button
+                  onClick={() => toggle(f.path)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  {expanded ? (
+                    <ChevronDown size={13} className="shrink-0 text-ink-faint" />
+                  ) : (
+                    <ChevronRight size={13} className="shrink-0 text-ink-faint" />
+                  )}
+                  <FileText size={12} className="shrink-0 text-ink-faint" />
+                  <span className="truncate font-mono text-[12px] text-ink">{f.path}</span>
+                </button>
+                {onAsk && (
+                  <Tooltip label={t("diff.ask")}>
+                    <button
+                      onClick={() => setAsk({ path: f.path })}
+                      aria-label={t("diff.ask")}
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:bg-brand-ghost hover:text-ink group-hover:opacity-100"
+                    >
+                      <MessageSquarePlus size={12} />
+                    </button>
+                  </Tooltip>
                 )}
-                <FileText size={12} className="shrink-0 text-ink-faint" />
-                <span className="truncate font-mono text-[12px] text-ink">{f.path}</span>
-                <span className="ml-auto shrink-0 tabular-nums text-[11px]">
+                <span className="shrink-0 tabular-nums text-[11px]">
                   <span className="text-running">+{f.added}</span>{" "}
                   <span className="text-danger">−{f.removed}</span>
                 </span>
-              </button>
+              </div>
+              {ask?.path === f.path && onAsk && (
+                <AskBox
+                  path={f.path}
+                  line={ask.line}
+                  onSend={(text) => {
+                    onAsk(text);
+                    setAsk(null);
+                  }}
+                  onClose={() => setAsk(null)}
+                />
+              )}
               {expanded &&
                 (body && body.length > 0 ? (
                   <pre className="overflow-x-auto px-3 pb-3 font-mono text-[11.5px] leading-relaxed">
                     {body.map((line, i) => (
-                      <div key={i} className={cn("whitespace-pre", lineClass(line))}>
+                      <div
+                        key={i}
+                        onClick={onAsk ? () => setAsk({ path: f.path, line }) : undefined}
+                        title={onAsk ? t("diff.askLine") : undefined}
+                        className={cn(
+                          "whitespace-pre",
+                          lineClass(line),
+                          onAsk && "cursor-pointer hover:bg-brand-ghost/60",
+                        )}
+                      >
                         {line || " "}
                       </div>
                     ))}
@@ -107,6 +152,62 @@ export function DiffView({ cwd }: { cwd: string }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+/** The in-place annotation composer: quoted context + a one-line question. */
+function AskBox({
+  path,
+  line,
+  onSend,
+  onClose,
+}: {
+  path: string;
+  line?: string;
+  onSend: (text: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [q, setQ] = useState("");
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+
+  const send = () => {
+    const v = q.trim();
+    if (!v) return;
+    const quote = line != null && line.trim() !== "" ? `\n> ${line}` : "";
+    onSend(`${t("diff.askContext", { path })}${quote}\n\n${v}`);
+  };
+
+  return (
+    <div className="mx-3 mb-2 rounded-[var(--radius-md)] border border-brand/30 bg-brand-ghost/40 p-2">
+      {line != null && line.trim() !== "" && (
+        <div className="mb-1.5 truncate border-l-2 border-brand/50 pl-2 font-mono text-[11px] text-ink-muted">
+          {line}
+        </div>
+      )}
+      <div className="flex items-center gap-1.5">
+        <input
+          ref={ref}
+          value={q}
+          onChange={(e) => setQ(e.currentTarget.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") send();
+            if (e.key === "Escape") onClose();
+          }}
+          placeholder={t("diff.askPlaceholder")}
+          className="h-7 min-w-0 flex-1 rounded-[var(--radius-sm)] border border-border bg-bg px-2 text-[12px] text-ink outline-none focus:border-brand/60"
+        />
+        <button
+          onClick={send}
+          disabled={!q.trim()}
+          aria-label={t("lead.send")}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-sm)] bg-brand text-brand-ink transition-opacity disabled:opacity-40"
+        >
+          <Send size={12} />
+        </button>
       </div>
     </div>
   );
