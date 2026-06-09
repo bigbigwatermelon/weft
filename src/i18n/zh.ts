@@ -151,7 +151,7 @@ export const zh = {
     attach: "接管",
     continue: "继续",
     start: "开始",
-    empty: "尚未物化。",
+    empty: "尚未建副本。",
     answerPlaceholder: "输入回复，回车发送",
     driveFailed: "无法续接该会话",
   },
@@ -241,7 +241,7 @@ export const zh = {
     reason: "原因",
     reasonPlaceholder: "为什么这个子任务要写这个仓库",
     creating: "创建中…",
-    materializing: "物化中…",
+    materializing: "建副本中…",
     createDirection: "创建子任务",
   },
   settings: {

@@ -158,7 +158,7 @@ export const en = {
     attach: "Attach",
     continue: "Continue",
     start: "Start",
-    empty: "Not materialized yet.",
+    empty: "No working copy yet.",
     answerPlaceholder: "Type a reply, press Enter",
     driveFailed: "Couldn't continue this session",
   },
@@ -251,7 +251,7 @@ export const en = {
     reason: "Reason",
     reasonPlaceholder: "Why this sub-task writes this repo",
     creating: "Creating…",
-    materializing: "Materializing…",
+    materializing: "Creating working copy…",
     createDirection: "Create sub-task",
   },
   settings: {
