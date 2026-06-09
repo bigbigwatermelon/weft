@@ -4,6 +4,7 @@ import {
   Activity,
   CircleDot,
   CornerDownLeft,
+  FileCog,
   HelpCircle,
   LayoutDashboard,
   Network,
@@ -18,6 +19,7 @@ import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
 import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
 import { SettingsDialog } from "../nav/SettingsDialog";
+import { EffectiveConfigDialog } from "./EffectiveConfigDialog";
 import { cn } from "../lib/cn";
 
 type Command = {
@@ -58,7 +60,7 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   // The palette owns its dialogs (it's always mounted, unlike the rail which
   // unmounts when collapsed), so actions work regardless of sidebar state.
-  const [dialog, setDialog] = useState<null | "ws" | "thread" | "settings">(null);
+  const [dialog, setDialog] = useState<null | "ws" | "thread" | "settings" | "config">(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
@@ -160,6 +162,13 @@ export function CommandPalette() {
         label: t("nav.newWorkspace"),
         icon: <Plus size={14} />,
         run: () => setDialog("ws"),
+      },
+      {
+        key: "act-config",
+        group: t("palette.action"),
+        label: t("palette.config"),
+        icon: <FileCog size={14} />,
+        run: () => setDialog("config"),
       },
       {
         key: "act-theme",
@@ -312,6 +321,7 @@ export function CommandPalette() {
       <CreateThreadDialog open={dialog === "thread"} onOpenChange={(o) => !o && setDialog(null)} />
       <CreateWorkspaceDialog open={dialog === "ws"} onOpenChange={(o) => !o && setDialog(null)} />
       <SettingsDialog open={dialog === "settings"} onOpenChange={(o) => !o && setDialog(null)} />
+      <EffectiveConfigDialog open={dialog === "config"} onOpenChange={(o) => !o && setDialog(null)} />
     </>
   );
 }

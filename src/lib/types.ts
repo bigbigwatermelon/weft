@@ -20,6 +20,16 @@ export interface RepoRef {
   default_tool: string;
 }
 
+/** One effective skill/rule for a repo, tagged with the layer it comes from
+ *  (personal / repo) and whether a higher layer shadows it (§ M6 有效配置). */
+export interface ConfigItem {
+  name: string;
+  kind: "skill" | "rule";
+  layer: "personal" | "repo" | "team";
+  path: string;
+  overridden: boolean;
+}
+
 export interface Thread {
   id: number;
   workspace_id: number;

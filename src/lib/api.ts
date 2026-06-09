@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   BusMsg,
+  ConfigItem,
   Direction,
   LeadInfo,
   NeedItem,
@@ -144,6 +145,9 @@ export const api = {
   // per-session watchdog uses to force-stop a stuck/runaway agent.
   setGuardrails: (idleSecs: number, wallSecs: number) =>
     invoke<void>("set_guardrails", { idleSecs, wallSecs }),
+  // Effective config (skills + rules) for a repo, tagged by layer + override.
+  effectiveConfig: (repoPath: string) =>
+    invoke<ConfigItem[]>("effective_config", { repoPath }),
   // Native folder picker; returns the chosen absolute path, or null if cancelled.
   pickFolder: async (title?: string) => {
     const sel = await openDialog({ directory: true, multiple: false, title });

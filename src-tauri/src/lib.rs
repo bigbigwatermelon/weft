@@ -18,6 +18,7 @@ pub mod bus;
 mod check;
 mod claude;
 mod codex;
+pub mod config;
 mod coordinator;
 mod curator;
 mod detect;
@@ -121,6 +122,7 @@ pub fn run() {
             commands::answer_permission,
             commands::set_dangerous_mode,
             commands::set_guardrails,
+            commands::effective_config,
             commands::needs_you,
             commands::write_triggers,
             commands::approve_write_trigger,

@@ -487,6 +487,18 @@ pub fn set_guardrails(
     Ok(())
 }
 
+/// Effective config for a repo (M6 有效配置预览): the skills + rules that apply,
+/// each tagged with the layer it comes from (personal / repo) and whether a
+/// higher layer shadows it.
+#[tauri::command]
+pub fn effective_config(repo_path: String) -> R<Vec<crate::config::ConfigItem>> {
+    let home = dirs::home_dir().ok_or_else(|| "no home dir".to_string())?;
+    Ok(crate::config::effective_for(
+        std::path::Path::new(&repo_path),
+        &home,
+    ))
+}
+
 /// Pending "needs you" count per workspace (agent questions + tool asks), so the
 /// workspace switcher can flag OTHER workspaces that want attention.
 #[tauri::command]
