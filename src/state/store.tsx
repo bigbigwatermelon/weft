@@ -1029,9 +1029,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
       if (hasLive || dispatchingRef.current.has(d.id)) continue;
       dispatchingRef.current.add(d.id);
-      void dispatchDirection(d.id).finally(() => dispatchingRef.current.delete(d.id));
+      void reviveDirection(d.id).finally(() => dispatchingRef.current.delete(d.id));
     }
-  }, [activeThreadId, directionsByThread, dispatchDirection]);
+  }, [activeThreadId, directionsByThread, reviveDirection]);
 
   const leadSession = leadForActive ?? null;
   const leadCollapsed =
