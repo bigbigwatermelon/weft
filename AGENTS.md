@@ -4,7 +4,19 @@
 
 工作名 **Weft**(字标可换);定位:**本地优先、无服务端、coding-agent 驱动的多仓需求交付中心**。
 
+<<<<<<< Updated upstream
 ---
+||||||| Stash base
+- `src/`: React + TypeScript UI. Key areas: `board/` for workspace/thread boards, `session/` for chat/observe/diff surfaces, `components/` for shared UI, `i18n/` for English/Chinese strings.
+- `src-tauri/src/`: Rust backend. Key modules: `lead_chat/` for headless agent sessions, `store/` for SQLite/SeaORM entities and migrations, `bus/` for local MCP/thread bus, `git.rs` and `materialize.rs` for worktree handling.
+- `src-tauri/tests/`: Rust integration tests.
+- `assets/`, `public/`, `designs/`: screenshots, icons, generated diagrams, and design references.
+=======
+- `src/`: React + TypeScript UI. Key areas: `board/` for workspace/issue boards, `session/` for chat/observe/diff surfaces, `components/` for shared UI, `i18n/` for English/Chinese strings.
+- `src-tauri/src/`: Rust backend. Key modules: `lead_chat/` for headless agent sessions, `store/` for SQLite/SeaORM entities and migrations, `bus/` for local MCP/thread bus, `git.rs` and `materialize.rs` for worktree handling.
+- `src-tauri/tests/`: Rust integration tests.
+- `assets/`, `public/`, `designs/`: screenshots, icons, generated diagrams, and design references.
+>>>>>>> Stashed changes
 
 ## 0. 可直接粘贴给 Codex 的 kickoff prompt
 

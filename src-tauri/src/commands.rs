@@ -147,8 +147,7 @@ pub struct ThreadOverview {
 }
 
 /// Portfolio view of a workspace: every thread with its directions + write set,
-/// so the board can show roll-ups and compute cross-thread repo contention
-/// (a repo written by 2+ threads is a "hot repo").
+/// so the board can show roll-ups and the repositories each task writes.
 #[tauri::command]
 pub async fn workspace_overview(db: State<'_, Db>, workspace_id: i32) -> R<Vec<ThreadOverview>> {
     let threads = repo::list_threads(&db, workspace_id).await.map_err(e)?;

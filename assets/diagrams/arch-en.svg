@@ -34,7 +34,7 @@
     <rect class="chip" x="366" y="98" width="284" height="86" rx="11"/>
     <g transform="translate(390,132)" class="gl" stroke="#b8b5c2"><rect x="-7" y="-7" width="6" height="6" rx="1"/><rect x="1" y="-7" width="6" height="6" rx="1"/><rect x="-7" y="1" width="6" height="6" rx="1"/><rect x="1" y="1" width="6" height="6" rx="1"/></g>
     <text class="clbl" x="412" y="130">Two-level board</text>
-    <text class="csub" x="382" y="160">workspace · thread</text>
+    <text class="csub" x="382" y="160">workspace · issue</text>
   </g>
   <g>
     <rect class="chip" x="668" y="98" width="284" height="86" rx="11"/>
@@ -85,7 +85,7 @@
   </g>
   <g>
     <rect class="chip" x="468" y="424" width="384" height="78" rx="11"/>
-    <text class="clbl" x="488" y="458">Thread bus</text>
+    <text class="clbl" x="488" y="458">Issue bus</text>
     <text class="csub" x="488" y="480">local MCP · axum · coordinator</text>
   </g>
   <g>

@@ -120,7 +120,7 @@ landing page.
 ## Layout & density
 
 - 4px spacing base. Compact rhythm: 8 / 12 / 16 / 24 for most gaps.
-- App shell: left nav (workspace ▸ thread ▸ direction), main session region,
+- App shell: left nav (workspace ▸ issue ▸ direction), main session region,
   optional right rail (diff / thread bus). Flexbox for the shell, Grid only for
   true 2D (session grids, diff columns).
 - Multi-session layouts: `repeat(auto-fit, minmax(360px, 1fr))` so panels reflow
@@ -141,10 +141,22 @@ weft treatment:
 
 - **Status chip**: pill, glyph + color + label, used in nav, session headers,
   lists. The single most-repeated atom — must be perfect.
+<<<<<<< Updated upstream
 - **Session panel**: framed xterm viewport with a header (tool, cwd, branch,
   status chip) and the §4.3 interaction layer (focus ring, approval bar,
   injection-queue banner, composer).
 - **Nav tree**: workspace → thread → direction, with active = `--brand-ghost`
+||||||| Stash base
+- **Session panel**: the weft-owned chat timeline, framed with a header (tool,
+  cwd, branch, status chip) and the §4.3 interaction layer (composer,
+  Ask-Bridge approval bar, queued-message indicator).
+- **Nav tree**: workspace → thread → direction, with active = `--brand-ghost`
+=======
+- **Session panel**: the weft-owned chat timeline, framed with a header (tool,
+  cwd, branch, status chip) and the §4.3 interaction layer (composer,
+  Ask-Bridge approval bar, queued-message indicator).
+- **Nav tree**: workspace → issue → direction, with active = `--brand-ghost`
+>>>>>>> Stashed changes
   fill + `--brand` left-edge indicator (a 2px indicator, NOT a decorative
   side-stripe border).
 - **Command palette** (⌘K): Radix dialog, keyboard-first, the primary
@@ -155,7 +167,7 @@ weft treatment:
   native TUI options as buttons (Approve / Deny / Always) — a convenience layer
   over the native prompt, never a replacement.
 - **Home (lead conversation)**: the default surface. A focused chat with the
-  thread's lead — task in, scope/brief/decisions out — flanked by the board and
+  issue's lead — task in, scope/brief/decisions out — flanked by the board and
   a session region. Reads like a control tower, not a chatbot: structured cards
   (proposed scope, dispatched directions, escalations) inline in the stream, not
   walls of prose.
@@ -164,8 +176,7 @@ weft treatment:
   match, review-agent verdict) with expandable provenance. Green = trust at a
   glance; red / escalated draws the eye and opens on click. Never a flat
   icon-card grid — the signals are the content.
-- **Two-level board**: Workspace board (cards = threads, optional per-repo
-  swimlanes that expose cross-thread "hot repos") zooms into the Thread board
+- **Two-level board**: Workspace board (cards = issues) zooms into the Issue board
   (cards = directions). `Needs you` is a pinned exception lane aggregated at both
   levels. Cards flow themselves; the human acts (Approve / Answer / Open /
   Review / Merge), it does not drag.
@@ -198,7 +209,7 @@ change of state** and to make switching feel instant, never to perform.
     fades) so the human sees what the coordinator sent.
   - *Approval arrival*: the panel border eases to `--status-approval` and the
     approval bar slides up — a calm alert, not a flash.
-  - *List reveals*: thread/session lists stagger entrance (24ms step) on first
+  - *List reveals*: issue/session lists stagger entrance (24ms step) on first
     mount only; never re-stagger on every render.
 - **Reduced motion**: every animation has a `prefers-reduced-motion: reduce`
   path — pulses stop, slides become instant, crossfades shorten to ~80ms.
