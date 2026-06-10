@@ -370,6 +370,19 @@ pub async fn latest_session_for(
         .await?)
 }
 
+/// The most-recent session row for a direction (any repo) — the coordinator's
+/// route from a bus wake target to its chat engine.
+pub async fn latest_session_for_direction(
+    db: &Db,
+    direction_id: i32,
+) -> Result<Option<session::Model>> {
+    Ok(session::Entity::find()
+        .filter(session::Column::DirectionId.eq(direction_id))
+        .order_by_desc(session::Column::Id)
+        .one(&db.0)
+        .await?)
+}
+
 // ---- chat timeline (lead console + chat-mode workers) ----
 
 #[allow(clippy::too_many_arguments)]

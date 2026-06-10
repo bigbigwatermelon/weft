@@ -61,6 +61,9 @@ pub enum Push {
 pub struct Outgoing {
     pub text: String,
     pub images: Vec<(String, String)>,
+    /// true = backed by a queued timeline row (flips to complete on flush);
+    /// false = invisible plumbing (coordinator nudges).
+    pub tracked: bool,
 }
 
 /// Busy/queue bookkeeping for one engine. Mirrors the TUI's own semantics:
@@ -305,7 +308,7 @@ pub async fn send(
     } else {
         images
     };
-    let out = Outgoing { text: outbound, images };
+    let out = Outgoing { text: outbound, images, tracked: true };
     let spawn_now = direct && per_turn(&inner.tool);
     if direct && !spawn_now {
         write_user(&mut inner, &out).await;
@@ -422,6 +425,27 @@ pub async fn interrupt(app: &AppHandle, eng: &EngineRef) -> anyhow::Result<()> {
         drop(inner);
         let _ = &app2;
     });
+    Ok(())
+}
+
+/// Invisible coordinator nudge: deliver plumbing text to the agent WITHOUT a
+/// timeline row — bus wakes are infrastructure, not conversation. Busy engines
+/// queue it (processed after the current turn, same as the TUI's queue).
+pub async fn nudge(app: &AppHandle, db: &Db, eng: &EngineRef, text: &str) -> anyhow::Result<()> {
+    ensure_running(app, db, eng).await?;
+    let mut inner = eng.lock().await;
+    let out = Outgoing { text: text.to_string(), images: vec![], tracked: false };
+    if inner.turn.try_begin_send() {
+        inner.turn_id += 1;
+        if per_turn(&inner.tool) {
+            drop(inner);
+            spawn_turn(app.clone(), db.clone(), eng.clone(), out).await?;
+        } else {
+            write_user(&mut inner, &out).await;
+        }
+    } else {
+        inner.turn.queue.push_back(out);
+    }
     Ok(())
 }
 
@@ -601,7 +625,9 @@ fn spawn_reader(
                     }
                     if let Some(next) = inner.turn.on_turn_end() {
                         inner.turn_id += 1;
-                        let _ = repo::complete_queued(&db, thread_id, &next.text).await;
+                        if next.tracked {
+                            let _ = repo::complete_queued(&db, thread_id, &next.text).await;
+                        }
                         if per_turn(&inner.tool) {
                             let (a, d, e) = (app.clone(), db.clone(), eng.clone());
                             tauri::async_runtime::spawn(async move {
@@ -661,7 +687,9 @@ fn spawn_reader(
             inner.child = None;
             if let Some(next) = inner.turn.on_turn_end() {
                 inner.turn_id += 1;
-                let _ = repo::complete_queued(&db, inner.thread_id, &next.text).await;
+                if next.tracked {
+                    let _ = repo::complete_queued(&db, inner.thread_id, &next.text).await;
+                }
                 let (a, d, e) = (app.clone(), db.clone(), eng.clone());
                 tauri::async_runtime::spawn(async move {
                     let _ = spawn_turn(a, d, e, next).await;
@@ -713,7 +741,7 @@ mod tests {
         let mut t = TurnState::default();
         assert!(t.try_begin_send()); // idle → busy: send through
         assert!(!t.try_begin_send()); // busy: enqueue
-        t.queue.push_back(Outgoing { text: "second".into(), images: vec![] });
+        t.queue.push_back(Outgoing { text: "second".into(), images: vec![], tracked: true });
         let next = t.on_turn_end();
         assert_eq!(next.map(|o| o.text).as_deref(), Some("second"));
         assert!(t.busy); // popped → still busy

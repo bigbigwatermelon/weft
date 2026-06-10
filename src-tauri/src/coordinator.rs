@@ -37,12 +37,38 @@ pub fn run(app: AppHandle, rx: Receiver<Wake>) {
                     continue; // rate-limited: don't spam the agent
                 }
             }
-            let Some(state) = app.try_state::<PtyState>() else {
-                continue;
-            };
-            if state.wake_direction(dir, WAKE_PROMPT) {
-                last.insert(dir, now);
+            // Legacy PTY sessions first; the chat engine is the normal path now.
+            if let Some(state) = app.try_state::<PtyState>() {
+                if state.wake_direction(dir, WAKE_PROMPT) {
+                    last.insert(dir, now);
+                    continue;
+                }
             }
+            // Chat-engine worker: deliver the wake as an invisible nudge (no
+            // timeline row); a busy engine queues it for after the turn.
+            last.insert(dir, now);
+            let app2 = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let Some(db) = app2.try_state::<crate::store::Db>() else { return };
+                let db = crate::store::Db(db.0.clone());
+                let Ok(Some(s)) = crate::store::repo::latest_session_for_direction(&db, dir).await
+                else {
+                    return;
+                };
+                let Some(eng) = app2
+                    .state::<crate::lead_chat::engine::LeadChatState>()
+                    .get(s.id as i64)
+                else {
+                    return;
+                };
+                let _ = crate::lead_chat::engine::nudge(
+                    &app2,
+                    &db,
+                    &eng,
+                    WAKE_PROMPT.trim_end_matches('\r'),
+                )
+                .await;
+            });
         }
     });
 }
