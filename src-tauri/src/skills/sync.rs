@@ -32,8 +32,9 @@ pub fn sync_to(url: &str, git_ref: &str, cache: &Path) -> Result<()> {
             args.push("-b");
             args.push(git_ref);
         }
-        args.push(url);
         let cache_s = cache.to_string_lossy().to_string();
+        args.push("--");
+        args.push(url);
         args.push(&cache_s);
         run(None, &args)?;
         return Ok(());
