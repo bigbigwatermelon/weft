@@ -53,9 +53,9 @@ The shape of the work:
 **lead** (your main chat + control tower): read-only across the repos, it plans,
 derives scope, and drives workers — it does not write code. Sessions carry
 `role = curator | lead | worker`. Workers report **structured summaries + diff
-stat** through the bus; the lead never ingests their raw transcripts. The
-embedded native TUI is the interaction surface for one session, not the
-product's reason for being.
+stat** through the bus; the lead never ingests their raw transcripts. Each
+session's surface is a weft-rendered conversation driven over the native CLI's
+structured stream; the native TUI stays one takeover away in your own terminal.
 
 **The human handles exceptions, not the assembly line.** weft adds **no approval
 gate of its own**. The only blocking interruptions are the tools' own permission
@@ -123,12 +123,13 @@ designed, system-following + toggleable).
    git state. Cards move on their own through the lifecycle; the human's verbs
    are Approve / Answer / Open / Review / Merge. "Needs you" aggregates real
    exceptions at every level and is always the most prominent thing.
-7. **Frame, don't redraw.** Host native TUIs verbatim as one session's
-   interaction surface; mirror native state (permissions, sessions, config) and
-   never override it. Surface and observation are decoupled — a session can run
-   embedded or in its own app, observed the same way either side.
-8. **Hide the mechanism, present the decisions.** worktrees / PTY / MCP bus /
-   add-dir / sidecar are plumbing — they recede into Inspect. What the user owns
+7. **Drive native, render product.** Sessions drive the native CLIs headless
+   through their structured streams, rendered as weft's own conversation;
+   native state (permissions, sessions, config) is mirrored, never overridden.
+   Surface and observation are decoupled — a session can run in weft, in its
+   own app, or taken over in your terminal, observed the same way throughout.
+8. **Hide the mechanism, present the decisions.** worktrees / headless agent
+   processes / MCP bus / add-dir / sidecar are plumbing — they recede into Inspect. What the user owns
    stays first-class: the task, scope, branch / PR / diff, tool choice, brief,
    effective skills. Every abstraction ships with a real escape hatch (true
    path / open terminal) and a readable failure.
