@@ -169,12 +169,7 @@ export interface LeadStateInfo {
 }
 
 /** UI-side runtime status for a live session panel. */
-export type SessionStatus =
-  | "starting"
-  | "running"
-  | "waiting-approval"
-  | "idle"
-  | "exited";
+export type SessionStatus = "starting" | "running" | "idle" | "exited";
 
 export interface FileDiff {
   path: string;

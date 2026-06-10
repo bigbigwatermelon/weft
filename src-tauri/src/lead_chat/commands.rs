@@ -9,6 +9,45 @@ fn lead_key(thread_id: i32) -> i64 {
     -(thread_id as i64)
 }
 
+/// What a (re)dispatched worker session looks like to the frontend.
+#[derive(serde::Serialize, Clone)]
+pub struct SessionInfo {
+    pub session_id: i32,
+    pub repo: String,
+    pub worktree: String,
+    pub branch: String,
+    pub tool: String,
+    pub resumed: bool,
+    pub native_id: Option<String>,
+}
+
+/// The conversational lead prompt. The lead is the human's main collaborator for
+/// the thread: it discusses the work, and the plan EMERGES from that conversation
+/// rather than from a one-shot propose-and-exit. It proposes when (and only when)
+/// the human has converged with it, and may re-propose after more discussion.
+pub fn lead_prompt() -> &'static str {
+    "You are the lead for this thread in weft — the human's main collaborator. \
+Start by greeting briefly and using the weft_planner MCP tools to orient: call get_task to read \
+what's being asked, and get_repo_map to learn each repo's role and the cross-repo dependency graph. \
+Then DISCUSS the approach with the human; ask clarifying questions when it matters. You do not write \
+code — you plan and drive. When you and the human have converged on how to split the work, call \
+propose_directions with a short rationale and the directions (name, tool, writes[]); only list repos \
+each direction must WRITE (reads are free). The human reviews and confirms in weft; you can re-propose \
+after more discussion. Prefer splitting frontend/backend/shared work to run in parallel, owner of a \
+shared contract first."
+}
+
+/// Agent-output language directive (ARCHITECTURE §4.8, layer 2). Appended to the
+/// lead prompt / worker brief so prose follows the operator's UI language; code
+/// and identifiers always stay English. Empty for English (the default).
+pub fn lang_directive(lang: &str) -> &'static str {
+    if lang == "zh" {
+        "\n\n用中文撰写所有自然语言产出(计划、摘要、bus 消息、PR/commit 文案);代码、标识符与技术约定始终用英文。"
+    } else {
+        ""
+    }
+}
+
 /// Get-or-create the lead's engine for a thread: scratch cwd, planner MCP +
 /// ask bridge injections, conversational lead prompt as the system prompt.
 /// Mirrors the retired PTY `plan_with_lead` wiring (spec §2).
@@ -38,11 +77,7 @@ async fn lead_engine(
     let ask = crate::bus::inject::inject_ask_hook(&base, thread_id, "lead", "claude", &cwd);
     let mut extra = ask.args;
     extra.extend(inj.args);
-    let system_prompt = format!(
-        "{}{}",
-        crate::pty::lead_prompt(),
-        crate::pty::lang_directive(lang)
-    );
+    let system_prompt = format!("{}{}", lead_prompt(), lang_directive(lang));
     let inner = engine::EngineInner {
         thread_id,
         tool: "claude".into(),
@@ -198,17 +233,16 @@ pub async fn list_lead_messages(
     Ok(msgs)
 }
 
-// ───────────────────── chat-mode workers (phase 2) ─────────────────────
+// ───────────────────── chat-mode workers ─────────────────────
 //
-// Claude workers can run on the same engine: chat timeline in the SessionView
-// instead of a PTY TUI. codex/opencode workers keep the existing PTY path
-// untouched (fast codex spawn + deep links stay), and every session — chat or
-// PTY — remains takeover-able in the user's own terminal via its native id.
+// Every worker (claude/codex/opencode) runs on the engine: a weft-owned chat
+// timeline in the SessionView, with per-tool wire dialects (engine::per_turn).
+// Each session remains takeover-able in the user's own terminal via its
+// native id.
 
-/// Spawn (or resume) a chat-mode claude worker for a (direction, repo) slot.
-/// Mirrors `open_session_impl`'s wiring: worktree cwd, thread-bus MCP + ask
-/// bridge, the assembled brief — but the brief goes in as the first user
-/// message of a weft-owned conversation instead of a PTY seed.
+/// Spawn (or resume) a chat-mode worker for a (direction, repo) slot: worktree
+/// cwd, thread-bus MCP + ask bridge, the assembled brief as the first user
+/// message of a weft-owned conversation.
 #[tauri::command]
 pub async fn chat_open_worker(
     app: AppHandle,
@@ -216,7 +250,7 @@ pub async fn chat_open_worker(
     direction_id: i32,
     repo_id: i32,
     lang: Option<String>,
-) -> Result<crate::pty::SessionInfo, String> {
+) -> Result<SessionInfo, String> {
     chat_open_worker_impl(&app, &db, direction_id, repo_id, lang.as_deref().unwrap_or("en"))
         .await
         .map_err(|e| e.to_string())
@@ -228,7 +262,7 @@ async fn chat_open_worker_impl(
     direction_id: i32,
     repo_id: i32,
     lang: &str,
-) -> anyhow::Result<crate::pty::SessionInfo> {
+) -> anyhow::Result<SessionInfo> {
     use sea_orm::EntityTrait;
     let wt = repo::worktree_for(db, direction_id, repo_id)
         .await?
@@ -287,13 +321,13 @@ async fn chat_open_worker_impl(
     if !resumed {
         let mut brief = crate::brief::assemble(db, direction_id).await.unwrap_or_default();
         if !brief.trim().is_empty() {
-            brief.push_str(crate::pty::lang_directive(lang));
+            brief.push_str(lang_directive(lang));
             engine::send(app, db, &eng, &brief, vec![], vec![]).await?;
         }
     }
     let _ = repo::set_direction_status(db, direction_id, "working").await;
 
-    Ok(crate::pty::SessionInfo {
+    Ok(SessionInfo {
         session_id: sess.id,
         repo: wt.path.clone(),
         worktree: wt.path,

@@ -1,4 +1,4 @@
-import { AlertTriangle, Circle, Loader2, Square, X } from "lucide-react";
+import { Circle, Loader2, Square, X } from "lucide-react";
 import { motion } from "motion/react";
 import type { SessionStatus } from "../../lib/types";
 import { cn } from "../../lib/cn";
@@ -9,11 +9,6 @@ const MAP: Record<
 > = {
   starting: { label: "Starting", color: "text-inject", ring: "ring-inject/30" },
   running: { label: "Running", color: "text-running", ring: "ring-running/30" },
-  "waiting-approval": {
-    label: "Approval",
-    color: "text-approval",
-    ring: "ring-approval/30",
-  },
   idle: { label: "Idle", color: "text-idle", ring: "ring-idle/25" },
   exited: { label: "Exited", color: "text-danger", ring: "ring-danger/30" },
 };
@@ -23,7 +18,6 @@ function Glyph({ status }: { status: SessionStatus }) {
     return <Loader2 size={11} className="animate-spin" />;
   if (status === "running")
     return <Circle size={9} className="weft-pulse fill-current" />;
-  if (status === "waiting-approval") return <AlertTriangle size={11} />;
   if (status === "exited") return <X size={11} />;
   return <Square size={9} className="fill-current" />;
 }
