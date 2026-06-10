@@ -204,6 +204,9 @@ interface Store {
   /** Auto-run the review skill when a task flows into the review column. */
   autoReview: boolean;
   setAutoReview: (on: boolean) => void;
+  /** OS notifications for new Needs-you items / review-ready sub-tasks. */
+  notifyEnabled: boolean;
+  setNotifyEnabled: (on: boolean) => void;
   focusSession: (sessionId: number) => void;
 }
 
@@ -300,6 +303,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setAutoReview = useCallback((on: boolean) => {
     localStorage.setItem("weft-auto-review", on ? "1" : "0");
     setAutoReviewState(on);
+  }, []);
+  // System notifications: new Needs-you items / review-ready sub-tasks raise an
+  // OS notification while the window is unfocused. Default ON.
+  const [notifyEnabled, setNotifyEnabledState] = useState(
+    () => localStorage.getItem("weft-notify") !== "0",
+  );
+  const setNotifyEnabled = useCallback((on: boolean) => {
+    localStorage.setItem("weft-notify", on ? "1" : "0");
+    setNotifyEnabledState(on);
   }, []);
   const [dangerousMode, setDangerousModeState] = useState(
     () => localStorage.getItem("weft-dangerous") === "1",
@@ -1340,6 +1352,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setReviewSkill,
     autoReview,
     setAutoReview,
+    notifyEnabled,
+    setNotifyEnabled,
     focusSession,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

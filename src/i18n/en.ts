@@ -228,6 +228,14 @@ export const en = {
     confirm_other: "Create {{count}} sub-tasks",
     confirming: "Creating…",
   },
+  notify: {
+    needsTitle: "Needs you",
+    needsBody_one: "{{count}} new item",
+    needsBody_other: "{{count}} new items",
+    reviewTitle: "Ready for review",
+    reviewBody_one: "{{count}} sub-task reached review",
+    reviewBody_other: "{{count}} sub-tasks reached review",
+  },
   needs: {
     title: "Needs you",
     subtitle: "approvals and questions only you can answer",
@@ -412,6 +420,8 @@ export const en = {
     reviewSkillHint: "Leave empty to auto-detect (prefers superpowers' requesting-code-review); review runs inside the sub-task's own session",
     autoReview: "Auto review",
     autoReviewHint: "When a sub-task flows into the review column, run the review skill and fix its findings automatically",
+    notifications: "System notifications",
+    notificationsHint: "While the window is unfocused, new Needs-you items and review-ready sub-tasks raise OS notifications.",
     agentLanguage: "Agent output language",
     agentLanguageHint: "Language for plans, briefs, commits, and PR text; code and identifiers stay English.",
     agentLanguageZh: "Follow UI · Chinese",

@@ -14,6 +14,7 @@ import { FirstRunOnboarding } from "./components/FirstRunOnboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SettingsScreen } from "./nav/SettingsDialog";
 import { useAppShortcuts } from "./state/shortcuts";
+import { useSystemNotifications } from "./lib/notifications";
 
 function Main() {
   const { activeSessionId, viewing, activeThreadId, showNeeds } = useStore();
@@ -37,6 +38,7 @@ function Shell() {
     homeTab,
   } = useStore();
   useAppShortcuts();
+  useSystemNotifications();
   if (
     homeTab === "settings" &&
     !showNeeds &&

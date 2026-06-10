@@ -221,6 +221,12 @@ export const zh = {
     confirm_other: "创建 {{count}} 个子任务",
     confirming: "创建中…",
   },
+  notify: {
+    needsTitle: "待你处理",
+    needsBody_other: "{{count}} 项新增待办",
+    reviewTitle: "可以 review 了",
+    reviewBody_other: "{{count}} 个子任务进入 review",
+  },
   needs: {
     title: "待你处理",
     subtitle: "只有你能回答的审批与提问",
@@ -402,6 +408,8 @@ export const zh = {
     reviewSkillHint: "留空则自动检测（优先 superpowers 的 requesting-code-review）；review 在子任务自己的会话里运行",
     autoReview: "自动 review",
     autoReviewHint: "子任务流转到 review 列时，自动运行 review skill 并修复发现的问题",
+    notifications: "系统通知",
+    notificationsHint: "窗口不在前台时，新的待办与进入 review 的子任务会弹系统通知。",
     agentLanguage: "Agent 产出语言",
     agentLanguageHint: "plan / brief / commit / PR 文案的语言；代码与标识符始终英文。",
     agentLanguageZh: "跟随界面 · 中文",

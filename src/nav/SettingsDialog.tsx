@@ -156,6 +156,8 @@ function GeneralSettings() {
     setReviewSkill,
     autoReview,
     setAutoReview,
+    notifyEnabled,
+    setNotifyEnabled,
   } = useStore();
   const [lang, setLangState] = useState<Lang>(currentLang());
 
@@ -222,6 +224,13 @@ function GeneralSettings() {
         </SettingRow>
         <SettingRow label={t("settings.autoReview")} hint={t("settings.autoReviewHint")}>
           <Toggle on={autoReview} onChange={setAutoReview} label={t("settings.autoReview")} />
+        </SettingRow>
+        <SettingRow label={t("settings.notifications")} hint={t("settings.notificationsHint")}>
+          <Toggle
+            on={notifyEnabled}
+            onChange={setNotifyEnabled}
+            label={t("settings.notifications")}
+          />
         </SettingRow>
         <SettingRow label={t("settings.agentLanguage")} hint={t("settings.agentLanguageHint")}>
           <Segmented
