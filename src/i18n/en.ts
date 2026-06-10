@@ -240,8 +240,6 @@ export const en = {
     subtitle: "approvals and questions only you can answer",
     wantsPermission: "wants permission",
     question: "needs an answer",
-    flowing: "Flowing automatically",
-    flowingHint: "Nothing needs you right now",
     openQueue: "Open queue",
     always: "Always allow",
     allowTitle: "Allow just this one request",

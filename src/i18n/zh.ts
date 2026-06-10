@@ -232,8 +232,6 @@ export const zh = {
     subtitle: "只有你能回答的审批与提问",
     wantsPermission: "请求权限",
     question: "需要回答",
-    flowing: "自动推进中",
-    flowingHint: "暂无待你处理的事项",
     openQueue: "查看队列",
     always: "始终允许",
     allowTitle: "仅允许这一次请求",
