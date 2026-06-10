@@ -780,11 +780,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (p.session_id != null) {
           const sid = p.session_id;
           setWorkerSlash((s) => ({ ...s, [sid]: p.slash_commands }));
-          setSessions((m) =>
-            m[sid] ? { ...m, [sid]: { ...m[sid], nativeId: p.native_id } } : m,
-          );
+          // The early initialize-derived push has no native id yet — keep the old one.
+          if (p.native_id) {
+            setSessions((m) =>
+              m[sid] ? { ...m, [sid]: { ...m[sid], nativeId: p.native_id } } : m,
+            );
+          }
         } else {
           setLeadSlash((s) => ({ ...s, [p.thread_id]: p.slash_commands }));
+        }
+        // An init implies a live engine: a stale "stopped" flips to idle (a
+        // turn event will overwrite the moment anything actually runs).
+        if (p.session_id != null) {
+          const sid = p.session_id;
+          setWorkerTurn((t) =>
+            (t[sid]?.state ?? "stopped") === "stopped"
+              ? { ...t, [sid]: { state: "idle", queued: 0 } }
+              : t,
+          );
+        } else {
+          setLeadTurn((t) =>
+            (t[p.thread_id]?.state ?? "stopped") === "stopped"
+              ? { ...t, [p.thread_id]: { state: "idle", queued: 0 } }
+              : t,
+          );
         }
       }
     });

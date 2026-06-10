@@ -76,14 +76,16 @@ export function ChatComposer({
   const slashMatches = useMemo(() => {
     if (slashQuery == null || slashCommands.length === 0) return [];
     const q = slashQuery.toLowerCase();
+    const exact: string[] = [];
     const prefix: string[] = [];
     const within: string[] = [];
     for (const c of slashCommands) {
       const lc = c.toLowerCase();
-      if (lc.startsWith(q)) prefix.push(c);
+      if (lc === q) exact.push(c);
+      else if (lc.startsWith(q)) prefix.push(c);
       else if (lc.includes(q)) within.push(c);
     }
-    return [...prefix, ...within].slice(0, 16);
+    return [...exact, ...prefix, ...within].slice(0, 16);
   }, [slashQuery, slashCommands]);
   const paletteOpen = slashMatches.length > 0;
 
@@ -241,9 +243,9 @@ export function ChatComposer({
               }
               if (e.key === "Enter") {
                 e.preventDefault();
-                // Enter SENDS when you've typed the command in full; it only
-                // completes when the highlighted entry still differs.
-                if (slashQuery === slashMatches[slashIdx]) {
+                // Enter SENDS when you've typed a complete command (exact match,
+                // regardless of highlight); it completes otherwise.
+                if (slashQuery != null && slashMatches.includes(slashQuery)) {
                   send();
                 } else {
                   complete(slashMatches[slashIdx]);

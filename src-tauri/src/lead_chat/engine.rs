@@ -128,8 +128,16 @@ impl LeadChatState {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).get(&key).cloned()
     }
 
-    pub fn insert(&self, key: i64, eng: EngineRef) {
-        self.0.lock().unwrap_or_else(|e| e.into_inner()).insert(key, eng);
+    /// Atomic get-or-insert: concurrent constructors (e.g. React StrictMode's
+    /// double-mount firing two ensures) must converge on ONE engine — a lost
+    /// race would orphan a duplicate headless process writing the same session.
+    pub fn get_or_insert(&self, key: i64, eng: EngineRef) -> EngineRef {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .entry(key)
+            .or_insert(eng)
+            .clone()
     }
 }
 
@@ -173,6 +181,17 @@ pub async fn ensure_running(app: &AppHandle, db: &Db, eng: &EngineRef) -> anyhow
         .kill_on_drop(true)
         .spawn()?;
     inner.stdin = child.stdin.take();
+    // Ask for the command list NOW: the init system message only ships with the
+    // first user turn, so the palette would stay empty until the human speaks.
+    if let Some(stdin) = inner.stdin.as_mut() {
+        let req = serde_json::json!({
+            "type": "control_request",
+            "request_id": "weft-initialize",
+            "request": { "subtype": "initialize" }
+        });
+        let _ = stdin.write_all(format!("{req}\n").as_bytes()).await;
+        let _ = stdin.flush().await;
+    }
     let stdout = child
         .stdout
         .take()
@@ -359,6 +378,15 @@ fn spawn_reader(
                         session_id: inner.session_id,
                         native_id: session_id,
                         slash_commands,
+                    });
+                }
+                super::proto::ChatEvent::Commands { commands } => {
+                    inner.slash_commands = commands.clone();
+                    let _ = app.emit(EVENT, Push::Init {
+                        thread_id,
+                        session_id: inner.session_id,
+                        native_id: inner.native_id.clone().unwrap_or_default(),
+                        slash_commands: commands,
                     });
                 }
                 super::proto::ChatEvent::TextDelta { text } => {

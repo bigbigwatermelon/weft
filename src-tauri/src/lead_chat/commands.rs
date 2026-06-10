@@ -60,8 +60,7 @@ async fn lead_engine(
         generation: 0,
     };
     let eng: EngineRef = std::sync::Arc::new(tokio::sync::Mutex::new(inner));
-    state.insert(lead_key(thread_id), eng.clone());
-    Ok(eng)
+    Ok(state.get_or_insert(lead_key(thread_id), eng))
 }
 
 /// One inbound image attachment from the composer (pasted or picked).
@@ -279,8 +278,7 @@ async fn chat_open_worker_impl(
                 generation: 0,
             };
             let e: EngineRef = std::sync::Arc::new(tokio::sync::Mutex::new(inner));
-            state.insert(key, e.clone());
-            e
+            state.get_or_insert(key, e)
         }
     };
     engine::ensure_running(app, db, &eng).await?;
@@ -345,8 +343,7 @@ async fn worker_engine(app: &AppHandle, db: &Db, session_id: i32) -> anyhow::Res
         generation: 0,
     };
     let e: EngineRef = std::sync::Arc::new(tokio::sync::Mutex::new(inner));
-    state.insert(session_id as i64, e.clone());
-    Ok(e)
+    Ok(state.get_or_insert(session_id as i64, e))
 }
 
 #[tauri::command]

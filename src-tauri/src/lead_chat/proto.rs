@@ -23,6 +23,12 @@ pub enum ChatEvent {
     TurnEnd {
         is_error: bool,
     },
+    /// Response to our `initialize` control_request: the CLI's slash commands.
+    /// Sent right after spawn — the `init` system message only arrives with the
+    /// FIRST user turn, far too late for the composer's palette.
+    Commands {
+        commands: Vec<String>,
+    },
     Other,
 }
 
@@ -72,6 +78,20 @@ pub fn parse_line(line: &str) -> ChatEvent {
         Some("result") => ChatEvent::TurnEnd {
             is_error: v["subtype"] != "success",
         },
+        Some("control_response") => {
+            let r = &v["response"];
+            if r["subtype"] == "success" {
+                if let Some(cmds) = r["response"]["commands"].as_array() {
+                    return ChatEvent::Commands {
+                        commands: cmds
+                            .iter()
+                            .filter_map(|c| c["name"].as_str().map(String::from))
+                            .collect(),
+                    };
+                }
+            }
+            ChatEvent::Other
+        }
         _ => ChatEvent::Other,
     }
 }
@@ -157,6 +177,20 @@ mod tests {
             }
             e => panic!("{e:?}"),
         }
+    }
+
+    #[test]
+    fn parses_initialize_commands() {
+        let l = r#"{"type":"control_response","response":{"subtype":"success","request_id":"weft-init","response":{"commands":[{"name":"compact","description":"x"},{"name":"superpowers:requesting-code-review"}]}}}"#;
+        match parse_line(l) {
+            ChatEvent::Commands { commands } => {
+                assert_eq!(commands, vec!["compact", "superpowers:requesting-code-review"]);
+            }
+            e => panic!("{e:?}"),
+        }
+        // interrupt acks (no commands payload) stay Other
+        let ack = r#"{"type":"control_response","response":{"subtype":"success","request_id":"weft-int-1"}}"#;
+        assert!(matches!(parse_line(ack), ChatEvent::Other));
     }
 
     #[test]
