@@ -410,6 +410,7 @@ export const zh = {
     autoReviewHint: "子任务流转到 review 列时，自动运行 review skill 并修复发现的问题",
     notifications: "系统通知",
     notificationsHint: "窗口不在前台时，新的待办与进入 review 的子任务会弹系统通知。",
+    notifyDenied: "系统已拒绝通知 — 打开系统设置开启",
     agentLanguage: "Agent 产出语言",
     agentLanguageHint: "plan / brief / commit / PR 文案的语言；代码与标识符始终英文。",
     agentLanguageZh: "跟随界面 · 中文",

@@ -15,6 +15,12 @@ import { toolFullName } from "../components/ToolIcon";
 import { currentLang, setLang, type Lang } from "../i18n";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
+import {
+  ensureNotifyPermission,
+  notifyPermission,
+  openSystemNotificationSettings,
+  type NotifyPermission,
+} from "../lib/notifications";
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
 
@@ -163,6 +169,18 @@ function GeneralSettings() {
 
   const installed = installedTools.filter((tl) => tl.installed);
 
+  // OS notification permission, re-queried every time Settings opens — the
+  // user may have just flipped it in the system pane.
+  const [notifyPerm, setNotifyPerm] = useState<NotifyPermission | null>(null);
+  useEffect(() => {
+    void notifyPermission().then(setNotifyPerm);
+  }, []);
+  const onNotifyToggle = (on: boolean) => {
+    setNotifyEnabled(on);
+    // Turning it on is the contextual moment to ask the OS (prompt-state only).
+    if (on) void ensureNotifyPermission().then(setNotifyPerm);
+  };
+
   useEffect(() => {
     setLangState(currentLang());
   }, []);
@@ -226,11 +244,22 @@ function GeneralSettings() {
           <Toggle on={autoReview} onChange={setAutoReview} label={t("settings.autoReview")} />
         </SettingRow>
         <SettingRow label={t("settings.notifications")} hint={t("settings.notificationsHint")}>
-          <Toggle
-            on={notifyEnabled}
-            onChange={setNotifyEnabled}
-            label={t("settings.notifications")}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <Toggle
+              on={notifyEnabled}
+              onChange={onNotifyToggle}
+              label={t("settings.notifications")}
+            />
+            {notifyEnabled && notifyPerm === "denied" && (
+              <button
+                type="button"
+                onClick={() => void openSystemNotificationSettings()}
+                className="text-[11px] text-waiting transition-colors hover:text-ink hover:underline"
+              >
+                {t("settings.notifyDenied")}
+              </button>
+            )}
+          </div>
         </SettingRow>
         <SettingRow label={t("settings.agentLanguage")} hint={t("settings.agentLanguageHint")}>
           <Segmented

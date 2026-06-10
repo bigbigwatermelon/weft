@@ -422,6 +422,7 @@ export const en = {
     autoReviewHint: "When a sub-task flows into the review column, run the review skill and fix its findings automatically",
     notifications: "System notifications",
     notificationsHint: "While the window is unfocused, new Needs-you items and review-ready sub-tasks raise OS notifications.",
+    notifyDenied: "Notifications are blocked by the OS — open System Settings",
     agentLanguage: "Agent output language",
     agentLanguageHint: "Language for plans, briefs, commits, and PR text; code and identifiers stay English.",
     agentLanguageZh: "Follow UI · Chinese",
