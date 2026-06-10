@@ -4,10 +4,58 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "react-i18next";
 import { api } from "./api";
 import { useStore } from "../state/store";
 import type { NeedItem, PermissionAsk, ThreadOverview, WriteTrigger } from "./types";
+
+/** Three-state OS permission. macOS prompts exactly once — after a refusal,
+ *  requestPermission returns "denied" without a dialog and the only remedy is
+ *  the OS settings pane, so callers must tell "denied" apart from "prompt". */
+export type NotifyPermission = "granted" | "denied" | "prompt";
+
+export async function notifyPermission(): Promise<NotifyPermission> {
+  try {
+    if (await isPermissionGranted()) return "granted";
+    const perm = (window as { Notification?: { permission?: string } }).Notification
+      ?.permission;
+    return perm === "denied" ? "denied" : "prompt";
+  } catch {
+    return "denied"; // pure-vite dev: plugin unavailable
+  }
+}
+
+/** Resolve to a settled state, asking the OS only from "prompt" (a dismissed
+ *  dialog stays "prompt" so the user can be asked again later). */
+export async function ensureNotifyPermission(): Promise<NotifyPermission> {
+  const p = await notifyPermission();
+  if (p !== "prompt") return p;
+  try {
+    const r = await requestPermission();
+    return r === "granted" ? "granted" : r === "denied" ? "denied" : "prompt";
+  } catch {
+    return "denied";
+  }
+}
+
+/** Jump to the OS notification settings. macOS / Windows have stable URLs;
+ *  Linux has no portable one — returns false and the caller's copy stands. */
+export async function openSystemNotificationSettings(): Promise<boolean> {
+  const ua = navigator.userAgent;
+  const url = ua.includes("Mac")
+    ? "x-apple.systempreferences:com.apple.preference.notifications"
+    : ua.includes("Windows")
+      ? "ms-settings:notifications"
+      : null;
+  if (!url) return false;
+  try {
+    await openUrl(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * OS notifications for the two things worth pulling the human back (spec
@@ -85,17 +133,14 @@ export function useSystemNotifications() {
   const baselineWs = useRef<number | null>(null);
   const granted = useRef<boolean | null>(null);
 
-  // OS permission, checked once per enable (macOS prompts the user here).
+  // OS permission, settled once per enable. Only a never-asked "prompt" state
+  // raises the system dialog; a past refusal stays silent (Settings shows the
+  // denied hint with the System-Settings jump).
   useEffect(() => {
     if (!notifyEnabled) return;
-    void (async () => {
-      try {
-        granted.current =
-          (await isPermissionGranted()) || (await requestPermission()) === "granted";
-      } catch {
-        granted.current = false; // pure-vite dev without the Tauri backend
-      }
-    })();
+    void ensureNotifyPermission().then((p) => {
+      granted.current = p === "granted";
+    });
   }, [notifyEnabled]);
 
   // Review-transition source: our own modest overview poll.
