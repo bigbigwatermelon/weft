@@ -31,7 +31,7 @@ async fn register_repo(
     }
     // default base ref = current branch of the repo
     let base = crate::git::current_branch(std::path::Path::new(path)).unwrap_or_else(|_| "main".into());
-    let r = repo::add_repo_ref(db, workspace_id, name, path, &base, "claude").await.map_err(e)?;
+    let r = repo::add_repo_ref(db, workspace_id, name, path, &base).await.map_err(e)?;
     // Eager, deterministic profiling (ARCHITECTURE §4.9): best-effort, never
     // blocks adding the repo if inference/git hiccups.
     let _ = crate::curator::profile_repo(db, &r).await;

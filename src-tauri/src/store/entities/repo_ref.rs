@@ -10,7 +10,6 @@ pub struct Model {
     pub slug: String,
     pub local_git_path: String,
     pub base_ref: String,
-    pub default_tool: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

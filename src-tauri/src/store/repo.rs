@@ -67,7 +67,6 @@ pub async fn add_repo_ref(
     name: &str,
     local_git_path: &str,
     base_ref: &str,
-    default_tool: &str,
 ) -> Result<repo_ref::Model> {
     let existing: Vec<String> = repo_ref::Entity::find()
         .filter(repo_ref::Column::WorkspaceId.eq(workspace_id))
@@ -82,7 +81,6 @@ pub async fn add_repo_ref(
         slug: Set(unique_slug(name, &existing)),
         local_git_path: Set(local_git_path.to_string()),
         base_ref: Set(base_ref.to_string()),
-        default_tool: Set(default_tool.to_string()),
         ..Default::default()
     };
     Ok(m.insert(&db.0).await?)
@@ -579,7 +577,7 @@ mod tests {
         let db = mem().await;
         let ws = create_workspace(&db, "Demo WS").await.unwrap();
         assert_eq!(ws.slug, "demo-ws");
-        let repo = add_repo_ref(&db, ws.id, "web-app", "/tmp/x", "main", "claude")
+        let repo = add_repo_ref(&db, ws.id, "web-app", "/tmp/x", "main")
             .await
             .unwrap();
         let t = create_thread(&db, ws.id, "Add login", "feature", "claude")
@@ -611,7 +609,7 @@ mod tests {
     async fn latest_session_for_returns_newest_with_native() {
         let db = mem().await;
         let ws = create_workspace(&db, "Demo WS").await.unwrap();
-        let repo = add_repo_ref(&db, ws.id, "web-app", "/tmp/x", "main", "claude")
+        let repo = add_repo_ref(&db, ws.id, "web-app", "/tmp/x", "main")
             .await
             .unwrap();
         let thread = create_thread(&db, ws.id, "T", "feature", "claude").await.unwrap();

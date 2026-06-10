@@ -34,8 +34,8 @@ async fn m2_acceptance() {
 
     let db = Db::connect("sqlite::memory:").await.unwrap();
     let ws = repo::create_workspace(&db, "ws").await.unwrap();
-    let ra = repo::add_repo_ref(&db, ws.id, "repo-a", repo_a.to_str().unwrap(), "main", "claude").await.unwrap();
-    let rb = repo::add_repo_ref(&db, ws.id, "repo-b", repo_b.to_str().unwrap(), "main", "claude").await.unwrap();
+    let ra = repo::add_repo_ref(&db, ws.id, "repo-a", repo_a.to_str().unwrap(), "main").await.unwrap();
+    let rb = repo::add_repo_ref(&db, ws.id, "repo-b", repo_b.to_str().unwrap(), "main").await.unwrap();
 
     // ① one thread, two directions on different repos -> independent worktrees
     let t1 = repo::create_thread(&db, ws.id, "t1", "feature", "claude").await.unwrap();

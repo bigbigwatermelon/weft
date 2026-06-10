@@ -22,6 +22,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0009DropThreadStatus),
             Box::new(M0010AppSetting),
             Box::new(M0011ThreadLeadTool),
+            Box::new(M0012DropRepoDefaultTool),
         ]
     }
 }
@@ -440,5 +441,40 @@ impl MigrationTrait for M0011ThreadLeadTool {
                     .to_owned(),
             )
             .await
+    }
+}
+
+/// Drops the dead repo_ref.default_tool column: written once at registration
+/// ("claude"), never read — tool selection is now app_setting + per-card. A
+/// FRESH db (M0001 reflects the entity) never has it, so tolerate the miss.
+pub struct M0012DropRepoDefaultTool;
+
+impl MigrationName for M0012DropRepoDefaultTool {
+    fn name(&self) -> &str {
+        "m0012_drop_repo_default_tool"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0012DropRepoDefaultTool {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let r = manager
+            .alter_table(
+                Table::alter()
+                    .table(Alias::new("repo_ref"))
+                    .drop_column(Alias::new("default_tool"))
+                    .to_owned(),
+            )
+            .await;
+        match r {
+            Ok(()) => Ok(()),
+            Err(e) if e.to_string().to_lowercase().contains("no such column") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
+        // Irreversible: the dead column is gone for good. No-op.
+        Ok(())
     }
 }
