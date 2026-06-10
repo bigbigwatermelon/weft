@@ -276,6 +276,7 @@ pub async fn send(
         serde_json::json!({ "text": text, "images": image_uris, "files": files }).to_string()
     };
     let m = repo::insert_lead_message(db, thread_id, sid, turn, "user", kind, &content, status).await?;
+    let row_id = m.id;
     let _ = app.emit(EVENT, Push::Message { thread_id, message: m });
     let mut outbound = text.to_string();
     if !files.is_empty() {
@@ -284,6 +285,26 @@ pub async fn send(
             outbound.push_str(&format!("- {f}\n"));
         }
     }
+    // Per-turn dialects take no inline image blocks: spill pasted images to
+    // temp files and hand over paths — every agent can read those itself.
+    let images = if per_turn(&inner.tool) && !images.is_empty() {
+        use base64::Engine as _;
+        let dir = std::env::temp_dir().join("weft-attachments");
+        let _ = std::fs::create_dir_all(&dir);
+        outbound.push_str("\n\nAttached images (read them as needed):\n");
+        for (i, (mt, data)) in images.iter().enumerate() {
+            let ext = mt.rsplit('/').next().unwrap_or("png");
+            let p = dir.join(format!("msg{row_id}-{i}.{ext}"));
+            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(data) {
+                if std::fs::write(&p, bytes).is_ok() {
+                    outbound.push_str(&format!("- {}\n", p.display()));
+                }
+            }
+        }
+        vec![]
+    } else {
+        images
+    };
     let out = Outgoing { text: outbound, images };
     let spawn_now = direct && per_turn(&inner.tool);
     if direct && !spawn_now {

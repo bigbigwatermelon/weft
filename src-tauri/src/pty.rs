@@ -243,7 +243,14 @@ fn watchdog_verdict(
     if wall_cap > 0 && now.saturating_sub(start) >= wall_cap {
         return Some(format!("ran for over {}", human_dur(wall_cap)));
     }
-    if idle_cap > 0 && !has_open_ask && now.saturating_sub(last_activity) >= idle_cap {
+    // Defensive clamp: a session can't be "idle for idle_cap" before it has
+    // even EXISTED that long — observed misfires killed minutes-old workers
+    // with a stale/foreign activity clock. Age gates the idle verdict.
+    if idle_cap > 0
+        && !has_open_ask
+        && now.saturating_sub(start) >= idle_cap
+        && now.saturating_sub(last_activity) >= idle_cap
+    {
         return Some(format!("no activity for {}", human_dur(idle_cap)));
     }
     None
@@ -743,9 +750,14 @@ mod watchdog_tests {
     }
     #[test]
     fn idle_fires_when_silent_and_not_waiting_on_human() {
-        assert!(watchdog_verdict(5_000, 4_000, 3_000, 0, 1800, false)
+        assert!(watchdog_verdict(10_000, 1_000, 3_000, 0, 1800, false)
             .unwrap()
             .contains("no activity"));
+    }
+    #[test]
+    fn young_session_never_idle_killed_even_with_stale_clock() {
+        // last_activity BEFORE start (stale/foreign clock): the age gate holds.
+        assert_eq!(watchdog_verdict(5_000, 4_000, 3_000, 0, 1800, false), None);
     }
     #[test]
     fn idle_suppressed_while_waiting_on_human() {

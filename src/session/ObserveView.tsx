@@ -7,6 +7,7 @@ import type { ObserveRef, SessionStatus } from "../lib/types";
 import { Transcript } from "./Transcript";
 import { ChatTimeline } from "./ChatTimeline";
 import { ChatComposer } from "./ChatComposer";
+import { PermissionBar } from "./PermissionBar";
 import { appLink, resumeCommand } from "../lib/resume";
 import { DiffPanel } from "./DiffPanel";
 import { StatusChip } from "../components/ui/StatusChip";
@@ -20,6 +21,7 @@ export function ObserveView() {
     driveDirection,
     sessions,
     needs,
+    asks,
     answerAsk,
     activeThreadId,
     leadMessages,
@@ -169,6 +171,7 @@ export function ObserveView() {
 
         {chatMode && chatSessionId != null ? (
           <>
+            <PermissionBar asks={asks.filter((a) => a.dir === String(directionId))} />
             <ChatTimeline
               messages={chatMsgs}
               busy={(workerTurn[chatSessionId]?.state ?? "stopped") === "busy"}

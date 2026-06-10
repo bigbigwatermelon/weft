@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useStore } from "../state/store";
 import { ChatTimeline } from "./ChatTimeline";
 import { ChatComposer } from "./ChatComposer";
+import { PermissionBar } from "./PermissionBar";
 import { api } from "../lib/api";
 import { resumeCommand } from "../lib/resume";
 
@@ -23,6 +24,7 @@ export function LeadTab({ onReview }: { onReview: () => void }) {
     sendLeadChat,
     interruptLead,
     setReviewingProposal,
+    asks,
   } = useStore();
   const { t } = useTranslation();
 
@@ -37,6 +39,9 @@ export function LeadTab({ onReview }: { onReview: () => void }) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-bg">
+      <PermissionBar
+        asks={asks.filter((a) => a.thread === activeThreadId && (a.dir === "lead" || a.dir === ""))}
+      />
       <ChatTimeline
         messages={msgs}
         busy={turn.state === "busy"}

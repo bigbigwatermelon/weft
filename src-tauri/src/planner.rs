@@ -231,6 +231,11 @@ pub async fn pending_writes(db: &Db, thread_id: i32) -> Result<Vec<PendingWrite>
     let Some(p) = get_resolved(db, thread_id).await? else {
         return Ok(Vec::new());
     };
+    // A confirmed plan has no pending writes: confirm() created every still-
+    // undecided direction wholesale, so lingering cards would double-create.
+    if p.status == "confirmed" {
+        return Ok(Vec::new());
+    }
     let mut out = Vec::new();
     for (i, d) in p.directions.iter().enumerate() {
         if d.repo.known && d.decision.is_empty() {
