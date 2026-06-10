@@ -609,6 +609,59 @@ pub fn effective_config(repo_path: String) -> R<Vec<crate::config::ConfigItem>> 
     ))
 }
 
+// --- Skills (M? skill sources): source CRUD, sync, parse preview, enable ---
+
+#[tauri::command]
+pub async fn list_skill_sources(db: State<'_, Db>) -> R<Vec<entities::skill_source::Model>> {
+    repo::list_skill_sources(&db).await.map_err(e)
+}
+
+#[tauri::command]
+pub async fn add_skill_source(db: State<'_, Db>, git_url: String, git_ref: Option<String>) -> R<entities::skill_source::Model> {
+    let src = repo::add_skill_source(&db, &git_url, git_ref.as_deref()).await.map_err(e)?;
+    let _ = crate::skills::sync_source(&db, src.id).await;
+    repo::get_skill_source(&db, src.id).await.map_err(e)?.ok_or_else(|| "source vanished".to_string())
+}
+
+#[tauri::command]
+pub async fn remove_skill_source(db: State<'_, Db>, id: i32) -> R<()> {
+    // best-effort cache removal, then DB
+    if let Ok(home) = crate::paths::skills_home() {
+        let _ = std::fs::remove_dir_all(home.join(id.to_string()));
+    }
+    repo::remove_skill_source(&db, id).await.map_err(e)
+}
+
+#[tauri::command]
+pub async fn sync_skill_source(db: State<'_, Db>, id: i32) -> R<entities::skill_source::Model> {
+    crate::skills::sync_source(&db, id).await.map_err(e)?;
+    repo::get_skill_source(&db, id).await.map_err(e)?.ok_or_else(|| "source not found".to_string())
+}
+
+#[tauri::command]
+pub async fn sync_all_skill_sources(db: State<'_, Db>) -> R<Vec<entities::skill_source::Model>> {
+    for s in repo::list_skill_sources(&db).await.map_err(e)? {
+        let _ = crate::skills::sync_source(&db, s.id).await;
+    }
+    repo::list_skill_sources(&db).await.map_err(e)
+}
+
+#[tauri::command]
+pub async fn list_parsed_skills(id: i32) -> R<Vec<crate::skills::parse::ParsedSkill>> {
+    let home = crate::paths::skills_home().map_err(e)?;
+    Ok(crate::skills::parse::parse_source(&home.join(id.to_string())))
+}
+
+#[tauri::command]
+pub async fn set_skill_enabled(db: State<'_, Db>, source_id: i32, name: String, scope: String, on: bool) -> R<()> {
+    repo::set_skill_enable(&db, source_id, &name, &scope, on).await.map_err(e)
+}
+
+#[tauri::command]
+pub async fn workspace_skills(db: State<'_, Db>, ws_id: i32) -> R<Vec<crate::skills::EnabledSkill>> {
+    crate::skills::enabled_for_workspace(&db, ws_id).await.map_err(e)
+}
+
 /// Pending "needs you" count per workspace (agent questions + tool asks), so the
 /// workspace switcher can flag OTHER workspaces that want attention.
 #[tauri::command]

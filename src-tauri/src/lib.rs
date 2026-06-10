@@ -152,6 +152,14 @@ pub fn run() {
             tools::detect_tools,
             commands::get_default_tool,
             commands::set_default_tool,
+            commands::list_skill_sources,
+            commands::add_skill_source,
+            commands::remove_skill_source,
+            commands::sync_skill_source,
+            commands::sync_all_skill_sources,
+            commands::list_parsed_skills,
+            commands::set_skill_enabled,
+            commands::workspace_skills,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| fatal("running tauri application", e));
