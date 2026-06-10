@@ -156,7 +156,13 @@ pub async fn confirm(db: &Db, thread_id: i32) -> Result<Vec<i32>> {
 /// proposal, create the real direction bound to its repo + reason using the
 /// human-selected `tool`, and materialize its worktree. Returns the new
 /// direction id.
+///
+/// Idempotent on re-approve: if the direction already exists, its id is
+/// returned and a differing `tool` pick is ignored — the first pick wins.
 pub async fn approve_direction(db: &Db, thread_id: i32, index: usize, tool: &str) -> Result<i32> {
+    if !crate::detect::TOOL_PRIORITY.contains(&tool) {
+        anyhow::bail!("unknown tool {tool:?}; expected one of {:?}", crate::detect::TOOL_PRIORITY);
+    }
     let plan = repo::get_plan(db, thread_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("no proposal for thread {thread_id}"))?;
@@ -426,6 +432,16 @@ mod tests {
         assert_eq!(pending[0].repo_name, "api");
         assert_eq!(pending[0].reason, "add discount endpoint");
 
+        // An unknown tool name is rejected before anything is created.
+        assert!(
+            approve_direction(&db, t.id, 0, "foo").await.is_err(),
+            "unknown tool must be rejected"
+        );
+        assert!(
+            repo::list_directions(&db, t.id).await.unwrap().is_empty(),
+            "rejected approve creates nothing"
+        );
+
         // Approve index 0 -> a real direction is created bound to the repo + reason.
         let id = approve_direction(&db, t.id, 0, "codex").await.unwrap();
         let dirs = repo::list_directions(&db, t.id).await.unwrap();
@@ -445,6 +461,14 @@ mod tests {
         assert_eq!(id2, id, "idempotent approve returns the existing direction");
         let dirs2 = repo::list_directions(&db, t.id).await.unwrap();
         assert_eq!(dirs2.len(), 1, "no second direction created on re-approve");
+
+        // Re-approve with a DIFFERENT tool -> still idempotent: the first pick
+        // wins, the new pick is ignored, and no second direction appears.
+        let id3 = approve_direction(&db, t.id, 0, "claude").await.unwrap();
+        assert_eq!(id3, id, "idempotent re-approve ignores a different tool pick");
+        let dirs3 = repo::list_directions(&db, t.id).await.unwrap();
+        assert_eq!(dirs3.len(), 1, "no second direction created on differing re-approve");
+        assert_eq!(dirs3[0].tool, "codex", "first tool pick wins on re-approve");
 
         // Deny the unknown-repo write -> returns (name, repo), marks it denied,
         // and pending_writes drops it (it was never known anyway).
