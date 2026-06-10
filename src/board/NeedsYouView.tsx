@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../state/store";
 import type { NeedItem, PermissionAsk, WriteTrigger } from "../lib/types";
+import { cn } from "../lib/cn";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ToolIcon, toolFullName } from "../components/ToolIcon";
@@ -87,9 +88,15 @@ export function NeedsYouView() {
 }
 
 export function WriteTriggerRow({ item }: { item: WriteTrigger }) {
-  const { approveWriteTrigger, denyWriteTrigger, selectThread } = useStore();
+  const { approveWriteTrigger, denyWriteTrigger, selectThread, defaultTool, installedTools } =
+    useStore();
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
+  // null = follow the workspace default (which loads async at startup);
+  // a string = the human explicitly picked a tool on this card.
+  const [picked, setPicked] = useState<string | null>(null);
+  const tool = picked ?? defaultTool;
+  const installed = installedTools.filter((tl) => tl.installed);
   const context = [item.thread_title, item.name].filter(Boolean).join(" · ");
 
   async function act(fn: () => Promise<void>) {
@@ -127,11 +134,32 @@ export function WriteTriggerRow({ item }: { item: WriteTrigger }) {
           variant="primary"
           disabled={busy}
           title={t("needs.approveRunTitle")}
-          onClick={() => void act(() => approveWriteTrigger(item))}
+          onClick={() => void act(() => approveWriteTrigger(item, tool))}
         >
           <Check size={13} />
           {t("needs.approveRun")}
         </Button>
+        {installed.length > 1 && (
+          <div
+            title={t("needs.runWith")}
+            className="inline-flex items-center gap-0.5 rounded-[var(--radius-md)] bg-bg p-0.5"
+          >
+            {installed.map((tl) => (
+              <button
+                key={tl.tool}
+                type="button"
+                title={toolFullName(tl.tool)}
+                onClick={() => setPicked(tl.tool)}
+                className={cn(
+                  "grid h-6 w-7 place-items-center rounded-[var(--radius-sm)] transition-opacity duration-150",
+                  tool === tl.tool ? "bg-raised" : "opacity-40 hover:opacity-80",
+                )}
+              >
+                <ToolIcon tool={tl.tool} size={13} />
+              </button>
+            ))}
+          </div>
+        )}
         <Button
           variant="ghost"
           className="ml-auto"

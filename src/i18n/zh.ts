@@ -250,6 +250,7 @@ export const zh = {
     approveRun: "批准并运行",
     approveRunTitle: "创建 worktree 并拉起 worker",
     denyWriteTitle: "拒绝这次改动;通知 lead",
+    runWith: "执行工具",
   },
   session: {
     back: "返回看板",

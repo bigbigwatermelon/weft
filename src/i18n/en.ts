@@ -258,6 +258,7 @@ export const en = {
     approveRun: "Approve & run",
     approveRunTitle: "Create the worktree and start a worker",
     denyWriteTitle: "Decline this change; tell the lead",
+    runWith: "Run with",
   },
   session: {
     back: "Back to board",
