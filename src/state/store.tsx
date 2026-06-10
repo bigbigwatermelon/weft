@@ -42,13 +42,9 @@ export interface OpenSession {
   /** identity of the (direction, repo) slot this session occupies */
   directionId: number;
   repoId: number;
-  /** the thread this session belongs to (a lead's home, a worker's parent). */
+  /** the thread this session belongs to (the worker's parent). */
   threadId: number;
   nativeId: string | null;
-  /** worker = a task's session; lead = the thread's persistent conversation */
-  kind: "worker" | "lead";
-  /** chat = driven by the chat engine (claude); pty = embedded native TUI. */
-  mode?: "chat" | "pty";
 }
 
 interface Store {
@@ -88,8 +84,6 @@ interface Store {
   /** The tool call running right now (transient): lead by thread, worker by session. */
   leadActivity: Record<number, { name: string; summary: string } | null>;
   workerActivity: Record<number, { name: string; summary: string } | null>;
-  /** Send a composed message into any session's PTY (bracketed paste + enter). */
-  sendToSession: (sessionId: number, text: string) => Promise<void>;
   /** The thread-bus drawer (demoted from a permanent rail). */
   showBus: boolean;
   setShowBus: (open: boolean) => void;
@@ -206,8 +200,6 @@ interface Store {
   autoReview: boolean;
   setAutoReview: (on: boolean) => void;
   focusSession: (sessionId: number) => void;
-  resumeSession: (sessionId: number) => Promise<void>;
-  killSession: (sessionId: number) => Promise<void>;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -505,17 +497,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [activeWorkspaceId],
   );
 
-  const setStatus = useCallback((sessionId: number, status: SessionStatus) => {
-    setSessions((m) =>
-      m[sessionId] ? { ...m, [sessionId]: { ...m[sessionId], status } } : m,
-    );
-  }, []);
-
   // ALL workers run on the chat engine — one product-native conversation UI
   // per vendor dialect (claude stream-json, codex exec --json, opencode run
   // --format json). Escape hatches per tool: codex app deep link, terminal
-  // takeover command for all three. The PTY path remains only for legacy
-  // sessions still alive in this app run.
+  // takeover command for all three.
 
   // Spawn (or focus) a worker for a (direction, repo) slot. focus=true opens it
   // full-screen (a click); focus=false dispatches it in the background.
@@ -544,8 +529,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           repoId,
           threadId: activeThreadId ?? -1,
           nativeId: info.native_id,
-          kind: "worker",
-          mode: "chat",
         },
       }));
       if (focus) {
@@ -606,8 +589,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             repoId,
             threadId: activeThreadId ?? -1,
             nativeId: info.native_id,
-            kind: "worker",
-            mode: "chat",
           },
         };
       });
@@ -669,14 +650,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     [loadThreadChildren, dispatchDirection],
   );
-
-  // Inject a composed human message into any session's PTY. Bracketed paste keeps
-  // multi-line prompts intact in the TUI, then Enter submits.
-  const sendToSession = useCallback(async (sessionId: number, text: string) => {
-    const body = text.trimEnd();
-    if (!body) return;
-    await api.writePty(sessionId, `\x1b[200~${body}\x1b[201~\r`);
-  }, []);
 
   // ── Lead chat (weft-owned conversation; engine pushes via `lead-chat`) ──
   const [leadMessages, setLeadMessages] = useState<Record<number, LeadMessage[]>>({});
@@ -880,8 +853,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [reviewSkill, leadSlash, workerSlash]);
 
   // Deliver a composed message to a (direction, repo)'s worker — waking it
-  // first when nothing is live (chat engines resume; PTY re-drives). The
-  // delivery half of diff annotations and skill reviews.
+  // first when nothing is live (the engine resumes). The delivery half of diff
+  // annotations and skill reviews.
   const sendToDirection = useCallback(
     async (directionId: number, repoId: number, text: string) => {
       let sess = Object.values(sessionsRef.current).find(
@@ -894,13 +867,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         );
       }
       if (!sess) return;
-      if (sess.mode === "chat") {
-        await api.chatSend(sess.info.session_id, text);
-      } else {
-        await sendToSession(sess.info.session_id, text);
-      }
+      await api.chatSend(sess.info.session_id, text);
     },
-    [driveDirection, sendToSession],
+    [driveDirection],
   );
 
   const requestSkillReview = useCallback(
@@ -925,13 +894,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ? "review 结束后，直接修复发现的问题并重新跑检查自验，然后简要汇报。"
           : "After the review, fix the findings directly, re-run the checks to verify, then report briefly.";
       const cmd = `/${resolveReviewSkill()} ${directive}`;
-      if (sess.mode === "chat") {
-        await api.chatSend(sess.info.session_id, cmd);
-      } else {
-        await sendToSession(sess.info.session_id, cmd);
-      }
+      await api.chatSend(sess.info.session_id, cmd);
     },
-    [driveDirection, resolveReviewSkill, sendToSession],
+    [driveDirection, resolveReviewSkill],
   );
 
   // Automation-first: a task flowing into "review" triggers the review skill
@@ -951,21 +916,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [directionsByThread, autoReview, requestSkillReview]);
 
   const focusSession = useCallback((id: number) => setActiveSessionId(id), []);
-
-  const resumeSession = useCallback(async (sessionId: number) => {
-    const info = await api.resumeSession(sessionId);
-    setSessions((m) => ({ ...m, [sessionId]: { ...m[sessionId], info, status: "starting" } }));
-  }, []);
-
-  const killSession = useCallback(async (sessionId: number) => {
-    await api.killSession(sessionId);
-    setSessions((m) => {
-      const n = { ...m };
-      delete n[sessionId];
-      return n;
-    });
-    setActiveSessionId((cur) => (cur === sessionId ? null : cur));
-  }, []);
 
   const postHuman = useCallback(
     async (to: string | null, text: string) => {
@@ -1153,28 +1103,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [sessions, selectThread],
   );
 
-  // bridge events: session id capture + exit drive UI status
-  useEffect(() => {
-    const unId = listen<{ sessionId: number; nativeId: string }>(
-      "session://id",
-      (e) => {
-        const { sessionId, nativeId } = e.payload;
-        setSessions((m) =>
-          m[sessionId]
-            ? { ...m, [sessionId]: { ...m[sessionId], nativeId, status: "running" } }
-            : m,
-        );
-      },
-    );
-    const unExit = listen<{ sessionId: number }>("pty://exit", (e) => {
-      setStatus(e.payload.sessionId, "exited");
-    });
-    return () => {
-      void unId.then((f) => f());
-      void unExit.then((f) => f());
-    };
-  }, [setStatus]);
-
   useEffect(() => {
     void refreshWorkspaces();
   }, [refreshWorkspaces]);
@@ -1228,19 +1156,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [activeThreadId]);
 
-  // Auto-verify loop (ARCHITECTURE §4.13): when a worker's PTY goes quiet for a
-  // while it has likely finished its turn — run that direction's checks once per
-  // idle episode so "done" means "checks ran", not self-report. Output resuming
-  // re-arms it. Tool-general: keys off PTY silence, not any tool's event format.
+  // Auto-verify loop (ARCHITECTURE §4.13): run a direction's checks once per
+  // idle episode so "done" means "checks ran", not self-report. The clock is
+  // lastOutputRef, fed by the lead-chat pushes. KNOWN GAP: a worker flips to
+  // "idle" the moment its turn ends, so the `running` guard below excludes it
+  // exactly when the turn-end check should fire — the trigger needs to move to
+  // the busy→idle transition in the push handler (pre-existing; kept as-is in
+  // the PTY-removal commit, which is behavior-neutral).
   useEffect(() => {
     const IDLE_MS = 20000;
-    const un = listen<{ session_id: number }>("pty://output", (e) => {
-      lastOutputRef.current[e.payload.session_id] = Date.now();
-    });
     const h = setInterval(() => {
       const now = Date.now();
       for (const s of Object.values(sessionsRef.current)) {
-        if (s.kind !== "worker" || s.status !== "running") continue;
+        if (s.status !== "running") continue;
         const last = lastOutputRef.current[s.info.session_id] ?? 0;
         const idle = now - last > IDLE_MS;
         if (idle && !autoCheckedRef.current.has(s.directionId)) {
@@ -1251,10 +1179,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }
     }, 5000);
-    return () => {
-      clearInterval(h);
-      void un.then((f) => f());
-    };
+    return () => clearInterval(h);
   }, [verifyDirection]);
 
   useEffect(() => {
@@ -1287,8 +1212,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [activeThreadId]);
 
   // Automation-first across restarts (§4 principle 7): a task that's "working"
-  // but has no live session — e.g. after an app restart, when in-memory PTYs are
-  // gone — gets its worker (re)dispatched so it runs without a manual click.
+  // but has no live session — e.g. after an app restart, when in-memory engines
+  // are gone — gets its worker (re)dispatched so it runs without a manual click.
   // Spawning reuses the existing worktree, so the agent continues the task.
   useEffect(() => {
     if (activeThreadId == null) return;
@@ -1326,7 +1251,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     workerSlash,
     leadActivity,
     workerActivity,
-    sendToSession,
     showBus,
     setShowBus,
     navCollapsed,
@@ -1401,8 +1325,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     autoReview,
     setAutoReview,
     focusSession,
-    resumeSession,
-    killSession,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
