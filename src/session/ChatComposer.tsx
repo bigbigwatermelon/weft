@@ -42,6 +42,7 @@ export function ChatComposer({
   onTakeOver,
   onOpenApp,
   extraActions,
+  placeholder,
   onNeedSlashCommands,
 }: {
   slashCommands: string[];
@@ -58,6 +59,8 @@ export function ChatComposer({
   onOpenApp?: () => void;
   /** Host-injected action icons (diff, inspect …) for the toolbar row. */
   extraActions?: React.ReactNode;
+  /** Input placeholder — defaults to the lead's; workers pass their own. */
+  placeholder?: string;
   /** Called when "/" is typed but the command list is empty — refresh it. */
   onNeedSlashCommands?: () => void;
 }) {
@@ -270,7 +273,7 @@ export function ChatComposer({
               send();
             }
           }}
-          placeholder={t("lead.compose")}
+          placeholder={placeholder ?? t("lead.compose")}
           className="max-h-[150px] min-h-[42px] w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-relaxed text-ink outline-none placeholder:text-ink-faint"
         />
         <div className="flex items-center gap-2 border-t border-border/70 px-1.5 pt-2">
