@@ -88,6 +88,7 @@ pub fn run() {
         .setup(move |app| {
             let _ = APP_HANDLE.set(app.handle().clone());
             coordinator::run(app.handle().clone(), wake_rx);
+            lead_chat::engine::spawn_watchdog(app.handle().clone());
             gc::spawn_periodic(app.handle().clone());
             Ok(())
         })

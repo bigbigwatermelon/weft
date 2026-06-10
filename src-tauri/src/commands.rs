@@ -478,12 +478,10 @@ pub fn set_dangerous_mode(asks: tauri::State<'_, crate::ask::AskRegistry>, on: b
     Ok(())
 }
 
-/// Runaway-guardrail caps (§7 跑飞护栏). Configurable at runtime from Settings;
-/// seeded from the WEFT_* env defaults so an env override still sets the initial
-/// value. 0 on either disables that cap. NOTE: the PTY watchdog that enforced
-/// these left with the embedded terminal — the caps persist here so Settings
-/// keeps working, but nothing enforces them until the chat engine grows its own
-/// watchdog.
+/// Runaway-guardrail caps (§7 跑飞护栏), enforced per busy turn by the chat
+/// engine's watchdog (lead_chat::engine::spawn_watchdog). Configurable at
+/// runtime from Settings; seeded from the WEFT_* env defaults so an env
+/// override still sets the initial value. 0 on either disables that cap.
 pub struct GuardrailState {
     inner: std::sync::Mutex<(u64, u64)>, // (idle_secs, wall_secs)
 }
@@ -502,6 +500,10 @@ impl Default for GuardrailState {
 impl GuardrailState {
     pub fn set(&self, idle_secs: u64, wall_secs: u64) {
         *self.inner.lock().unwrap_or_else(|e| e.into_inner()) = (idle_secs, wall_secs);
+    }
+    /// (idle_cap_secs, wall_cap_secs)
+    pub fn get(&self) -> (u64, u64) {
+        *self.inner.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
