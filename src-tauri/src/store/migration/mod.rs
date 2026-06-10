@@ -1,5 +1,6 @@
 use crate::store::entities::{
-    direction, lead_message, plan, repo_profile, repo_ref, session, thread, worktree, workspace,
+    app_setting, direction, lead_message, plan, repo_profile, repo_ref, session, thread, worktree,
+    workspace,
 };
 use sea_orm::{EntityTrait, Schema};
 use sea_orm_migration::prelude::*;
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0007LeadMessage),
             Box::new(M0008DirectionMandate),
             Box::new(M0009DropThreadStatus),
+            Box::new(M0010AppSetting),
         ]
     }
 }
@@ -361,6 +363,33 @@ impl MigrationTrait for M0007LeadMessage {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
             .drop_table(Table::drop().table(Alias::new("lead_message")).to_owned())
+            .await?;
+        Ok(())
+    }
+}
+
+/// Adds the global key-value settings table (default-tool selection).
+pub struct M0010AppSetting;
+
+impl MigrationName for M0010AppSetting {
+    fn name(&self) -> &str {
+        "m0010_app_setting"
+    }
+}
+
+#[async_trait::async_trait]
+impl MigrationTrait for M0010AppSetting {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let schema = Schema::new(manager.get_database_backend());
+        let mut stmt = schema.create_table_from_entity(app_setting::Entity);
+        stmt.if_not_exists();
+        manager.create_table(stmt).await?;
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(Alias::new("app_setting")).to_owned())
             .await?;
         Ok(())
     }

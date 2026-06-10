@@ -1,7 +1,8 @@
 //! All DB reads/writes go through here. Keeps SeaORM specifics out of commands.
 
 use super::entities::{
-    direction, lead_message, plan, repo_profile, repo_ref, session, thread, worktree, workspace,
+    app_setting, direction, lead_message, plan, repo_profile, repo_ref, session, thread, worktree,
+    workspace,
 };
 use super::Db;
 use crate::slug::unique_slug;
@@ -35,6 +36,29 @@ pub async fn create_workspace(db: &Db, name: &str) -> Result<workspace::Model> {
 
 pub async fn list_workspaces(db: &Db) -> Result<Vec<workspace::Model>> {
     Ok(workspace::Entity::find().all(&db.0).await?)
+}
+
+pub async fn get_setting(db: &Db, key: &str) -> Result<Option<String>> {
+    Ok(app_setting::Entity::find_by_id(key)
+        .one(&db.0)
+        .await?
+        .map(|m| m.value))
+}
+
+pub async fn set_setting(db: &Db, key: &str, value: &str) -> Result<()> {
+    let m = app_setting::ActiveModel {
+        key: Set(key.to_string()),
+        value: Set(value.to_string()),
+    };
+    app_setting::Entity::insert(m)
+        .on_conflict(
+            sea_orm::sea_query::OnConflict::column(app_setting::Column::Key)
+                .update_column(app_setting::Column::Value)
+                .to_owned(),
+        )
+        .exec(&db.0)
+        .await?;
+    Ok(())
 }
 
 pub async fn add_repo_ref(
@@ -628,5 +652,22 @@ mod tests {
         .unwrap();
         assert_eq!(dir.repo_id, 0);
         assert!(direction_repo_of(&db, dir.id).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn app_setting_roundtrip() {
+        let db = mem().await;
+        assert_eq!(get_setting(&db, "default_tool").await.unwrap(), None);
+        set_setting(&db, "default_tool", "codex").await.unwrap();
+        assert_eq!(
+            get_setting(&db, "default_tool").await.unwrap(),
+            Some("codex".to_string())
+        );
+        // Overwrite, not duplicate.
+        set_setting(&db, "default_tool", "claude").await.unwrap();
+        assert_eq!(
+            get_setting(&db, "default_tool").await.unwrap(),
+            Some("claude".to_string())
+        );
     }
 }
