@@ -40,6 +40,7 @@ export function SkillsSettings() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <p className="text-[13px] text-ink-muted">{t("settings.skillsHint")}</p>
+        <p className="text-[11.5px] text-ink-faint">{t("settings.skillsFormats")}</p>
       </div>
       <div className="flex items-center gap-2">
         <Input

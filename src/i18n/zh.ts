@@ -413,6 +413,7 @@ export const zh = {
     groupIntegrations: "集成",
     skills: "Skills",
     skillsHint: "以 git 托管的 skill 来源，同步后注入每个 agent 会话。",
+    skillsFormats: "任意 git 地址(HTTPS、SSH 或本地路径)。skill 取自第一层 skills/ 目录,或 .claude-plugin/marketplace.json。",
     skillsAddSource: "添加来源",
     skillsGitUrlPlaceholder: "https://github.com/org/skills.git",
     skillsRefPlaceholder: "分支 / tag（可选）",

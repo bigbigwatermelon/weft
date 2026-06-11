@@ -425,6 +425,7 @@ export const en = {
     groupIntegrations: "Integrations",
     skills: "Skills",
     skillsHint: "Git-hosted skill sources, synced and injected into every agent session.",
+    skillsFormats: "Any git URL (HTTPS, SSH, or a local path). Skills come from a top-level skills/ folder or a .claude-plugin/marketplace.json.",
     skillsAddSource: "Add source",
     skillsGitUrlPlaceholder: "https://github.com/org/skills.git",
     skillsRefPlaceholder: "branch / tag (optional)",
