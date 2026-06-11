@@ -119,7 +119,7 @@ impl Default for TurnClock {
 }
 
 impl TurnClock {
-    fn begin_turn(&mut self) {
+    pub(crate) fn begin_turn(&mut self) {
         self.started = Some(std::time::Instant::now());
         self.last_activity = std::time::Instant::now();
     }

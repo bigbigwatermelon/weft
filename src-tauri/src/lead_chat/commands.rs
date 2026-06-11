@@ -517,10 +517,12 @@ async fn import_legacy(db: &Db, thread_id: i32) -> anyhow::Result<usize> {
 
 /// Frontend callback after a repo onboarding action card finishes (add /
 /// new / clone). Wraps the payload in `<weft:repo_action>…</weft:repo_action>`
-/// and writes it as an invisible user turn on the lead's stdin so the agent
-/// can react without the result polluting the visible timeline. No-op when the
-/// lead engine isn't alive — the action card outlives a restart, but the
-/// callback only fires from an open console where the engine is already up.
+/// and delivers it as an invisible user turn so the agent can react without
+/// the result polluting the visible timeline. Respects the turn machine:
+/// mid-turn clicks get queued and flush at the next boundary instead of
+/// shoving JSON between in-flight protocol lines. Does NOT ensure_running —
+/// a click into a dead lead is a no-op (we don't want a card click to
+/// resurrect a stopped engine behind the user's back).
 #[tauri::command]
 pub async fn post_lead_tool_result(
     app: AppHandle,
@@ -532,12 +534,18 @@ pub async fn post_lead_tool_result(
     let key = lead_key(thread_id);
     match app.state::<LeadChatState>().get(key) {
         Some(eng) => {
+            // TODO: frontend currently can't distinguish delivered vs queued vs
+            // no-engine. Acceptable now — action cards are visual + ephemeral
+            // — revisit if "card click did nothing" debugging gets noisy.
             let mut inner = eng.lock().await;
-            engine::write_user(
-                &mut inner,
-                &engine::Outgoing { text, images: vec![], tracked: false },
-            )
-            .await;
+            let out = engine::Outgoing { text, images: vec![], tracked: false };
+            if inner.turn.try_begin_send() {
+                inner.turn_id += 1;
+                inner.clock.begin_turn();
+                engine::write_user(&mut inner, &out).await;
+            } else {
+                inner.turn.queue.push_back(out);
+            }
         }
         None => {
             eprintln!("[weft] post_lead_tool_result: no lead engine for thread {thread_id}");
