@@ -7,7 +7,6 @@ import {
   FolderOpen,
   Moon,
   Palette,
-  Plug,
   Search,
   Settings,
   Sun,
@@ -28,7 +27,7 @@ import {
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
 
-type SettingsPage = "general" | "appearance" | "automation" | "skills" | "mcp";
+type SettingsPage = "general" | "appearance" | "automation" | "skills";
 
 type NavItem = {
   id: SettingsPage;
@@ -50,7 +49,6 @@ const NAV_GROUPS: { labelKey: string; items: NavItem[] }[] = [
     labelKey: "settings.groupIntegrations",
     items: [
       { id: "skills", icon: Boxes, labelKey: "settings.skills", implemented: true },
-      { id: "mcp", icon: Plug, labelKey: "settings.mcp", implemented: false },
     ],
   },
 ];
@@ -126,10 +124,8 @@ export function SettingsScreen() {
               <AppearanceSettings />
             ) : active === "automation" ? (
               <AutomationSettings />
-            ) : active === "skills" ? (
-              <SkillsSettings />
             ) : (
-              <McpComingSoon />
+              <SkillsSettings />
             )}
           </div>
         </div>
@@ -349,11 +345,6 @@ function AutomationSettings() {
       </SettingRow>
     </SettingsGroup>
   );
-}
-
-function McpComingSoon() {
-  const { t } = useTranslation();
-  return <p className="text-[13px] text-ink-faint">{t("settings.mcpComingSoon")}</p>;
 }
 
 function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
