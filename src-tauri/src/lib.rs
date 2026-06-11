@@ -90,6 +90,7 @@ pub fn run() {
         .manage(bus)
         .manage(asks)
         .manage(BusBase(bus_base))
+        .manage(im::ImBridge::default())
         .setup(move |app| {
             let _ = APP_HANDLE.set(app.handle().clone());
             coordinator::run(app.handle().clone(), wake_rx);
@@ -97,6 +98,7 @@ pub fn run() {
             power::spawn_sweep(app.handle().clone());
             gc::spawn_periodic(app.handle().clone());
             skills::spawn_periodic(app.handle().clone());
+            im::spawn(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -167,6 +169,9 @@ pub fn run() {
             commands::list_parsed_skills,
             commands::set_skill_enabled,
             commands::workspace_skills,
+            commands::im_get_settings,
+            commands::im_set_settings,
+            commands::im_status,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| fatal("running tauri application", e));
