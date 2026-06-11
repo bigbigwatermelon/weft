@@ -67,14 +67,18 @@ pub enum ReplyTarget {
 /// 内存卡片索引：出站卡片 message_id ↔ 应答目标（spec §6 内存态）。
 #[derive(Default)]
 pub struct CardIndex {
-    perm_msg: HashMap<u64, String>,
+    /// ask_id → (message_id, summary)。summary 随卡存档：`AskEvent::Resolved`
+    /// 只带 id+answer，patch 终态卡（outbound::resolved_card）要 summary 从这取。
+    perm_msg: HashMap<u64, (String, String)>,
     human_msg: HashMap<(i32, u64), String>,
     by_message: HashMap<String, ReplyTarget>,
 }
 
 impl CardIndex {
-    pub fn record_perm(&mut self, ask_id: u64, message_id: &str) {
-        if let Some(old) = self.perm_msg.insert(ask_id, message_id.to_string()) {
+    pub fn record_perm(&mut self, ask_id: u64, message_id: &str, summary: &str) {
+        if let Some((old, _)) =
+            self.perm_msg.insert(ask_id, (message_id.to_string(), summary.to_string()))
+        {
             self.by_message.remove(&old);
         }
         self.by_message.insert(message_id.to_string(), ReplyTarget::Perm { ask_id });
@@ -88,11 +92,11 @@ impl CardIndex {
     pub fn target_of(&self, message_id: &str) -> Option<ReplyTarget> {
         self.by_message.get(message_id).copied()
     }
-    /// 解决后取走（patch 终态用），并清反向索引。
-    pub fn take_perm(&mut self, ask_id: u64) -> Option<String> {
-        let m = self.perm_msg.remove(&ask_id)?;
+    /// 解决后取走（patch 终态用），并清反向索引。返回 (message_id, summary)。
+    pub fn take_perm(&mut self, ask_id: u64) -> Option<(String, String)> {
+        let (m, s) = self.perm_msg.remove(&ask_id)?;
         self.by_message.remove(&m);
-        Some(m)
+        Some((m, s))
     }
     pub fn take_human(&mut self, thread: i32, ask_id: u64) -> Option<String> {
         let m = self.human_msg.remove(&(thread, ask_id))?;
@@ -165,11 +169,12 @@ mod tests {
     #[test]
     fn card_index_roundtrip() {
         let mut c = CardIndex::default();
-        c.record_perm(7, "om_1");
+        c.record_perm(7, "om_1", "Run: npm test");
         c.record_human(3, 9, "om_2");
         assert_eq!(c.target_of("om_1"), Some(ReplyTarget::Perm { ask_id: 7 }));
         assert_eq!(c.target_of("om_2"), Some(ReplyTarget::Human { thread: 3, ask_id: 9 }));
-        assert_eq!(c.take_perm(7).as_deref(), Some("om_1"));
+        // take_perm 连 summary 一起取回（Resolved 事件不带 summary，终态卡靠这里）
+        assert_eq!(c.take_perm(7), Some(("om_1".to_string(), "Run: npm test".to_string())));
         assert_eq!(c.target_of("om_1"), None); // 反向索引同步清
         assert_eq!(c.take_human(3, 9).as_deref(), Some("om_2"));
         assert_eq!(c.take_perm(7), None);
@@ -178,15 +183,15 @@ mod tests {
     #[test]
     fn rerecord_clears_old_reverse_index() {
         let mut c = CardIndex::default();
-        c.record_perm(7, "om_1");
-        c.record_perm(7, "om_1b");
+        c.record_perm(7, "om_1", "s1");
+        c.record_perm(7, "om_1b", "s2");
         assert_eq!(c.target_of("om_1"), None); // 旧 message_id 不再可路由
         assert_eq!(c.target_of("om_1b"), Some(ReplyTarget::Perm { ask_id: 7 }));
         c.record_human(3, 9, "om_2");
         c.record_human(3, 9, "om_2b");
         assert_eq!(c.target_of("om_2"), None);
         assert_eq!(c.target_of("om_2b"), Some(ReplyTarget::Human { thread: 3, ask_id: 9 }));
-        assert_eq!(c.take_perm(7).as_deref(), Some("om_1b"));
+        assert_eq!(c.take_perm(7), Some(("om_1b".to_string(), "s2".to_string())));
         assert_eq!(c.take_human(3, 9).as_deref(), Some("om_2b"));
     }
 }

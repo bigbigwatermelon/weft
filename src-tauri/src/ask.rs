@@ -54,6 +54,17 @@ impl Answer {
             _ => None,
         }
     }
+
+    /// `parse` 的逆映射；verdict 字符串的单一来源（IM 出站终态卡等消费方
+    /// 一律经此取串，不得手写字面量）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Answer::Allow => "allow",
+            Answer::Deny => "deny",
+            Answer::Always => "always",
+            Answer::Full => "full",
+        }
+    }
 }
 
 /// A pending permission request, awaiting the human's decision.
@@ -282,6 +293,13 @@ impl AskRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn answer_as_str_round_trips_with_parse() {
+        for a in [Answer::Allow, Answer::Deny, Answer::Always, Answer::Full] {
+            assert_eq!(Answer::parse(a.as_str()), Some(a));
+        }
+    }
 
     #[tokio::test]
     async fn request_then_answer_delivers_decision() {
