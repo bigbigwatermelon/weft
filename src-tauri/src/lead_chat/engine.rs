@@ -262,7 +262,7 @@ pub async fn ensure_running(app: &AppHandle, db: &Db, eng: &EngineRef) -> anyhow
     Ok(())
 }
 
-async fn write_user(inner: &mut EngineInner, out: &Outgoing) {
+pub(crate) async fn write_user(inner: &mut EngineInner, out: &Outgoing) {
     if let Some(stdin) = inner.stdin.as_mut() {
         let mut content = vec![serde_json::json!({ "type": "text", "text": out.text })];
         for (media_type, data) in &out.images {

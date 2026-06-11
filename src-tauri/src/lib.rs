@@ -143,6 +143,7 @@ pub fn run() {
             lead_chat::commands::lead_stop,
             lead_chat::commands::lead_state,
             lead_chat::commands::list_lead_messages,
+            lead_chat::commands::post_lead_tool_result,
             lead_chat::commands::chat_open_worker,
             lead_chat::commands::chat_send,
             lead_chat::commands::chat_interrupt,

@@ -514,3 +514,34 @@ async fn import_legacy(db: &Db, thread_id: i32) -> anyhow::Result<usize> {
     }
     Ok(n)
 }
+
+/// Frontend callback after a repo onboarding action card finishes (add /
+/// new / clone). Wraps the payload in `<weft:repo_action>…</weft:repo_action>`
+/// and writes it as an invisible user turn on the lead's stdin so the agent
+/// can react without the result polluting the visible timeline. No-op when the
+/// lead engine isn't alive — the action card outlives a restart, but the
+/// callback only fires from an open console where the engine is already up.
+#[tauri::command]
+pub async fn post_lead_tool_result(
+    app: AppHandle,
+    thread_id: i32,
+    payload: serde_json::Value,
+) -> Result<(), String> {
+    let json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
+    let text = format!("<weft:repo_action>{json}</weft:repo_action>");
+    let key = lead_key(thread_id);
+    match app.state::<LeadChatState>().get(key) {
+        Some(eng) => {
+            let mut inner = eng.lock().await;
+            engine::write_user(
+                &mut inner,
+                &engine::Outgoing { text, images: vec![], tracked: false },
+            )
+            .await;
+        }
+        None => {
+            eprintln!("[weft] post_lead_tool_result: no lead engine for thread {thread_id}");
+        }
+    }
+    Ok(())
+}
