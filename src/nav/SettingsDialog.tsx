@@ -3,14 +3,18 @@ import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Bot,
+  Boxes,
   FolderOpen,
   Moon,
   Palette,
+  Plug,
   Search,
   Settings,
   Sun,
 } from "lucide-react";
 import { Input } from "../components/ui/Input";
+import { Toggle } from "../components/ui/Toggle";
+import { SkillsSettings } from "../components/SkillsSettings";
 import { toolFullName } from "../components/ToolIcon";
 import { currentLang, setLang, type Lang } from "../i18n";
 import { api } from "../lib/api";
@@ -24,7 +28,7 @@ import {
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
 
-type SettingsPage = "general" | "appearance" | "automation";
+type SettingsPage = "general" | "appearance" | "automation" | "skills" | "mcp";
 
 type NavItem = {
   id: SettingsPage;
@@ -40,6 +44,13 @@ const NAV_GROUPS: { labelKey: string; items: NavItem[] }[] = [
       { id: "general", icon: Settings, labelKey: "settings.general", implemented: true },
       { id: "appearance", icon: Palette, labelKey: "settings.appearance", implemented: true },
       { id: "automation", icon: Bot, labelKey: "settings.automation", implemented: true },
+    ],
+  },
+  {
+    labelKey: "settings.groupIntegrations",
+    items: [
+      { id: "skills", icon: Boxes, labelKey: "settings.skills", implemented: true },
+      { id: "mcp", icon: Plug, labelKey: "settings.mcp", implemented: false },
     ],
   },
 ];
@@ -113,8 +124,12 @@ export function SettingsScreen() {
               <GeneralSettings />
             ) : active === "appearance" ? (
               <AppearanceSettings />
-            ) : (
+            ) : active === "automation" ? (
               <AutomationSettings />
+            ) : active === "skills" ? (
+              <SkillsSettings />
+            ) : (
+              <McpComingSoon />
             )}
           </div>
         </div>
@@ -336,6 +351,11 @@ function AutomationSettings() {
   );
 }
 
+function McpComingSoon() {
+  const { t } = useTranslation();
+  return <p className="text-[13px] text-ink-faint">{t("settings.mcpComingSoon")}</p>;
+}
+
 function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
@@ -365,37 +385,6 @@ function SettingRow({
       <span className="min-w-4 flex-1" />
       {children && <div className="shrink-0">{children}</div>}
     </div>
-  );
-}
-
-function Toggle({
-  on,
-  onChange,
-  label,
-}: {
-  on: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className={cn(
-        "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full p-0 transition-colors duration-150",
-        on ? "bg-brand" : "bg-border-strong",
-      )}
-    >
-      <span
-        className={cn(
-          "absolute left-0.5 top-0.5 inline-block h-[18px] w-[18px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.3)] transition-transform duration-150",
-          on ? "translate-x-4" : "translate-x-0",
-        )}
-      />
-    </button>
   );
 }
 
