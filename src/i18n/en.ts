@@ -511,6 +511,12 @@ export const en = {
     imUnbound: "Not bound — send the bot any message to bind your account",
     imSave: "Save & reconnect",
     imSaving: "Saving…",
+    imRoutesGroup: "Topic bindings",
+    imRoutesLabel: "Bound issues",
+    imRoutesHint: "Each issue maps 1:1 to a Feishu topic; topic messages drive the lead, lead replies post back into the topic.",
+    imRoutesEmpty: "No bindings yet.",
+    imRoutesLoading: "Loading…",
+    imRoutesUnbind: "Unbind",
   },
   danger: {
     nudgeTitle: "Approving a lot?",

@@ -7,6 +7,7 @@ import type {
   Direction,
   EnabledSkill,
   ImageAttachment,
+  ImRoute,
   LeadMessage,
   LeadStateInfo,
   NeedItem,
@@ -205,6 +206,13 @@ export const api = {
   imSetSettings: (appId: string, appSecret: string, enabled: boolean) =>
     invoke<void>("im_set_settings", { appId, appSecret, enabled }),
   imStatus: () => invoke<string>("im_status"),
+  imBindThread: (threadId: number, chatId: string, imThreadRef: string, channel = "feishu") =>
+    invoke<ImRoute>("im_bind_thread", { threadId, channel, chatId, imThreadRef }),
+  imUnbindThread: (threadId: number) =>
+    invoke<void>("im_unbind_thread", { threadId }),
+  imRouteForThread: (threadId: number) =>
+    invoke<ImRoute | null>("im_route_for_thread", { threadId }),
+  imListRoutes: () => invoke<ImRoute[]>("im_list_routes"),
   // Native folder picker; returns the chosen absolute path, or null if cancelled.
   pickFolder: async (title?: string) => {
     const sel = await openDialog({ directory: true, multiple: false, title });

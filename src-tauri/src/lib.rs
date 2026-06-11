@@ -178,6 +178,10 @@ pub fn run() {
             commands::im_get_settings,
             commands::im_set_settings,
             commands::im_status,
+            commands::im_bind_thread,
+            commands::im_unbind_thread,
+            commands::im_route_for_thread,
+            commands::im_list_routes,
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|e| fatal("running tauri application", e));

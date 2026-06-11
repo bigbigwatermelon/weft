@@ -339,3 +339,12 @@ export interface NeedItem {
   text: string;
   ts: number;
 }
+
+/** IM 话题绑定行：issue ↔ 飞书话题 1:1 映射（M2-5）。 */
+export interface ImRoute {
+  thread_id: number;
+  channel: string;
+  chat_id: string;
+  im_thread_ref: string;
+  created_at: string;
+}

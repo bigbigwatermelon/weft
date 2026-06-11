@@ -447,7 +447,67 @@ function ImSettings() {
           {saving ? t("settings.imSaving") : t("settings.imSave")}
         </Button>
       </div>
+      <ImRoutes />
     </div>
+  );
+}
+
+/** 已绑定的 issue ↔ 飞书话题映射；提供解绑入口。绑定动作走「在飞书话题里
+ *  发 `/bind <thread_id>` 给 bot」的入站协议（计划中）；MVP 阶段只读 + 解绑。 */
+function ImRoutes() {
+  const { t } = useTranslation();
+  const [rows, setRows] = useState<import("../lib/types").ImRoute[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      setRows(await api.imListRoutes());
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  async function unbind(threadId: number) {
+    await api.imUnbindThread(threadId);
+    await refresh();
+  }
+
+  return (
+    <SettingsGroup title={t("settings.imRoutesGroup")}>
+      <SettingRow label={t("settings.imRoutesLabel")} hint={t("settings.imRoutesHint")}>
+        <div className="flex w-full flex-col gap-1.5">
+          {loading && rows.length === 0 ? (
+            <span className="text-[12px] text-ink-faint">{t("settings.imRoutesLoading")}</span>
+          ) : rows.length === 0 ? (
+            <span className="text-[12px] text-ink-faint">{t("settings.imRoutesEmpty")}</span>
+          ) : (
+            rows.map((r) => (
+              <div
+                key={r.thread_id}
+                className="flex items-center justify-between gap-2 rounded-md border border-border bg-bg/40 px-2.5 py-1.5"
+              >
+                <div className="min-w-0 flex flex-col">
+                  <span className="font-mono text-[11px] text-ink">
+                    #{r.thread_id} · {r.channel}
+                  </span>
+                  <span className="truncate font-mono text-[11px] text-ink-muted">
+                    {r.chat_id} / {r.im_thread_ref}
+                  </span>
+                </div>
+                <Button variant="default" onClick={() => void unbind(r.thread_id)}>
+                  {t("settings.imRoutesUnbind")}
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </SettingRow>
+    </SettingsGroup>
   );
 }
 

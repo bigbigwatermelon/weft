@@ -820,3 +820,67 @@ pub async fn im_set_settings(
 pub fn im_status(bridge: State<'_, crate::im::ImBridge>) -> R<String> {
     Ok(bridge.status())
 }
+
+// ───────────────────────── IM · 话题绑定（M2-5）─────────────────────────
+//
+// 把 issue（lead 的 thread_id）绑到一个飞书话题：之后该话题里的群消息会被
+// 路由进 lead engine，lead 的回流文本也会反向贴回这条话题（M2-4）。绑定关系
+// 是 1:1（同一 thread 重 bind 覆盖旧目标，同一目标只能映射一个 thread——表上
+// 双唯一约束保证）。前端用 chat_id + 话题根 message_id 当 im_thread_ref 调本组。
+
+#[derive(serde::Serialize)]
+pub struct ImRouteView {
+    pub thread_id: i32,
+    pub channel: String,
+    pub chat_id: String,
+    pub im_thread_ref: String,
+    pub created_at: String,
+}
+
+fn route_view(m: entities::im_route::Model) -> ImRouteView {
+    ImRouteView {
+        thread_id: m.thread_id,
+        channel: m.channel,
+        chat_id: m.chat_id,
+        im_thread_ref: m.im_thread_ref,
+        created_at: m.created_at,
+    }
+}
+
+#[tauri::command]
+pub async fn im_bind_thread(
+    db: State<'_, Db>,
+    thread_id: i32,
+    channel: String,
+    chat_id: String,
+    im_thread_ref: String,
+) -> R<ImRouteView> {
+    let ch = channel.trim();
+    let chat = chat_id.trim();
+    let r = im_thread_ref.trim();
+    if ch.is_empty() || chat.is_empty() || r.is_empty() {
+        return Err("channel/chat_id/im_thread_ref must be non-empty".into());
+    }
+    let m = repo::bind_im_route(&db, thread_id, ch, chat, r).await.map_err(e)?;
+    Ok(route_view(m))
+}
+
+#[tauri::command]
+pub async fn im_unbind_thread(db: State<'_, Db>, thread_id: i32) -> R<()> {
+    repo::unbind_im_route(&db, thread_id).await.map_err(e)
+}
+
+#[tauri::command]
+pub async fn im_route_for_thread(
+    db: State<'_, Db>,
+    thread_id: i32,
+) -> R<Option<ImRouteView>> {
+    let m = repo::im_route_of_thread(&db, thread_id).await.map_err(e)?;
+    Ok(m.map(route_view))
+}
+
+#[tauri::command]
+pub async fn im_list_routes(db: State<'_, Db>) -> R<Vec<ImRouteView>> {
+    let rows = repo::list_im_routes(&db).await.map_err(e)?;
+    Ok(rows.into_iter().map(route_view).collect())
+}

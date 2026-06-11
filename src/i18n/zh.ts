@@ -496,6 +496,12 @@ export const zh = {
     imUnbound: "未绑定——给 bot 发任意一句话即可绑定你的账号",
     imSave: "保存并重连",
     imSaving: "保存中…",
+    imRoutesGroup: "话题绑定",
+    imRoutesLabel: "已绑定的 issue",
+    imRoutesHint: "每个 issue 1:1 映射到一条飞书话题；话题里的群消息会进 lead，lead 的回复会贴回话题。",
+    imRoutesEmpty: "暂无绑定。",
+    imRoutesLoading: "加载中…",
+    imRoutesUnbind: "解绑",
   },
   danger: {
     nudgeTitle: "经常在批准?",
