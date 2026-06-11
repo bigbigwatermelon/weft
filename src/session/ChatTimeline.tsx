@@ -1,10 +1,16 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, FileText, Slash, Sparkles } from "lucide-react";
 import type { LeadMessage } from "../lib/types";
 import { Markdown } from "../components/Markdown";
 import { cn } from "../lib/cn";
 import { cleanToolName, compactToolTarget, toolIcon, toolLabelKey } from "./transcriptBits";
+import { ActionCardBlock, type ActionCardAction } from "./blocks/ActionCardBlock";
+import { useRepoActions, type RepoActionInvocation } from "./useRepoActions";
+import { useStore } from "../state/store";
+import { Dialog, DialogContent } from "../components/ui/Dialog";
+import { Input } from "../components/ui/Input";
+import { Button } from "../components/ui/Button";
 
 /**
  * The chat-engine timeline: renders weft-owned LeadMessage rows (no polling,
@@ -26,6 +32,21 @@ export function ChatTimeline({
   onReviewProposal: () => void;
 }) {
   const { t } = useTranslation();
+  const { activeThreadId, activeWorkspaceId } = useStore();
+  const { run: runAction, busy: actionsBusy } = useRepoActions();
+  const [promptState, setPromptState] = useState<
+    | null
+    | {
+        title: string;
+        placeholder?: string;
+        value: string;
+        resolve: (v: string | null) => void;
+      }
+  >(null);
+  const promptText = (title: string, placeholder?: string) =>
+    new Promise<string | null>((resolve) =>
+      setPromptState({ title, placeholder, value: "", resolve }),
+    );
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -66,7 +87,17 @@ export function ChatTimeline({
     >
       <div className="mx-auto flex w-full max-w-[820px] flex-col gap-2.5">
         {visible.map((m) => (
-          <TimelineRow key={m.id} m={m} onReviewProposal={onReviewProposal} />
+          <TimelineRow
+            key={m.id}
+            m={m}
+            all={visible}
+            onReviewProposal={onReviewProposal}
+            runAction={runAction}
+            actionsBusy={actionsBusy}
+            threadId={activeThreadId}
+            workspaceId={activeWorkspaceId}
+            promptText={promptText}
+          />
         ))}
         {busy && activity && <ActivityLine name={activity.name} summary={activity.summary} />}
         {busy && !activity && (
@@ -77,6 +108,53 @@ export function ChatTimeline({
         )}
       </div>
       <div ref={endRef} />
+      <Dialog
+        open={promptState != null}
+        onOpenChange={(open) => {
+          if (!open && promptState) {
+            promptState.resolve(null);
+            setPromptState(null);
+          }
+        }}
+      >
+        {promptState && (
+          <DialogContent title={promptState.title}>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const v = promptState.value.trim();
+                promptState.resolve(v || null);
+                setPromptState(null);
+              }}
+              className="flex flex-col gap-3"
+            >
+              <Input
+                autoFocus
+                placeholder={promptState.placeholder}
+                value={promptState.value}
+                onChange={(e) =>
+                  setPromptState((s) => (s ? { ...s, value: e.target.value } : s))
+                }
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    promptState.resolve(null);
+                    setPromptState(null);
+                  }}
+                >
+                  {t("session.promptCancel")}
+                </Button>
+                <Button type="submit" variant="primary">
+                  {t("session.promptOk")}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }
@@ -117,15 +195,82 @@ function parse(content: string): Record<string, unknown> {
   }
 }
 
+// Wider sibling to `parse` for sentinel-payload rows (action_card) where the
+// JSON may legitimately contain arrays nested at the top — we still only
+// accept an object root, but reject scalars/arrays without throwing.
+function safeParseObj(content: string): Record<string, unknown> {
+  try {
+    const v: unknown = JSON.parse(content);
+    return v && typeof v === "object" && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+// Read-only history replay: only the most recent assistant row is interactive.
+// Older action_cards stay rendered for context but their buttons are disabled.
+function isLastAssistant(m: LeadMessage, all: LeadMessage[]): boolean {
+  for (let i = all.length - 1; i >= 0; i--) {
+    if (all[i].role === "assistant") return all[i].id === m.id;
+  }
+  return false;
+}
+
 function TimelineRow({
   m,
+  all,
   onReviewProposal,
+  runAction,
+  actionsBusy,
+  threadId,
+  workspaceId,
+  promptText,
 }: {
   m: LeadMessage;
+  all: LeadMessage[];
   onReviewProposal: () => void;
+  runAction: (inv: RepoActionInvocation) => Promise<void>;
+  actionsBusy: Record<string, boolean>;
+  threadId: number | null;
+  workspaceId: number | null;
+  promptText: (title: string, placeholder?: string) => Promise<string | null>;
 }) {
   const { t } = useTranslation();
   const c = parse(m.content);
+
+  if (m.kind === "action_card") {
+    const parsed = safeParseObj(m.content);
+    const title = typeof parsed.title === "string" ? parsed.title : "";
+    const body = typeof parsed.body === "string" ? parsed.body : undefined;
+    // runtime-checked sentinel payload from the lead — schema enforced by
+    // src-tauri/src/lead_chat/sentinels.rs before the row is persisted.
+    const actions = Array.isArray(parsed.actions)
+      ? (parsed.actions as ActionCardAction[])
+      : [];
+    const readOnly = !isLastAssistant(m, all);
+    return (
+      <ActionCardBlock
+        title={title}
+        body={body}
+        actions={actions}
+        readOnly={readOnly}
+        busy={actionsBusy}
+        onAction={(a) =>
+          runAction({
+            actionId: a.id,
+            kind: a.kind,
+            ctx: {
+              threadId: threadId ?? undefined,
+              preferredWorkspaceId: workspaceId,
+            },
+            promptText,
+          })
+        }
+      />
+    );
+  }
 
   if (m.kind === "command") {
     return (

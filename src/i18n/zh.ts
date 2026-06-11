@@ -280,6 +280,8 @@ export const zh = {
     keymapCommand: "打开命令面板",
     keymapComposer: "发送输入框内容",
     keymapPanels: "切换上一个 / 下一个会话面板",
+    promptOk: "确定",
+    promptCancel: "取消",
   },
   diff: {
     tab: "改动",

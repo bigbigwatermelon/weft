@@ -289,6 +289,8 @@ export const en = {
     keymapCommand: "Open the command palette",
     keymapComposer: "Send the composer message",
     keymapPanels: "Move to the previous / next session panel",
+    promptOk: "OK",
+    promptCancel: "Cancel",
   },
   diff: {
     tab: "Diff",

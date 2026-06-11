@@ -117,7 +117,15 @@ export interface LeadMessage {
   session_id: number | null;
   turn_id: number;
   role: "user" | "assistant" | "system";
-  kind: "text" | "tool" | "command" | "proposal" | "approval" | "worker_event" | "meta";
+  kind:
+    | "text"
+    | "tool"
+    | "command"
+    | "proposal"
+    | "approval"
+    | "worker_event"
+    | "meta"
+    | "action_card";
   /** kind-shaped JSON string, e.g. {"text": "..."} for kind=text */
   content: string;
   status: "streaming" | "complete" | "interrupted" | "error" | "queued";
