@@ -466,6 +466,9 @@ export const en = {
     issueBudgetValue: "idle {{idle}}m · wall {{wall}}m",
     loopDetection: "Repeated-failure detection",
     loopDetectionHint: "Stop auto-retries when the same failure repeats, then surface it in Needs you.",
+    keepAwakeTitle: "Prevent sleep while running",
+    keepAwakeHint:
+      "Keep the system from idle-sleeping while any session is running; the display can still turn off. Lid-close and battery policies may still sleep.",
     detecting: "Detecting…",
     installed: "installed",
     installedVersion: "v{{version}}",

@@ -165,6 +165,8 @@ export const api = {
   setDefaultTool: (tool: string) => invoke<void>("set_default_tool", { tool }),
   // Dangerous mode (global): every agent's tool asks auto-allow.
   setDangerousMode: (on: boolean) => invoke<void>("set_dangerous_mode", { on }),
+  // Keep-awake: prevent system idle sleep while any session is running.
+  setKeepAwake: (on: boolean) => invoke<void>("set_keep_awake", { on }),
   // Runaway guardrails: idle + wall-clock caps (seconds; 0 disables) for
   // force-stopping a stuck/runaway agent (enforcement pending on the engine).
   setGuardrails: (idleSecs: number, wallSecs: number) =>

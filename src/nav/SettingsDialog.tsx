@@ -332,7 +332,7 @@ function AppearanceSettings() {
 
 function AutomationSettings() {
   const { t } = useTranslation();
-  const { dangerousMode, setDangerousMode } = useStore();
+  const { dangerousMode, setDangerousMode, keepAwake, setKeepAwake } = useStore();
   const [loopGuard, setLoopGuard] = useState(true);
 
   return (
@@ -342,6 +342,9 @@ function AutomationSettings() {
       </SettingRow>
       <SettingRow label={t("settings.loopDetection")} hint={t("settings.loopDetectionHint")}>
         <Toggle on={loopGuard} onChange={setLoopGuard} label={t("settings.loopDetection")} />
+      </SettingRow>
+      <SettingRow label={t("settings.keepAwakeTitle")} hint={t("settings.keepAwakeHint")}>
+        <Toggle on={keepAwake} onChange={setKeepAwake} label={t("settings.keepAwakeTitle")} />
       </SettingRow>
     </SettingsGroup>
   );
