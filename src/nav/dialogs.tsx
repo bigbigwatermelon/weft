@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as RD from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { FolderOpen, Network, X } from "lucide-react";
@@ -414,15 +414,20 @@ export function RenameDialog({
   const [value, setValue] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  // Re-seed from the current name each time the dialog opens.
+  // Seed `value` only on the false→true edge so an external refresh that
+  // changes `initial` while the dialog is open doesn't clobber what the user
+  // is typing. We read the latest `initial` via a ref to avoid stale closures.
+  const initialRef = useRef(initial);
+  initialRef.current = initial;
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (open) {
-      setValue(initial);
+    if (open && !wasOpen.current) {
+      setValue(initialRef.current);
       setBusy(false);
       setErr(null);
     }
-  }, [open, initial]);
+    wasOpen.current = open;
+  }, [open]);
 
   async function submit() {
     const v = value.trim();
@@ -437,7 +442,14 @@ export function RenameDialog({
       await onSubmit(v);
       onOpenChange(false);
     } catch (e) {
-      setErr(String(e));
+      const raw = String(e);
+      // Backend uses anyhow::bail!("…cannot be empty") / "…already" for the
+      // two known rejections — translate them; fall back to a generic message
+      // (the raw Rust string is logged for debugging, not shown).
+      if (/empty/i.test(raw)) setErr(t("error.renameEmpty"));
+      else if (/already/i.test(raw)) setErr(t("error.renameDuplicate"));
+      else setErr(t("error.renameFailed"));
+      if (import.meta.env.DEV) console.error("rename failed:", raw);
     } finally {
       setBusy(false);
     }
