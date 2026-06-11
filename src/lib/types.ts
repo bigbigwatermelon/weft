@@ -260,6 +260,26 @@ export interface ToolStatus {
   meets_min: boolean;
 }
 
+export interface SkillSource {
+  id: number;
+  git_url: string;
+  git_ref: string;
+  last_synced: string;
+  last_status: string; // "never" | "ok" | "error:<msg>"
+}
+export interface ParsedSkill {
+  name: string;
+  description: string;
+  dir: string;
+}
+export interface EnabledSkill {
+  source_id: number;
+  name: string;
+  description: string;
+  dir: string;
+  overridden: boolean;
+}
+
 /** The resolved default coding tool plus the user's explicit choice (if any). */
 export interface DefaultToolInfo {
   tool: string;

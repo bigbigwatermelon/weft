@@ -44,6 +44,7 @@ export function EffectiveConfigDialog({
 
 function RepoConfig({ repo, open }: { repo: RepoRef; open: boolean }) {
   const { t } = useTranslation();
+  const { activeWorkspaceId } = useStore();
   const [items, setItems] = useState<ConfigItem[] | null>(null);
 
   useEffect(() => {
@@ -51,13 +52,13 @@ function RepoConfig({ repo, open }: { repo: RepoRef; open: boolean }) {
     let alive = true;
     setItems(null);
     void api
-      .effectiveConfig(repo.local_git_path)
+      .effectiveConfig(repo.local_git_path, activeWorkspaceId ?? undefined)
       .then((r) => alive && setItems(r))
       .catch(() => alive && setItems([]));
     return () => {
       alive = false;
     };
-  }, [open, repo.local_git_path]);
+  }, [open, repo.local_git_path, activeWorkspaceId]);
 
   const skills = items?.filter((i) => i.kind === "skill") ?? [];
   const rules = items?.filter((i) => i.kind === "rule") ?? [];

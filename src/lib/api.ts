@@ -5,12 +5,14 @@ import type {
   ConfigItem,
   DefaultToolInfo,
   Direction,
+  EnabledSkill,
   ImageAttachment,
   LeadMessage,
   LeadStateInfo,
   NeedItem,
   NormEvent,
   ObserveRef,
+  ParsedSkill,
   PermissionAsk,
   Proposal,
   RepoChecks,
@@ -18,6 +20,7 @@ import type {
   RepoRef,
   ResolvedProposal,
   SessionInfo,
+  SkillSource,
   Thread,
   ThreadOverview,
   ToolStatus,
@@ -167,8 +170,18 @@ export const api = {
   setGuardrails: (idleSecs: number, wallSecs: number) =>
     invoke<void>("set_guardrails", { idleSecs, wallSecs }),
   // Effective config (skills + rules) for a repo, tagged by layer + override.
-  effectiveConfig: (repoPath: string) =>
-    invoke<ConfigItem[]>("effective_config", { repoPath }),
+  effectiveConfig: (repoPath: string, wsId?: number) =>
+    invoke<ConfigItem[]>("effective_config", { repoPath, wsId }),
+  listSkillSources: () => invoke<SkillSource[]>("list_skill_sources"),
+  addSkillSource: (gitUrl: string, gitRef?: string) =>
+    invoke<SkillSource>("add_skill_source", { gitUrl, gitRef }),
+  removeSkillSource: (id: number) => invoke<void>("remove_skill_source", { id }),
+  syncSkillSource: (id: number) => invoke<SkillSource>("sync_skill_source", { id }),
+  syncAllSkillSources: () => invoke<SkillSource[]>("sync_all_skill_sources"),
+  listParsedSkills: (id: number) => invoke<ParsedSkill[]>("list_parsed_skills", { id }),
+  setSkillEnabled: (sourceId: number, name: string, scope: string, on: boolean) =>
+    invoke<void>("set_skill_enabled", { sourceId, name, scope, on }),
+  workspaceSkills: (wsId: number) => invoke<EnabledSkill[]>("workspace_skills", { wsId }),
   // Native folder picker; returns the chosen absolute path, or null if cancelled.
   pickFolder: async (title?: string) => {
     const sel = await openDialog({ directory: true, multiple: false, title });
