@@ -1,5 +1,6 @@
 pub mod entities;
 pub mod key;
+pub mod legacy;
 pub mod migration;
 pub mod repo;
 
