@@ -9,7 +9,6 @@ import {
   GitBranch,
   GitCompare,
   Layers,
-  MessagesSquare,
   Pencil,
   ScanEye,
   TerminalSquare,
@@ -21,7 +20,6 @@ import { Button } from "../components/ui/Button";
 import { StatusDot } from "../components/ui/StatusChip";
 import { Tooltip } from "../components/ui/Tooltip";
 import { ToolIcon, toolFullName } from "../components/ToolIcon";
-import { ScopeReview } from "./ScopeReview";
 import { RenameDialog } from "../nav/dialogs";
 import { LeadTab } from "../session/LeadTab";
 import { cn } from "../lib/cn";
@@ -51,8 +49,6 @@ export function ThreadBoard() {
     threads,
     activeThreadId,
     directionsByThread,
-    proposal,
-    reviewingProposal,
     setReviewingProposal,
     threadTab,
     setThreadTab,
@@ -94,15 +90,8 @@ export function ThreadBoard() {
       <div className="flex min-h-0 flex-1 flex-col">
         {threadTab === "lead" ? (
           <LeadTab onReview={() => setThreadTab("board")} />
-        ) : reviewingProposal && proposal && proposal.status === "proposed" ? (
-          <ScopeReview
-            onBack={() => {
-              setReviewingProposal(false);
-              setThreadTab("lead");
-            }}
-          />
         ) : dirs.length === 0 ? (
-          <EmptyDiscuss onTalk={() => setThreadTab("lead")} />
+          <EmptyDiscuss />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
@@ -153,20 +142,41 @@ export function ThreadBoard() {
   );
 }
 
-function EmptyDiscuss({ onTalk }: { onTalk: () => void }) {
+function EmptyDiscuss() {
+  const { activeThreadId, createRun, defaultTool } = useStore();
   const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const startRun = async () => {
+    if (activeThreadId == null || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await createRun(activeThreadId, t("thread.defaultRunName"), defaultTool);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
         <Layers size={20} className="text-ink-faint" />
       </div>
-      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.discussTitle")}</h2>
+      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.emptyTitle")}</h2>
       <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
-        {t("thread.discussBody")}
+        {t("thread.emptyBody")}
       </p>
-      <Button variant="primary" className="mt-4" onClick={onTalk}>
-        <MessagesSquare size={14} />
-        {t("lead.title")}
+      {err && <p className="mt-2 max-w-sm text-[12px] text-danger">{err}</p>}
+      <Button
+        variant="primary"
+        className="mt-4"
+        disabled={busy}
+        onClick={() => void startRun()}
+      >
+        <TerminalSquare size={14} />
+        {busy ? t("lead.starting") : t("thread.startRun")}
       </Button>
     </div>
   );
@@ -217,7 +227,7 @@ function DirectionCard({
         : direction.status === "review"
           ? { label: t("thread.viewChanges"), variant: "primary" as const, diff: true }
           : { label: t("thread.openSession"), variant: "default" as const, diff: false };
-  const canRunReview = direction.status === "review";
+  const canRunReview = !isRepoLess && direction.status === "review";
   const primaryDisabled = !isRepoLess && !firstWrite;
   const primaryTitle = primaryDisabled ? t("thread.noWriteCopy") : undefined;
   const onPrimary = () => {
@@ -307,15 +317,21 @@ function DirectionCard({
       {/* One honest trust signal (the real checks) + provenance, then actions. */}
       <div className="flex items-center justify-between gap-2 border-t border-border bg-bg/55 px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-          <TrustSignal
-            kind={testsKind}
-            label={
-              allChecks.length > 0
-                ? t("thread.testsProgress", { passed, count: allChecks.length })
-                : t("thread.testsPending")
-            }
-          />
-          <ProvenanceMenu writes={writes} checks={checks} />
+          {isRepoLess ? (
+            <span className="truncate text-[11px] text-ink-faint">{t("thread.run")}</span>
+          ) : (
+            <>
+              <TrustSignal
+                kind={testsKind}
+                label={
+                  allChecks.length > 0
+                    ? t("thread.testsProgress", { passed, count: allChecks.length })
+                    : t("thread.testsPending")
+                }
+              />
+              <ProvenanceMenu writes={writes} checks={checks} />
+            </>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {canRunReview && (

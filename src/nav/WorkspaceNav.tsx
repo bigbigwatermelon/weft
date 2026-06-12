@@ -5,8 +5,6 @@ import * as DM from "@radix-ui/react-dropdown-menu";
 import {
   Check,
   ChevronDown,
-  FolderGit2,
-  FolderPlus,
   HelpCircle,
   LayoutGrid,
   Pencil,
@@ -20,7 +18,7 @@ import { useStore } from "../state/store";
 import type { Thread } from "../lib/types";
 import { cn } from "../lib/cn";
 import { openCommandPalette } from "../components/CommandPalette";
-import { AddRepoDialog, CreateThreadDialog, CreateWorkspaceDialog, RenameDialog } from "./dialogs";
+import { CreateThreadDialog, CreateWorkspaceDialog, RenameDialog } from "./dialogs";
 
 export function WorkspaceNav() {
   const {
@@ -39,11 +37,10 @@ export function WorkspaceNav() {
     openNeeds,
     needs,
     asks,
-    writeTriggers,
   } = useStore();
   // Live workspace-wide pending count for the Needs-you focal entry.
-  const needsCount = needs.length + asks.length + writeTriggers.length;
-  const [dlg, setDlg] = useState<null | "ws" | "repo" | "thread">(null);
+  const needsCount = needs.length + asks.length;
+  const [dlg, setDlg] = useState<null | "ws" | "thread">(null);
   // Both rename surfaces store only an id and derive `initial` from the live
   // slice — so concurrent updates flow through instead of being captured.
   const [renamingWsId, setRenamingWsId] = useState<number | null>(null);
@@ -112,13 +109,6 @@ export function WorkspaceNav() {
               <SquarePen size={14} className="text-brand" />
               {t("nav.newThread")}
             </button>
-            <button
-              onClick={() => setDlg("repo")}
-              className="flex items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] text-ink-muted transition-colors hover:bg-brand-ghost hover:text-ink"
-            >
-              <FolderPlus size={14} className="text-ink-faint" />
-              {t("dialog.addRepo")}
-            </button>
           </div>
 
           <div className="mx-2 my-1 border-t border-border" />
@@ -141,15 +131,6 @@ export function WorkspaceNav() {
               onClick={() => {
                 backToWorkspace();
                 setHomeTab("board");
-              }}
-            />
-            <WsNavItem
-              icon={FolderGit2}
-              label={t("workspace.tabRepos")}
-              active={onHome && homeTab === "repos"}
-              onClick={() => {
-                backToWorkspace();
-                setHomeTab("repos");
               }}
             />
           </ul>
@@ -212,7 +193,6 @@ export function WorkspaceNav() {
 
       <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
       <CreateThreadDialog open={dlg === "thread"} onOpenChange={(o) => !o && setDlg(null)} />
-      <AddRepoDialog open={dlg === "repo"} onOpenChange={(o) => !o && setDlg(null)} />
       {renamingWs && (
         <RenameDialog
           open={renamingWsId != null}

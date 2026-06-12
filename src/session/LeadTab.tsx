@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "../state/store";
 import { ChatTimeline } from "./ChatTimeline";
@@ -18,16 +18,8 @@ type PromptState = {
   resolve: (v: string | null) => void;
 };
 
-// Host-owned local slash items. ChatComposer keeps the "what" generic
-// (a name + label); the kind is mapped to a useRepoActions invocation here.
-const LOCAL_SLASH = [
-  { name: "add-repo", kind: "add" as const, labelKey: "slashLocal.addRepo" },
-  { name: "new-repo", kind: "new" as const, labelKey: "slashLocal.newRepo" },
-  { name: "clone-repo", kind: "clone" as const, labelKey: "slashLocal.cloneRepo" },
-];
-
 /**
- * The issue console — a real chat, not a projection of the CLI's log. Messages
+ * The task console — a real chat, not a projection of the CLI's log. Messages
  * live in weft's own store, replies stream token-by-token over the lead-chat
  * event, and structured cards sit inline in the timeline. The engine survives
  * restarts (resume) so history is always here and the composer always works.
@@ -55,13 +47,6 @@ export function LeadTab({ onReview }: { onReview: () => void }) {
       setPromptState({ title, placeholder, value: "", resolve }),
     );
 
-  // Stable identity per language so ChatComposer's slashMatches useMemo
-  // doesn't recompute on every parent render.
-  const localSlash = useMemo(
-    () => LOCAL_SLASH.map((c) => ({ name: c.name, label: t(c.labelKey) })),
-    [t],
-  );
-
   useEffect(() => {
     if (activeThreadId != null) void loadLeadChat(activeThreadId);
   }, [activeThreadId, loadLeadChat]);
@@ -70,20 +55,6 @@ export function LeadTab({ onReview }: { onReview: () => void }) {
   // The lead's own timeline: worker chat rows carry a session_id, skip them.
   const msgs = (leadMessages[activeThreadId] ?? []).filter((m) => m.session_id == null);
   const turn = leadTurn[activeThreadId] ?? { state: "stopped" as const, queued: 0 };
-
-  const onLocalSlash = (name: string) => {
-    const item = LOCAL_SLASH.find((x) => x.name === name);
-    if (!item) return;
-    void run({
-      actionId: `local-${item.kind}-${Date.now()}`,
-      kind: item.kind,
-      ctx: {
-        threadId: activeThreadId,
-        preferredWorkspaceId: activeWorkspaceId,
-      },
-      promptText,
-    });
-  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-bg">
@@ -106,8 +77,8 @@ export function LeadTab({ onReview }: { onReview: () => void }) {
       />
       <ChatComposer
         slashCommands={leadSlash[activeThreadId] ?? []}
-        localSlash={localSlash}
-        onLocalSlash={onLocalSlash}
+        localSlash={[]}
+        onLocalSlash={() => {}}
         busy={turn.state === "busy"}
         stopped={turn.state === "stopped"}
         queued={turn.queued}

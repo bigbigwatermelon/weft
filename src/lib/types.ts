@@ -38,6 +38,8 @@ export interface Thread {
   created_at: string;
 }
 
+export type Task = Thread;
+
 export interface FileDiff {
   path: string;
   added: number;
@@ -68,6 +70,8 @@ export interface Direction {
   mandate: string;
   created_at: string;
 }
+
+export type Run = Direction;
 
 export interface Worktree {
   id: number;

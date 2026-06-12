@@ -1,7 +1,6 @@
 import {
   ArrowLeft,
   Download,
-  FolderPlus,
   Languages,
   LayoutGrid,
   MessagesSquare,
@@ -11,16 +10,13 @@ import {
   Sun,
   X,
 } from "lucide-react";
-import { useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { currentLang, setLang } from "../i18n";
-import { Button } from "../components/ui/Button";
 import { ToolIcon, toolFullName } from "../components/ToolIcon";
 import { cn } from "../lib/cn";
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
-import { AddRepoDialog } from "./dialogs";
 
 export function AppTopBar() {
   const {
@@ -39,7 +35,6 @@ export function AppTopBar() {
     directionsByThread,
     needs,
     asks,
-    writeTriggers,
     proposal,
     reviewingProposal,
     setReviewingProposal,
@@ -53,7 +48,6 @@ export function AppTopBar() {
   } = useStore();
   const { t } = useTranslation();
   const { theme, toggle } = useTheme();
-  const [repoDialogOpen, setRepoDialogOpen] = useState(false);
   const lang = currentLang();
   const thread = threads.find((th) => th.id === activeThreadId);
   const activeSession = activeSessionId != null ? sessions[activeSessionId] : null;
@@ -70,6 +64,8 @@ export function AppTopBar() {
   const sessionDirection = activeSession
     ? directionsByThread[activeSession.threadId]?.find((d) => d.id === activeSession.directionId)
     : null;
+  const sessionRepoLabel =
+    activeSession && activeSession.repoId !== 0 ? sessionRepo?.name : null;
   const inWorkspaceBoard =
     activeWorkspaceId != null &&
     activeThreadId == null &&
@@ -77,17 +73,10 @@ export function AppTopBar() {
     viewing == null &&
     !showNeeds &&
     homeTab === "board";
-  const inWorkspaceRepos =
-    activeWorkspaceId != null &&
-    activeThreadId == null &&
-    activeSessionId == null &&
-    viewing == null &&
-    !showNeeds &&
-    homeTab === "repos";
-  const needsCount = needs.length + asks.length + writeTriggers.length;
+  const needsCount = needs.length + asks.length;
   const proposalPending =
     proposal?.status === "proposed" && proposal.directions.length > 0 && !reviewingProposal;
-  const issueTabs = [
+  const taskTabs = [
     {
       key: "lead" as const,
       label: t("lead.viewChat"),
@@ -161,9 +150,11 @@ export function AppTopBar() {
             <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
               {sessionDirection?.name ?? "task"}
             </span>
-            <span className="hidden shrink-0 text-[11.5px] text-ink-faint sm:inline">
-              {sessionRepo?.name ?? "working copy"}
-            </span>
+            {sessionRepoLabel && (
+              <span className="hidden shrink-0 text-[11.5px] text-ink-faint sm:inline">
+                {sessionRepoLabel}
+              </span>
+            )}
           </div>
         )}
         {inObserve && (
@@ -180,15 +171,17 @@ export function AppTopBar() {
             <span className="min-w-0 truncate text-[13px] font-semibold text-ink">
               {viewedDirection?.name ?? "task"}
             </span>
-            <span className="hidden shrink-0 text-[11.5px] text-ink-faint sm:inline">
-              {viewedRepo?.name ?? "working copy"}
-            </span>
+            {viewedRepo && (
+              <span className="hidden shrink-0 text-[11.5px] text-ink-faint sm:inline">
+                {viewedRepo.name}
+              </span>
+            )}
           </div>
         )}
         {inIssue && (
           <div className="ml-1 flex min-w-0 items-center gap-2">
             <div className="flex shrink-0 items-center gap-1">
-              {issueTabs.map((tab) => {
+              {taskTabs.map((tab) => {
                 const active = threadTab === tab.key;
                 return (
                   <button
@@ -226,22 +219,6 @@ export function AppTopBar() {
             </span>
           </div>
         )}
-        {inWorkspaceRepos && (
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[13px] font-semibold text-ink">
-              {t("workspace.tabRepos")}
-            </span>
-            <span className="shrink-0 text-[11.5px] text-ink-faint">
-              {t("nav.repos", { count: repos.length })}
-            </span>
-            {repos.length > 0 && (
-              <span className="hidden shrink-0 items-center gap-1.5 text-[11.5px] text-running sm:inline-flex">
-                <span className="h-1.5 w-1.5 rounded-full bg-running" />
-                {t("repomap.curatorReady")}
-              </span>
-            )}
-          </div>
-        )}
         {showNeeds && (
           <div className="flex min-w-0 items-baseline gap-2">
             <span className="truncate text-[13px] font-semibold text-ink">{t("needs.title")}</span>
@@ -253,13 +230,6 @@ export function AppTopBar() {
           </div>
         )}
       </div>
-
-      {inWorkspaceRepos && activeWorkspaceId != null && (
-        <Button size="sm" variant="primary" onClick={() => setRepoDialogOpen(true)}>
-          <FolderPlus size={14} />
-          {t("dialog.addRepo")}
-        </Button>
-      )}
 
       <button
         type="button"
@@ -281,7 +251,6 @@ export function AppTopBar() {
       >
         {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
       </button>
-      <AddRepoDialog open={repoDialogOpen} onOpenChange={setRepoDialogOpen} />
     </header>
     </>
   );

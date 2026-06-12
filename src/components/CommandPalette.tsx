@@ -5,7 +5,6 @@ import {
   CornerDownLeft,
   HelpCircle,
   LayoutDashboard,
-  Network,
   PanelLeft,
   Plus,
   Search,
@@ -35,7 +34,7 @@ export function openCommandPalette() {
 
 /**
  * ⌘K / Ctrl+K command palette — the silky cross-app jump (§ navigation unify).
- * One keystroke to reach any issue or workspace surface without hunting the
+ * One keystroke to reach any task or workspace surface without hunting the
  * sidebar. Self-contained: a capture-phase window listener owns the hotkey (so
  * it beats any focused input), arrow/Enter drive selection.
  */
@@ -46,7 +45,6 @@ export function CommandPalette() {
     selectThread,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     openNeeds,
     navCollapsed,
     setNavCollapsed,
@@ -92,9 +90,9 @@ export function CommandPalette() {
   }, [open]);
 
   const commands = useMemo<Command[]>(() => {
-    const issues: Command[] = threads.map((th) => ({
-      key: `issue-${th.id}`,
-      group: t("palette.issue"),
+    const tasks: Command[] = threads.map((th) => ({
+      key: `task-${th.id}`,
+      group: t("palette.task"),
       label: th.title,
       icon: <CircleDot size={14} />,
       run: () => selectThread(th.id),
@@ -119,14 +117,6 @@ export function CommandPalette() {
         },
       },
       {
-        key: "nav-repos",
-        group: t("palette.go"),
-        label: t("palette.repos"),
-        icon: <Network size={14} />,
-        hint: "⌘2",
-        run: () => openRepoMap(),
-      },
-      {
         key: "nav-sidebar",
         group: t("palette.go"),
         label: t("palette.toggleSidebar"),
@@ -139,7 +129,7 @@ export function CommandPalette() {
       ...(activeWorkspaceId != null
         ? [
             {
-              key: "act-issue",
+              key: "act-task",
               group: t("palette.action"),
               label: t("nav.newThread"),
               icon: <SquarePen size={14} />,
@@ -172,13 +162,12 @@ export function CommandPalette() {
         },
       },
     ];
-    return [...issues, ...nav, ...actions];
+    return [...tasks, ...nav, ...actions];
   }, [
     threads,
     selectThread,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     openNeeds,
     navCollapsed,
     setNavCollapsed,

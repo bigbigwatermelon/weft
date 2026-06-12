@@ -77,6 +77,7 @@ export function ObserveView() {
   }, [activeThreadId, loadLeadChat]);
 
   if (viewing == null) return null;
+  if (viewing.repoId === 0) return null;
 
   const liveSession = Object.values(sessions).find(
     (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",

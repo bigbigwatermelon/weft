@@ -1,39 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ArrowRight,
-  Check,
-  GitBranch,
-  Plus,
-  Sparkles,
-} from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { Button } from "./ui/Button";
-import { ToolIcon, toolFullName } from "./ToolIcon";
 import { useStore } from "../state/store";
 import { cn } from "../lib/cn";
 
 const STORAGE_KEY = "weft-first-run-onboarding-v2-dismissed";
-
-const REPOS = [
-  { id: "api", name: "api", role: "service", one: "结算与订单核心服务,对外发布 /checkout 契约" },
-  { id: "web", name: "web-app", role: "app", one: "面向用户的 Web 结算前端,消费 api 的 /checkout" },
-  { id: "mobile", name: "mobile", role: "app", one: "iOS / Android 原生结算流程" },
-  { id: "tokens", name: "tokens", role: "library", one: "跨端设计令牌与组件原语" },
-];
-
-const NODES: Record<string, [number, number]> = {
-  api: [150, 40],
-  web: [40, 120],
-  mobile: [150, 130],
-  tokens: [255, 110],
-};
-
-const EDGES = [
-  ["web", "api"],
-  ["mobile", "api"],
-  ["api", "tokens"],
-  ["web", "tokens"],
-];
 
 export function FirstRunOnboarding() {
   const { workspaces, createWorkspace } = useStore();
@@ -41,8 +13,7 @@ export function FirstRunOnboarding() {
   const [ready, setReady] = useState(false);
   const [dismissed, setDismissed] = useState(() => localStorage.getItem(STORAGE_KEY) === "1");
   const [step, setStep] = useState(0);
-  const [workspaceName, setWorkspaceName] = useState("结算改版");
-  const [task, setTask] = useState(t("onboarding.demoTask"));
+  const [workspaceName, setWorkspaceName] = useState(t("onboarding.defaultWorkspaceName"));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const steps = t("onboarding.steps", { returnObjects: true }) as string[];
@@ -123,7 +94,11 @@ export function FirstRunOnboarding() {
 
       <main className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex min-h-full w-full max-w-[900px] items-center justify-center px-6 py-10">
-          <OnboardingStage step={step} task={task} setTask={setTask} workspaceName={workspaceName} setWorkspaceName={setWorkspaceName} />
+          <OnboardingStage
+            step={step}
+            workspaceName={workspaceName}
+            setWorkspaceName={setWorkspaceName}
+          />
         </div>
       </main>
 
@@ -159,14 +134,10 @@ function OnboardingStage({
   step,
   workspaceName,
   setWorkspaceName,
-  task,
-  setTask,
 }: {
   step: number;
   workspaceName: string;
   setWorkspaceName: (v: string) => void;
-  task: string;
-  setTask: (v: string) => void;
 }) {
   const { t } = useTranslation();
 
@@ -206,172 +177,14 @@ function OnboardingStage({
 
   if (step === 2) {
     return (
-      <section className="w-full max-w-[560px]">
-        <h2 className="text-[17px] font-semibold text-ink">{t("onboarding.addReposTitle")}</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">{t("onboarding.addReposBody")}</p>
-        <div className="mt-5 flex flex-col gap-2">
-          {REPOS.map((repo, i) => (
-            <div
-              key={repo.id}
-              className="flex items-center gap-3 rounded-[var(--radius-md)] border border-border bg-bg/70 px-3 py-2.5"
-              style={{ animationDelay: `${i * 80}ms` }}
-            >
-              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-ghost text-brand">
-                <Check size={12} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[12px] font-semibold text-ink">{repo.name}</span>
-                  <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-ink-faint">
-                    {repo.role}
-                  </span>
-                </div>
-                <div className="truncate text-[11.5px] text-ink-faint">{repo.one}</div>
-              </div>
-            </div>
-          ))}
-          <div className="flex items-center gap-2 rounded-[var(--radius-md)] border border-dashed border-border px-3 py-2 text-[12px] text-ink-faint">
-            <Plus size={14} />
-            ~/code/ {t("onboarding.moreRepos")}
-          </div>
-        </div>
+      <section className="w-full max-w-[560px] text-center">
+        <h2 className="text-[17px] font-semibold text-ink">{t("onboarding.startTitle")}</h2>
+        <p className="mx-auto mt-1 max-w-md text-[12px] leading-relaxed text-ink-faint">
+          {t("onboarding.startBody")}
+        </p>
       </section>
     );
   }
 
-  if (step === 3) {
-    return (
-      <section className="w-full max-w-[560px]">
-        <h2 className="text-[17px] font-semibold text-ink">{t("onboarding.graphTitle")}</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">{t("onboarding.graphBody")}</p>
-        <div className="mt-5 rounded-[var(--radius-md)] border border-border bg-bg p-6">
-          <OnboardingGraph />
-        </div>
-      </section>
-    );
-  }
-
-  if (step === 4) {
-    return (
-      <section className="w-full max-w-[560px]">
-        <h2 className="text-[17px] font-semibold text-ink">{t("onboarding.firstIssueTitle")}</h2>
-        <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">{t("onboarding.firstIssueBody")}</p>
-        <textarea
-          value={task}
-          onChange={(e) => setTask(e.currentTarget.value)}
-          rows={4}
-          className="mt-5 w-full resize-none rounded-[var(--radius-md)] border border-border bg-bg px-3 py-2.5 text-[13px] leading-relaxed text-ink outline-none transition-colors focus:border-brand focus:ring-2 focus:ring-brand/25"
-        />
-      </section>
-    );
-  }
-
-  return (
-    <section className="w-full max-w-[620px]">
-      <div className="flex items-center gap-2">
-        <Sparkles size={16} className="text-brand" />
-        <h2 className="text-[17px] font-semibold text-ink">{t("onboarding.scopeTitle")}</h2>
-      </div>
-      <p className="mt-1 text-[12px] leading-relaxed text-ink-faint">{t("onboarding.scopeBody")}</p>
-      <div className="mt-5 flex flex-col gap-2">
-        <ScopeLane repo="api" role={t("scope.writes")} reason={t("onboarding.scopeApi")} tool="claude" tone="write" />
-        <ScopeLane repo="web-app" role={t("scope.writes")} reason={t("onboarding.scopeWeb")} tool="codex" tone="write" />
-        <ScopeLane repo="mobile" role={t("scope.writes")} reason={t("onboarding.scopeMobile")} tool="opencode" tone="write" />
-        <ScopeLane repo="design-tokens" role={t("onboarding.readOnly")} reason={t("onboarding.scopeTokens")} tone="read" />
-        <ScopeLane repo="docs" role={t("onboarding.readOnly")} reason={t("onboarding.scopeDocs")} tone="read" />
-        <ScopeLane repo="infra" role={t("onboarding.none")} reason={t("onboarding.scopeInfra")} tone="none" muted />
-      </div>
-      <div className="mt-4 flex flex-wrap items-center gap-3 text-[11.5px] text-ink-faint">
-        <span className="text-accent">3 {t("scope.writes")}</span>
-        <span className="text-brand">2 {t("onboarding.readOnly")}</span>
-        <span>1 {t("onboarding.none")}</span>
-        <span className="ml-auto">{t("onboarding.scopeOrder")}</span>
-      </div>
-    </section>
-  );
-}
-
-function OnboardingGraph() {
-  const curve = (a: string, b: string) => {
-    const A = NODES[a];
-    const B = NODES[b];
-    return `M${A[0]} ${A[1]} Q ${(A[0] + B[0]) / 2} ${A[1]} ${(A[0] + B[0]) / 2} ${(A[1] + B[1]) / 2} T ${B[0]} ${B[1]}`;
-  };
-  return (
-    <svg viewBox="0 0 300 170" className="mx-auto block h-[260px] w-full max-w-[460px]">
-      {EDGES.map(([a, b], i) => (
-        <path key={`${a}-${b}-${i}`} d={curve(a, b)} stroke="currentColor" className="fill-none text-brand/45" strokeWidth="1.25" />
-      ))}
-      {Object.entries(NODES).map(([id, [x, y]]) => (
-        <g key={id} transform={`translate(${x},${y})`}>
-          <rect
-            x="-38"
-            y="-14"
-            width="76"
-            height="28"
-            rx="8"
-            className={cn(id === "api" ? "stroke-brand" : "stroke-border", "fill-surface")}
-            strokeWidth={id === "api" ? "1.5" : "1"}
-          />
-          <text x="0" y="4" textAnchor="middle" className="fill-ink font-mono text-[11px] font-semibold">
-            {id === "web" ? "web-app" : id}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-function ScopeLane({
-  repo,
-  role,
-  reason,
-  tool,
-  tone,
-  muted,
-}: {
-  repo: string;
-  role: string;
-  reason: string;
-  tool?: string;
-  tone: "write" | "read" | "none";
-  muted?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-3 rounded-[var(--radius-md)] border bg-bg px-3 py-2.5 text-[12px]",
-        tone === "write" ? "border-accent/45" : "border-border",
-        muted && "opacity-55",
-      )}
-    >
-      <span
-        className={cn(
-          "h-0.5 w-8 shrink-0 rounded-full",
-          tone === "write" ? "bg-accent" : tone === "read" ? "bg-brand" : "bg-border-strong",
-        )}
-      />
-      <span className="min-w-[112px] font-mono font-semibold text-ink">{repo}</span>
-      <span
-        className={cn(
-          "rounded-full border px-2 py-px text-[10.5px]",
-          tone === "write"
-            ? "border-accent/35 bg-accent-ghost text-accent"
-            : tone === "read"
-              ? "border-brand/35 bg-brand-ghost text-brand"
-              : "border-border text-ink-faint",
-        )}
-      >
-        {role}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-faint">{reason}</span>
-      {tool && (
-        <span className="flex shrink-0 items-center gap-1 rounded bg-brand-ghost px-1.5 py-px text-[10.5px] text-brand">
-          <ToolIcon tool={tool} size={11} />
-          {toolFullName(tool)}
-        </span>
-      )}
-      <GitBranch size={13} className="text-ink-faint" />
-    </div>
-  );
+  return null;
 }

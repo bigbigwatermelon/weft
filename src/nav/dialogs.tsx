@@ -351,8 +351,8 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={t("dialog.newThreadTitle")}
-        description={t("dialog.newThreadDesc")}
+        title={t("dialog.newTaskTitle")}
+        description={t("dialog.newTaskDesc")}
       >
         <form
           onSubmit={(e) => {
@@ -361,10 +361,10 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
           }}
           className="flex flex-col gap-4"
         >
-          <Field label={t("dialog.threadTitle")}>
+          <Field label={t("dialog.taskTitle")}>
             <Input
               autoFocus
-              placeholder={t("dialog.threadTitlePlaceholder")}
+              placeholder={t("dialog.taskTitleHint")}
               value={title}
               onChange={(e) => setTitle(e.currentTarget.value)}
             />
@@ -388,7 +388,7 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
               {t("common.cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={!title.trim() || busy}>
-              {busy ? t("dialog.creating") : t("dialog.createThread")}
+              {busy ? t("dialog.creating") : t("dialog.createTask")}
             </Button>
           </div>
         </form>
