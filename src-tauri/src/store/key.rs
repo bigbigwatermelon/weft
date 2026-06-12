@@ -61,6 +61,45 @@ pub fn format_for_pragma(k: &SqlCipherKey) -> String {
     s
 }
 
+/// 从 OS Keychain 取密钥；不存在则随机生成并写回。
+///
+/// 测试旁路：环境变量 `WEFT_TEST_DB_KEY_B64` 存在时直接用它（base64 编码的 48 字节），
+/// 完全绕开 Keychain。集成测试用 `tempfile + WEFT_HOME + WEFT_TEST_DB_KEY_B64` 隔离环境。
+pub fn get_or_create() -> Result<SqlCipherKey> {
+    if let Ok(b64) = std::env::var("WEFT_TEST_DB_KEY_B64") {
+        return decode_b64_key(&b64);
+    }
+
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|e| anyhow::anyhow!("keyring entry: {e}"))?;
+
+    match entry.get_password() {
+        Ok(b64) => decode_b64_key(&b64),
+        Err(keyring::Error::NoEntry) => {
+            let k = SqlCipherKey::random();
+            let b64 = encode_b64_key(&k);
+            entry
+                .set_password(&b64)
+                .map_err(|e| anyhow::anyhow!("keyring write: {e}"))?;
+            Ok(k)
+        }
+        Err(e) => Err(anyhow::anyhow!("keyring read: {e}")),
+    }
+}
+
+fn encode_b64_key(k: &SqlCipherKey) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(k.to_bytes())
+}
+
+fn decode_b64_key(s: &str) -> Result<SqlCipherKey> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(s.trim())
+        .map_err(|e| anyhow::anyhow!("base64 decode: {e}"))?;
+    SqlCipherKey::from_bytes(&bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,5 +140,30 @@ mod tests {
         assert_eq!(s.len(), 99);
         // first key byte 00 → "00"; second 01 → "01"
         assert_eq!(&s[2..6], "0001");
+    }
+
+    #[test]
+    fn b64_roundtrip() {
+        let k = SqlCipherKey::random();
+        let s = encode_b64_key(&k);
+        let k2 = decode_b64_key(&s).unwrap();
+        assert_eq!(k.to_bytes(), k2.to_bytes());
+    }
+
+    #[test]
+    fn decode_rejects_garbage() {
+        assert!(decode_b64_key("not-valid-base64!!!").is_err());
+        assert!(decode_b64_key("aGVsbG8=").is_err());
+    }
+
+    #[test]
+    fn get_or_create_uses_env_bypass() {
+        use base64::Engine;
+        let raw = [0x7Fu8; 48];
+        let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
+        std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+        let k = get_or_create().unwrap();
+        std::env::remove_var("WEFT_TEST_DB_KEY_B64");
+        assert_eq!(k.to_bytes(), raw);
     }
 }
