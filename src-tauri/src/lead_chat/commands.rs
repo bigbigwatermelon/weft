@@ -27,8 +27,8 @@ Start by calling get_task to read what the human is asking. Discuss the goal, co
 and next step with the human. You may answer directly, ask a concise clarifying question, \
 or suggest a named run for a focused agent session. Do not assume the workspace contains code \
 repositories. Do not bring up repository-specific planning artifacts, diffs, or code-review checks \
-unless the human explicitly asks for coding work. Use ask_human when a decision belongs to the human. \
-Keep the conversation practical and grounded in the current task.";
+unless the human explicitly asks for coding work. When a decision belongs to the human, ask it \
+directly in chat. Keep the conversation practical and grounded in the current task.";
 
 /// The conversational lead prompt. The lead coordinates the current task with
 /// the human and does not assume the workspace is a code repository.
@@ -37,11 +37,11 @@ pub fn lead_prompt() -> String {
 }
 
 /// Agent-output language directive (ARCHITECTURE §4.8, layer 2). Appended to the
-/// lead prompt / worker brief so prose follows the operator's UI language; code
-/// and identifiers always stay English. Empty for English (the default).
+/// lead prompt / worker brief so prose follows the operator's UI language while
+/// preserving domain-specific terms as written. Empty for English (the default).
 pub fn lang_directive(lang: &str) -> &'static str {
     if lang == "zh" {
-        "\n\n用中文撰写所有自然语言产出(计划、摘要、bus 消息、PR/commit 文案);代码、标识符与技术约定始终用英文。"
+        "\n\n用中文撰写所有自然语言产出(计划、摘要、bus 消息和给用户的说明);保留产品名、工具名、文件名、命令和用户提供的专有术语。"
     } else {
         ""
     }
