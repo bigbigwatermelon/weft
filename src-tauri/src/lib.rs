@@ -8,6 +8,7 @@
 
 mod adapters;
 pub mod ask;
+pub mod backup;
 mod brief;
 pub mod bus;
 mod check;
