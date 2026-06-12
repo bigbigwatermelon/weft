@@ -1,7 +1,7 @@
 //! Canonical weft home + derived paths. Everything persistent lives under
 //! ~/.weft so worktree cwds stay stable across restarts (resume depends on it).
 
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 /// weft home. Honors the WEFT_HOME env override (used for test isolation and to
 /// let users relocate weft's data); otherwise ~/.weft. Created if missing.
@@ -32,13 +32,18 @@ pub fn worktree_home() -> std::io::Result<PathBuf> {
 
 fn checked_segment(segment: &str, label: &str) -> std::io::Result<String> {
     let trimmed = segment.trim();
-    if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains('\\') {
-        return Err(std::io::Error::new(
+    let mut components = Path::new(trimmed).components();
+    match (
+        components.next(),
+        components.next(),
+        trimmed.contains('/') || trimmed.contains('\\'),
+    ) {
+        (Some(Component::Normal(_)), None, false) => Ok(trimmed.to_string()),
+        _ => Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("invalid {label} segment"),
-        ));
+        )),
     }
-    Ok(trimmed.to_string())
 }
 
 /// ~/.weft/workspaces/<workspace>/tasks/<task>/runs/<run>
@@ -76,14 +81,64 @@ pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{db_path, run_home, skills_home, weft_home, ENV_LOCK};
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+
+    struct WeftHomeGuard {
+        old: Option<OsString>,
+        tmp: Option<PathBuf>,
+    }
+
+    impl WeftHomeGuard {
+        fn unset() -> Self {
+            let old = std::env::var_os("WEFT_HOME");
+            std::env::remove_var("WEFT_HOME");
+            Self { old, tmp: None }
+        }
+
+        fn new(name: &str) -> Self {
+            let old = std::env::var_os("WEFT_HOME");
+            let tmp = std::env::temp_dir().join(format!(
+                "weft-{name}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            std::env::set_var("WEFT_HOME", &tmp);
+            Self {
+                old,
+                tmp: Some(tmp),
+            }
+        }
+
+        fn path(&self) -> &Path {
+            self.tmp
+                .as_deref()
+                .expect("WEFT_HOME guard should have a temp path")
+        }
+    }
+
+    impl Drop for WeftHomeGuard {
+        fn drop(&mut self) {
+            match &self.old {
+                Some(old) => std::env::set_var("WEFT_HOME", old),
+                None => std::env::remove_var("WEFT_HOME"),
+            }
+            if let Some(tmp) = &self.tmp {
+                let _ = std::fs::remove_dir_all(tmp);
+            }
+        }
+    }
 
     #[test]
     fn paths_are_under_weft_home() {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         // Assert against the default home, so a WEFT_HOME another test set (and
         // may not have cleared yet on its own thread) can't leak in here.
-        std::env::remove_var("WEFT_HOME");
+        let _home = WeftHomeGuard::unset();
         let home = weft_home().unwrap();
         assert!(home.ends_with(".weft"));
         assert!(db_path().unwrap().ends_with("weft.db"));
@@ -94,21 +149,12 @@ mod tests {
     #[test]
     fn run_home_is_namespaced_under_weft_home() {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let tmp = std::env::temp_dir().join(format!(
-            "weft-paths-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        std::env::set_var("WEFT_HOME", &tmp);
+        let home = WeftHomeGuard::new("paths");
 
         let p = run_home("people-ops", "draft-offer", "main").unwrap();
         assert!(p.ends_with("workspaces/people-ops/tasks/draft-offer/runs/main"));
         assert!(p.is_dir(), "run_home should create the directory");
-
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::env::remove_var("WEFT_HOME");
+        assert!(p.starts_with(home.path()));
     }
 
     #[test]
@@ -116,5 +162,14 @@ mod tests {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let err = run_home("workspace", "", "run").unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+    }
+
+    #[test]
+    fn run_home_rejects_dot_segments() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        for segment in [".", ".."] {
+            let err = run_home("workspace", "task", segment).unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
+        }
     }
 }
