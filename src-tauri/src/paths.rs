@@ -30,6 +30,33 @@ pub fn worktree_home() -> std::io::Result<PathBuf> {
     Ok(dir)
 }
 
+fn checked_segment(segment: &str, label: &str) -> std::io::Result<String> {
+    let trimmed = segment.trim();
+    if trimmed.is_empty() || trimmed.contains('/') || trimmed.contains('\\') {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("invalid {label} segment"),
+        ));
+    }
+    Ok(trimmed.to_string())
+}
+
+/// ~/.weft/workspaces/<workspace>/tasks/<task>/runs/<run>
+pub fn run_home(workspace_slug: &str, task_slug: &str, run_slug: &str) -> std::io::Result<PathBuf> {
+    let ws = checked_segment(workspace_slug, "workspace")?;
+    let task = checked_segment(task_slug, "task")?;
+    let run = checked_segment(run_slug, "run")?;
+    let dir = weft_home()?
+        .join("workspaces")
+        .join(ws)
+        .join("tasks")
+        .join(task)
+        .join("runs")
+        .join(run);
+    std::fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 /// ~/.weft/skills/sources — git-cloned skill source caches, one dir per source.
 pub fn skills_home() -> std::io::Result<PathBuf> {
     let dir = weft_home()?.join("skills").join("sources");
@@ -62,5 +89,32 @@ mod tests {
         assert!(db_path().unwrap().ends_with("weft.db"));
         assert!(worktree_home().unwrap().ends_with("worktrees"));
         assert!(skills_home().unwrap().ends_with("skills/sources"));
+    }
+
+    #[test]
+    fn run_home_is_namespaced_under_weft_home() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let tmp = std::env::temp_dir().join(format!(
+            "weft-paths-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::env::set_var("WEFT_HOME", &tmp);
+
+        let p = run_home("people-ops", "draft-offer", "main").unwrap();
+        assert!(p.ends_with("workspaces/people-ops/tasks/draft-offer/runs/main"));
+        assert!(p.is_dir(), "run_home should create the directory");
+
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::env::remove_var("WEFT_HOME");
+    }
+
+    #[test]
+    fn run_home_rejects_empty_segments() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let err = run_home("workspace", "", "run").unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     }
 }
