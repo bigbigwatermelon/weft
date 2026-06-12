@@ -39,9 +39,12 @@ impl Db {
 
         // SQLCipher-recommended pragmas; must run after the key is registered
         // (otherwise the connection is still locked and these statements fail).
+        // Split into separate calls — sqlx-sqlite's execute path only runs the
+        // first statement in a multi-statement string and silently drops the
+        // rest, which would land `synchronous=NORMAL` quietly broken.
         use sea_orm::ConnectionTrait;
-        conn.execute_unprepared("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
-            .await?;
+        conn.execute_unprepared("PRAGMA journal_mode=WAL;").await?;
+        conn.execute_unprepared("PRAGMA synchronous=NORMAL;").await?;
 
         Migrator::up(&conn, None).await?;
         Ok(Db(conn))
