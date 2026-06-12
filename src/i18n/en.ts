@@ -204,7 +204,6 @@ export const en = {
     takeOverTerminal: "Take over in terminal",
     takeOverTip: "Stop the engine and copy the command to continue this session in your own terminal",
     takeOverCopied: "Takeover command copied — paste it in your terminal",
-    engineStopped: "Lead engine stopped · sending resumes it",
   },
   scope: {
     addReposFirst: "Add repos to this workspace first.",

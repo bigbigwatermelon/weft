@@ -200,7 +200,6 @@ export const zh = {
     takeOverTerminal: "在终端接管",
     takeOverTip: "停下引擎并复制接管命令，在你自己的终端继续这段会话",
     takeOverCopied: "接管命令已复制，去你的终端粘贴运行",
-    engineStopped: "lead 引擎已停止 · 发送消息会自动续上",
   },
   scope: {
     addReposFirst: "请先往这个工作区添加仓库。",
