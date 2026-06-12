@@ -81,7 +81,7 @@ pub static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 #[cfg(test)]
 mod tests {
-    use super::{db_path, run_home, skills_home, weft_home, ENV_LOCK};
+    use super::{db_path, run_home, skills_home, weft_home, worktree_home, ENV_LOCK};
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
