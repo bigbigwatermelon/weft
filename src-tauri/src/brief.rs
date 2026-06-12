@@ -95,6 +95,50 @@ pub fn format_brief(d: &BriefData) -> String {
     s
 }
 
+/// Render a generic run brief for work that is not bound to a code repository.
+pub fn format_generic_brief(task: &str, kind: &str, run: &str, mandate: &str) -> String {
+    let mandate = repo::normalize_mandate(mandate);
+    let mut s = String::new();
+    s.push_str(&format!("# Run: {run}\n\n"));
+    s.push_str(&format!("Task ({kind}): {task}\n"));
+    s.push_str(
+        "\n## Purpose\n\
+         Use this run to work with the human on the current task. This is a \
+         general agent run in weft: do not assume the work is coding work, and \
+         do not assume the workspace has a git repository.\n",
+    );
+    s.push_str(
+        "\n## Coordinate\n\
+         Use the weft_bus tools to share concise progress updates, read your \
+         inbox, and coordinate with any other runs in this thread. Use \
+         ask_human when a decision, missing context, or tradeoff belongs to the \
+         human. Keep outputs practical and tied to the requested task.\n",
+    );
+
+    if mandate == "impl-only" {
+        s.push_str(
+            "\n## Status contract\n\
+             This run starts in **working**: begin the focused work now. When \
+             the result is ready for human review, call \
+             set_task_status(\"review\"). If the human sends you back for \
+             changes, call set_task_status(\"working\") again.\n\n\
+             Start now.\n",
+        );
+    } else {
+        s.push_str(
+            "\n## Status contract\n\
+             This run starts in **planning**: first clarify the approach for \
+             this run and post the essentials to the bus. When you move from \
+             planning to doing the work, call set_task_status(\"working\"). \
+             When the result is ready for human review, call \
+             set_task_status(\"review\"). If the human sends you back for \
+             changes, call set_task_status(\"working\") again.\n\n\
+             Start by planning now.\n",
+        );
+    }
+    s
+}
+
 /// Gather a direction's brief from the DB + the curator's dependency graph.
 pub async fn assemble(db: &Db, direction_id: i32) -> Result<String> {
     use sea_orm::EntityTrait;
@@ -105,6 +149,15 @@ pub async fn assemble(db: &Db, direction_id: i32) -> Result<String> {
     let thread = repo::get_thread(db, dir.thread_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
+
+    if dir.repo_id == 0 {
+        return Ok(format_generic_brief(
+            &thread.title,
+            &thread.kind,
+            &dir.name,
+            repo::normalize_mandate(&dir.mandate),
+        ));
+    }
 
     let write_repos: Vec<_> = repo::direction_repo_of(db, direction_id)
         .await?
@@ -247,5 +300,17 @@ mod tests {
         assert!(s.contains("set_task_status(\"review\")"));
         assert!(s.contains("Start now."));
         assert!(!s.contains("Start by planning now."));
+    }
+
+    #[test]
+    fn generic_run_brief_has_no_repo_or_check_contract() {
+        let s = format_generic_brief("Draft offer email", "task", "Main run", "plan+impl");
+        assert!(s.contains("# Run: Main run"));
+        assert!(s.contains("Task (task): Draft offer email"));
+        assert!(s.contains("Use this run to work with the human"));
+        assert!(s.contains("set_task_status(\"working\")"));
+        assert!(!s.contains("write repos"));
+        assert!(!s.contains("checks pass"));
+        assert!(!s.contains("PR"));
     }
 }
