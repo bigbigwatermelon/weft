@@ -795,7 +795,7 @@ pub async fn effective_config(
             .collect(),
         None => Vec::new(),
     };
-    Ok(crate::config::effective_for_with_weft(
+    Ok(crate::config::effective_for_with_atlas(
         std::path::Path::new(&repo_path),
         &home,
         &weft,

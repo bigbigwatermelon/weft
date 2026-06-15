@@ -122,7 +122,7 @@ pub async fn lead_engine(
     let t = repo::get_thread(db, thread_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
-    let cwd = crate::paths::weft_home()?
+    let cwd = crate::paths::atlas_home()?
         .join("leads")
         .join(thread_id.to_string());
     std::fs::create_dir_all(&cwd)?;
@@ -271,7 +271,7 @@ pub async fn lead_state(
             queued: 0,
             native_id: repo::lead_native_id(&db, thread_id).await.ok().flatten(),
             slash_commands: vec![],
-            cwd: crate::paths::weft_home()
+            cwd: crate::paths::atlas_home()
                 .map(|h| {
                     h.join("leads")
                         .join(thread_id.to_string())

@@ -63,7 +63,7 @@ pub fn run() {
     // App-level backup handle: scheduler + on-exit + commands all share it.
     let backup_svc = backup::BackupService::new(
         db.clone(),
-        paths::weft_home().unwrap_or_else(|e| fatal("weft_home for backup", e)),
+        paths::atlas_home().unwrap_or_else(|e| fatal("weft_home for backup", e)),
     );
 
     // Start the local HTTP server (thread bus MCP + planner MCP + Ask Bridge).
