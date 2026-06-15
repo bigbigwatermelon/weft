@@ -117,6 +117,9 @@ cd src-tauri && cargo test
 git diff --check
 ```
 
+推送 PR 分支前先运行 `pnpm preflight`。GitHub 的 `CI` workflow 作为手动触发的跨平台
+兜底检查，仅在需要远端 Linux/macOS/Windows 确认时运行；默认 PR 闭环不再等待远端 CI。
+
 ## 目录结构
 
 ```text

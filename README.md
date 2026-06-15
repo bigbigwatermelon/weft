@@ -129,6 +129,10 @@ cd src-tauri && cargo test
 git diff --check
 ```
 
+Run `pnpm preflight` before pushing a PR branch. The GitHub `CI` workflow is a
+manual cross-platform fallback for cases that need remote Linux/macOS/Windows
+confirmation; it is not part of the default PR loop.
+
 ## Project Layout
 
 ```text
