@@ -22,7 +22,7 @@ pub struct SessionInfo {
     pub native_id: Option<String>,
 }
 
-const BASE_PROMPT: &str = "You are the coordinator for this task in weft, a local Agent App. \
+const BASE_PROMPT: &str = "You are the coordinator for this task in Atlas, a local Agent App. \
 Start by calling get_task to read what the human is asking. Discuss the goal, constraints, \
 and next step with the human. You may answer directly, ask a concise clarifying question, \
 or suggest a named run for a focused agent session. Do not assume the workspace contains code \
@@ -49,13 +49,13 @@ pub fn lang_directive(lang: &str) -> &'static str {
 
 /// System prompt for the IM Concierge engine (M3-3). Concierge is scoped to
 /// the current IM conversation — NOT a per-issue lead.
-/// It never plans or writes; it only reads weft state via the `weft_global` MCP
+/// It never plans or writes; it only reads Atlas state via the `atlas_global` MCP
 /// and answers / triggers actions on the human's behalf. Bilingual: language
 /// follows the caller's lang (defaults to zh — IM bridge fixes it that way).
 pub fn concierge_prompt(lang: &str) -> String {
     let body = if lang == "zh" {
-        "你是 weft 桌面端的助理（Concierge），用户从某个飞书会话找你。weft 桌面端正在运行，\
-真实状态都在 weft_global MCP 工具里——回答任何关于工作区、issue、待办、agent 提问的问题前，\
+        "你是 Atlas 桌面端的助理（Concierge），用户从某个飞书会话找你。Atlas 桌面端正在运行，\
+真实状态都在 atlas_global MCP 工具里——回答任何关于工作区、issue、待办、agent 提问的问题前，\
 必须先用工具核实（list_workspaces / list_issues / pending_needs_you / issue_status），不要凭印象作答。\n\
 如果用户消息里带有 feishu_chat_id，那就是当前飞书会话的 chat_id；只有用户语义明确要求为某个已有 issue 创建、打开或继续飞书 topic 时，才可把这个 chat_id 传给 ensure_issue_topic。\n\
 \n\
@@ -74,8 +74,8 @@ pub fn concierge_prompt(lang: &str) -> String {
 \n\
 回复风格：简短中文，用 markdown 列表/编号；引用 issue 时带 thread_id；引用 ask 时带 ask_id。"
     } else {
-        "You are weft's desktop Concierge, reached by the user through one Feishu conversation. weft is \
-running on the user's desktop and authoritative state lives behind the `weft_global` MCP \
+        "You are Atlas's desktop Concierge, reached by the user through one Feishu conversation. Atlas is \
+running on the user's desktop and authoritative state lives behind the `atlas_global` MCP \
 tools — ALWAYS verify with the tools before answering anything about workspaces, issues, \
 pending asks, or agent questions (list_workspaces / list_issues / pending_needs_you / \
 issue_status). Never answer from your imagination.\n\
@@ -106,7 +106,7 @@ Style: short, markdown bullets / numbered lists; mention thread_id when citing a
 /// message lands on a bound issue (spec §4 / M2-3).
 ///
 /// Concierge branch (`t.kind == "concierge"`, M3-1/-3): swap planner MCP →
-/// `weft_global` MCP and the lead prompt → `concierge_prompt(lang)`. Everything
+/// `atlas_global` MCP and the lead prompt → `concierge_prompt(lang)`. Everything
 /// else (cwd, ask hook, skills) stays identical so this engine survives
 /// app restarts and obeys per-task permissions the same way.
 pub async fn lead_engine(
@@ -352,14 +352,14 @@ pub async fn list_lead_messages(
 
 // ───────────────────── chat-mode workers ─────────────────────
 //
-// Every worker (claude/codex/opencode) runs on the engine: a weft-owned chat
+// Every worker (claude/codex/opencode) runs on the engine: an Atlas-owned chat
 // timeline in the SessionView, with per-tool wire dialects (engine::per_turn).
 // Each session remains takeover-able in the user's own terminal via its
 // native id.
 
 /// Spawn (or resume) a chat-mode worker for a (direction, repo) slot: worktree
 /// cwd, thread-bus MCP + ask bridge, the assembled brief as the first user
-/// message of a weft-owned conversation.
+/// message of an Atlas-owned conversation.
 #[tauri::command]
 pub async fn chat_open_worker(
     app: AppHandle,
@@ -667,7 +667,7 @@ pub async fn flag_lead_skill_refresh(
 }
 
 /// Frontend callback after a repo onboarding action card finishes (add /
-/// new / clone). Wraps the payload in `<weft:repo_action>…</weft:repo_action>`
+/// new / clone). Wraps the payload in `<atlas:repo_action>…</atlas:repo_action>`
 /// and delivers it as an invisible user turn so the agent can react without
 /// the result polluting the visible timeline. Respects the turn machine:
 /// mid-turn clicks get queued and flush at the next boundary instead of
@@ -681,7 +681,7 @@ pub async fn post_lead_tool_result(
     payload: serde_json::Value,
 ) -> Result<(), String> {
     let json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-    let text = format!("<weft:repo_action>{json}</weft:repo_action>");
+    let text = format!("<atlas:repo_action>{json}</atlas:repo_action>");
     let key = lead_key(thread_id);
     match app.state::<LeadChatState>().get(key) {
         Some(eng) => {
@@ -703,7 +703,7 @@ pub async fn post_lead_tool_result(
             }
         }
         None => {
-            eprintln!("[weft] post_lead_tool_result: no lead engine for thread {thread_id}");
+            eprintln!("[atlas] post_lead_tool_result: no lead engine for thread {thread_id}");
         }
     }
     Ok(())
