@@ -113,22 +113,17 @@ impl BackupService {
     /// writes the key in `recovery_key_path` back into the Keychain so the
     /// next `Db::open_default` can decrypt it.
     ///
-    /// Safety: refuses to run when `<home>/atlas.db` already exists — restore
-    /// is a destructive operation; the caller must move/delete the old db
-    /// deliberately. The caller is expected to prompt the user to restart
-    /// Atlas after this succeeds.
+    /// Safety: refuses to run when `<home>/atlas.db` contains user data. A
+    /// normal app launch creates an empty migrated database before Settings is
+    /// usable; restore may replace that shell database, but it must not
+    /// overwrite a real Atlas workspace.
     pub async fn restore_from(
         &self,
         remote_url: &str,
         recovery_key_path: &std::path::Path,
     ) -> Result<()> {
         let db_path = self.home.join("atlas.db");
-        if db_path.exists() {
-            return Err(anyhow::anyhow!(
-                "refusing to restore: {} already exists; remove it first",
-                db_path.display()
-            ));
-        }
+        self.prepare_restore_target(&db_path).await?;
 
         // Writes back to Keychain (or no-ops under the test env bypass).
         let _imported = recovery_key::import_from(recovery_key_path)?;
@@ -167,6 +162,69 @@ impl BackupService {
         std::fs::copy(&snap, &db_path)?;
         let _ = std::fs::remove_dir_all(&tmp);
         Ok(())
+    }
+
+    async fn prepare_restore_target(&self, db_path: &std::path::Path) -> Result<()> {
+        if !db_path.exists() {
+            return Ok(());
+        }
+
+        let rows = self.user_data_row_count().await?;
+        if rows > 0 {
+            return Err(anyhow::anyhow!(
+                "refusing to restore: {} contains existing Atlas data",
+                db_path.display()
+            ));
+        }
+
+        remove_file_if_exists(db_path)?;
+        remove_file_if_exists(&self.home.join("atlas.db-wal"))?;
+        remove_file_if_exists(&self.home.join("atlas.db-shm"))?;
+        remove_file_if_exists(&self.home.join("atlas.db-journal"))?;
+        Ok(())
+    }
+
+    async fn user_data_row_count(&self) -> Result<i64> {
+        use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+
+        const USER_TABLES: &[&str] = &[
+            "workspace",
+            "repo_ref",
+            "repo_profile",
+            "thread",
+            "direction",
+            "worktree",
+            "session",
+            "plan",
+            "lead_message",
+            "skill_source",
+            "skill_enable",
+            "im_route",
+        ];
+
+        let mut total = 0_i64;
+        for table in USER_TABLES {
+            let row = self
+                .db
+                .0
+                .query_one(Statement::from_string(
+                    DatabaseBackend::Sqlite,
+                    format!("SELECT COUNT(*) AS n FROM {table}"),
+                ))
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("count {table}: no row"))?;
+            let count: i64 = row.try_get("", "n")?;
+            total += count;
+        }
+        Ok(total)
+    }
+}
+
+fn remove_file_if_exists(path: &std::path::Path) -> Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(anyhow::anyhow!("remove {}: {e}", path.display())),
     }
 }
 

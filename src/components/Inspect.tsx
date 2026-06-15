@@ -62,7 +62,7 @@ export function Inspect({
           align="end"
           sideOffset={4}
           onClick={(e) => e.stopPropagation()}
-          className="weft-pop z-[60] w-64 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+          className="atlas-pop z-[60] w-64 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
         >
           {nativeId && tool && (
             <>

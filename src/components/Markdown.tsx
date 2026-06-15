@@ -10,7 +10,7 @@ import { api } from "../lib/api";
  */
 export const Markdown = memo(function Markdown({ text }: { text: string }) {
   return (
-    <div className="weft-md text-[12.5px] leading-relaxed text-ink">
+    <div className="atlas-md text-[12.5px] leading-relaxed text-ink">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

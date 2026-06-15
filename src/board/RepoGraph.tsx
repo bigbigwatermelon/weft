@@ -205,7 +205,7 @@ export function RepoGraph() {
           <svg className="absolute inset-0" width={layout.width} height={layout.height} fill="none">
             <defs>
               <marker
-                id="weft-arrow"
+                id="atlas-arrow"
                 viewBox="0 0 8 8"
                 refX="6"
                 refY="4"
@@ -233,7 +233,7 @@ export function RepoGraph() {
                   className={cn(active ? "stroke-brand" : "stroke-border-strong")}
                   strokeWidth={active ? 2 : 1.5}
                   opacity={active ? 0.9 : 0.55}
-                  markerEnd="url(#weft-arrow)"
+                  markerEnd="url(#atlas-arrow)"
                 />
               );
             })}

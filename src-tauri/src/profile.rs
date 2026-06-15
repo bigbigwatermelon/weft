@@ -242,7 +242,7 @@ mod tests {
     fn tmp_repo(files: &[(&str, &str)]) -> std::path::PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!("weft-prof-{}-{}", std::process::id(), id));
+        let dir = std::env::temp_dir().join(format!("atlas-prof-{}-{}", std::process::id(), id));
         std::fs::create_dir_all(&dir).unwrap();
         for (rel, content) in files {
             let p = dir.join(rel);

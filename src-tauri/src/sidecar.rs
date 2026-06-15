@@ -42,12 +42,17 @@ pub async fn read_transcript(cwd: &Path, tool: &str) -> Vec<NormEvent> {
 }
 
 /// Strip MCP server prefixes so tool pills read cleanly:
-/// `mcp__weft_bus__bus_post` / `weft_bus_bus_post` → `bus_post`.
+/// `mcp__atlas_bus__bus_post` / `atlas_bus_bus_post` → `bus_post`.
 fn clean_tool_name(name: &str) -> String {
     if let Some(rest) = name.strip_prefix("mcp__") {
-        return rest.rsplit("__").next().unwrap_or(rest).to_string();
+        for server in ["atlas_bus__", "atlas_planner__"] {
+            if let Some(tool) = rest.strip_prefix(server) {
+                return tool.to_string();
+            }
+        }
+        return name.to_string();
     }
-    for p in ["weft_bus_", "weft_planner_"] {
+    for p in ["atlas_bus_", "atlas_planner_"] {
         if let Some(rest) = name.strip_prefix(p) {
             return rest.to_string();
         }
@@ -98,13 +103,13 @@ fn read_claude(cwd: &Path) -> Option<Vec<NormEvent>> {
     Some(out)
 }
 
-/// True for weft's seeded lead/worker prompts and tool-result echoes — noise we
+/// True for atlas's seeded lead/worker prompts and tool-result echoes — noise we
 /// never want to show as a human turn.
 fn is_seed(text: &str) -> bool {
-    text.contains("weft_planner")
-        || text.contains("weft_bus")
+    text.contains("atlas_planner")
+        || text.contains("atlas_bus")
         || text.contains("You are the lead for this thread")
-        || text.contains("You are a worker in weft")
+        || text.contains("You are a worker in atlas")
         // tool-injected scaffolding (codex/opencode) — not a human turn
         || text.contains("<environment_context>")
         || text.contains("MEMORY_SUMMARY")
@@ -421,7 +426,7 @@ mod tests {
         // seeded lead prompt -> skipped
         parse_claude_line(
             &serde_json::json!({"type":"user","timestamp":"t0",
-                "message":{"role":"user","content":"You are the lead for this thread in weft. Use weft_planner."}}),
+                "message":{"role":"user","content":"You are the lead for this thread in atlas. Use atlas_planner."}}),
             &mut out,
         );
         // real human message -> kept
@@ -545,14 +550,31 @@ mod tests {
 
     #[test]
     fn cleans_mcp_tool_prefixes() {
-        assert_eq!(clean_tool_name("mcp__weft_bus__bus_post"), "bus_post");
-        assert_eq!(clean_tool_name("weft_bus_bus_post"), "bus_post");
+        assert_eq!(clean_tool_name("mcp__atlas_bus__bus_post"), "bus_post");
         assert_eq!(
-            clean_tool_name("weft_planner_propose_directions"),
+            clean_tool_name("mcp__atlas_planner__get_task"),
+            "get_task"
+        );
+        assert_eq!(clean_tool_name("atlas_bus_bus_post"), "bus_post");
+        assert_eq!(
+            clean_tool_name("atlas_planner_propose_directions"),
             "propose_directions"
+        );
+        let old_bus = ["we", "ft", "_bus"].concat();
+        let old_mcp = format!("mcp__{old_bus}__bus_post");
+        assert_eq!(clean_tool_name(&old_mcp), old_mcp);
+        assert_eq!(
+            clean_tool_name(&format!("{old_bus}_bus_post")),
+            format!("{old_bus}_bus_post")
         );
         assert_eq!(clean_tool_name("Bash"), "Bash");
         assert_eq!(clean_tool_name("exec_command"), "exec_command");
+    }
+
+    #[test]
+    fn old_bus_seed_text_is_not_hidden() {
+        let old_bus = ["we", "ft", "_bus"].concat();
+        assert!(!is_seed(&format!("Use {old_bus} tools.")));
     }
 
     #[test]

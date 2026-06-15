@@ -141,7 +141,7 @@ mod tests {
     fn tmp() -> std::path::PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let d = std::env::temp_dir().join(format!("weft-skparse-{}-{}", std::process::id(), id));
+        let d = std::env::temp_dir().join(format!("atlas-skparse-{}-{}", std::process::id(), id));
         let _ = std::fs::create_dir_all(&d);
         d
     }

@@ -27,12 +27,12 @@ export function DiffPanel({
 }) {
   const { t } = useTranslation();
   const [w, setW] = useState(() =>
-    clampW(Number(localStorage.getItem("weft-diff-w")) || 520),
+    clampW(Number(localStorage.getItem("atlas-diff-w")) || 520),
   );
   const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem("weft-diff-w", String(w));
+    localStorage.setItem("atlas-diff-w", String(w));
   }, [w]);
 
   useEffect(() => {

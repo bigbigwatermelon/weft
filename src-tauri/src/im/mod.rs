@@ -216,13 +216,13 @@ pub async fn execute(
                 .send_text(
                     &open_id,
                     t(
-                        "绑定成功 ✓ 之后 Weft 的权限请求和 agent 提问会推送到这里，回复卡片消息即可作答。",
-                        "Bound ✓ Weft will push permission asks and agent questions here; reply to a card to answer.",
+                        "绑定成功 ✓ 之后 Atlas 的权限请求和 agent 提问会推送到这里，回复卡片消息即可作答。",
+                        "Bound ✓ Atlas will push permission asks and agent questions here; reply to a card to answer.",
                     ),
                 )
                 .await
             {
-                eprintln!("[weft][im] bind confirm: {e}");
+                eprintln!("[atlas][im] bind confirm: {e}");
             }
             if let Some(app) = app {
                 if !text.trim().is_empty() {
@@ -239,7 +239,7 @@ pub async fn execute(
                     )
                     .await
                     {
-                        eprintln!("[weft][im] concierge after bind: {e}");
+                        eprintln!("[atlas][im] concierge after bind: {e}");
                     }
                 }
             }
@@ -258,7 +258,7 @@ pub async fn execute(
                     )
                     .await
                 {
-                    eprintln!("[weft][im] bind-issue missing hint: {e}");
+                    eprintln!("[atlas][im] bind-issue missing hint: {e}");
                 }
                 return Ok(());
             };
@@ -276,7 +276,7 @@ pub async fn execute(
                 )
                 .await
             {
-                eprintln!("[weft][im] bind-issue confirm: {e}");
+                eprintln!("[atlas][im] bind-issue confirm: {e}");
             }
         }
         inbound::Route::EnsureIssueTopic {
@@ -298,7 +298,7 @@ pub async fn execute(
                     )
                     .await
                 {
-                    eprintln!("[weft][im] stale-perm hint: {e}");
+                    eprintln!("[atlas][im] stale-perm hint: {e}");
                 }
             }
             // 终态卡 patch 由桥的 AskEvent::Resolved 消费侧统一做（双面同源）。
@@ -319,7 +319,7 @@ pub async fn execute(
                     )
                     .await
                 {
-                    eprintln!("[weft][im] stale-human hint: {e}");
+                    eprintln!("[atlas][im] stale-human hint: {e}");
                 }
             }
         }
@@ -334,7 +334,7 @@ pub async fn execute(
                 )
                 .await
             {
-                eprintln!("[weft][im] verdict hint: {e}");
+                eprintln!("[atlas][im] verdict hint: {e}");
             }
         }
         inbound::Route::FreeText {
@@ -351,7 +351,7 @@ pub async fn execute(
                 if let Err(e) =
                     consume_free_text(app, db, &sender_open_id, &chat_id, &im_thread_ref, reply_to.as_deref(), &text, lang).await
                 {
-                    eprintln!("[weft][im] concierge: {e}");
+                    eprintln!("[atlas][im] concierge: {e}");
                 }
             } else if let Err(e) = channel
                 .send_text(
@@ -363,7 +363,7 @@ pub async fn execute(
                 )
                 .await
             {
-                eprintln!("[weft][im] freetext hint: {e}");
+                eprintln!("[atlas][im] freetext hint: {e}");
             }
         }
         inbound::Route::IssueMessage {
@@ -384,11 +384,11 @@ pub async fn execute(
                         if let Err(e) = channel
                             .reply_text(
                                 mid,
-                                "这段飞书话题还没有绑定 Weft issue。发送 /bind <issue-id> 绑定当前话题，或在群里发送 /topic <issue-id> 创建 issue topic。",
+                                "这段飞书话题还没有绑定 Atlas issue。发送 /bind <issue-id> 绑定当前话题，或在群里发送 /topic <issue-id> 创建 issue topic。",
                             )
                             .await
                         {
-                            eprintln!("[weft][im] unbound topic hint: {e}");
+                            eprintln!("[atlas][im] unbound topic hint: {e}");
                         }
                     }
                 }
@@ -411,13 +411,13 @@ pub async fn execute(
                                 .or_default()
                                 .push((mid.to_string(), rid));
                         }
-                        Err(e) => eprintln!("[weft][im] add reaction: {e}"),
+                        Err(e) => eprintln!("[atlas][im] add reaction: {e}"),
                     }
                 }
             }
             let Some(app) = app else { return Ok(()) }; // 测试路径不进 engine
             if let Err(e) = feed_issue_message(app, db, route.thread_id, &text, lang).await {
-                eprintln!("[weft][im] issue lead send: {e}");
+                eprintln!("[atlas][im] issue lead send: {e}");
             }
         }
     }
@@ -502,7 +502,7 @@ pub fn spawn(app: tauri::AppHandle) {
             Err(e) => {
                 // fail-closed：DB/连接错误不当作未配置，置 error 并退出本代。
                 bridge.set_status(&format!("error: {e}"));
-                eprintln!("[weft][im] load settings: {e}");
+                eprintln!("[atlas][im] load settings: {e}");
                 return;
             }
         };
@@ -581,7 +581,7 @@ pub fn spawn(app: tauri::AppHandle) {
                     let allow = match ImSettings::load(&db2).await {
                         Ok(s) => s.allow_open_ids,
                         Err(e) => {
-                            eprintln!("[weft][im] reload allowlist: {e}");
+                            eprintln!("[atlas][im] reload allowlist: {e}");
                             continue;
                         }
                     };
@@ -607,7 +607,7 @@ pub fn spawn(app: tauri::AppHandle) {
                         inbound::Route::IssueMessage { .. } => "issue_message",
                         inbound::Route::FreeText { .. } => "free_text",
                     };
-                    eprintln!("[weft][im] route={route_name} sender={sender}");
+                    eprintln!("[atlas][im] route={route_name} sender={sender}");
                     let asks = app2.state::<crate::ask::AskRegistry>();
                     let bus = app2.state::<crate::bus::BusRegistry>();
                     let ctx = ExecuteCtx {
@@ -627,7 +627,7 @@ pub fn spawn(app: tauri::AppHandle) {
                     )
                     .await
                     {
-                        eprintln!("[weft][im] execute: {e}");
+                        eprintln!("[atlas][im] execute: {e}");
                     }
                 }
             });
@@ -652,7 +652,7 @@ pub fn spawn(app: tauri::AppHandle) {
                         Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
                             // engine 产文本太快 / 桥太慢——容量 64 已远超单轮 finalize
                             // 量级，跑到这里多半是死锁前兆，只丢日志不退出。
-                            eprintln!("[weft][im] lead-out lagged: {n} dropped");
+                            eprintln!("[atlas][im] lead-out lagged: {n} dropped");
                         }
                         Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
                     }
@@ -676,7 +676,7 @@ pub fn spawn(app: tauri::AppHandle) {
             {
                 Ok(rt) => rt,
                 Err(e) => {
-                    eprintln!("[weft][im] ws runtime: {e}");
+                    eprintln!("[atlas][im] ws runtime: {e}");
                     app3.state::<ImBridge>().set_status(&format!("error: {e}"));
                     return;
                 }
@@ -703,7 +703,7 @@ pub fn spawn(app: tauri::AppHandle) {
                         Ok(()) => backoff = 1,
                         Err(e) => {
                             bridge.set_status(&format!("error: {e}"));
-                            eprintln!("[weft][im] ws: {e}");
+                            eprintln!("[atlas][im] ws: {e}");
                         }
                     }
                     if !bridge.live(generation) {
@@ -728,7 +728,7 @@ async fn consume_ask_event(
     let owner = match ImSettings::load(db).await {
         Ok(s) => s.allow_open_ids.into_iter().next(),
         Err(e) => {
-            eprintln!("[weft][im] consume_ask load owner: {e}");
+            eprintln!("[atlas][im] consume_ask load owner: {e}");
             return;
         }
     };
@@ -746,14 +746,14 @@ async fn consume_ask_event(
             let summary = a.summary.clone();
             match ch.send_card(&owner, outbound::perm_card(&a, IM_LANG)).await {
                 Ok(mid) => cards.lock().await.record_perm(a.id, &mid, &summary),
-                Err(e) => eprintln!("[weft][im] send perm card: {e}"),
+                Err(e) => eprintln!("[atlas][im] send perm card: {e}"),
             }
         }
         crate::ask::AskEvent::Resolved { id, answer } => {
             if let Some((mid, summary)) = cards.lock().await.take_perm(id) {
                 let card = outbound::resolved_card(&summary, answer.as_str(), IM_LANG);
                 if let Err(e) = ch.patch_card(&mid, card).await {
-                    eprintln!("[weft][im] patch resolved card: {e}");
+                    eprintln!("[atlas][im] patch resolved card: {e}");
                 }
             }
         }
@@ -761,7 +761,7 @@ async fn consume_ask_event(
             if let Some((mid, summary)) = cards.lock().await.take_perm(id) {
                 let card = outbound::resolved_card(&summary, "cancelled", IM_LANG);
                 if let Err(e) = ch.patch_card(&mid, card).await {
-                    eprintln!("[weft][im] patch cancelled card: {e}");
+                    eprintln!("[atlas][im] patch cancelled card: {e}");
                 }
             }
         }
@@ -779,7 +779,7 @@ async fn consume_human_event(
     let owner = match ImSettings::load(db).await {
         Ok(s) => s.allow_open_ids.into_iter().next(),
         Err(e) => {
-            eprintln!("[weft][im] consume_human load owner: {e}");
+            eprintln!("[atlas][im] consume_human load owner: {e}");
             return;
         }
     };
@@ -809,7 +809,7 @@ async fn consume_human_event(
                 .await
             {
                 Ok(mid) => cards.lock().await.record_human(thread, ask.id, &mid),
-                Err(e) => eprintln!("[weft][im] send human card: {e}"),
+                Err(e) => eprintln!("[atlas][im] send human card: {e}"),
             }
         }
         crate::bus::state::HumanAskEvent::Answered {
@@ -820,7 +820,7 @@ async fn consume_human_event(
             if let Some(mid) = cards.lock().await.take_human(thread, ask_id) {
                 let card = outbound::human_resolved_card(&text, IM_LANG);
                 if let Err(e) = ch.patch_card(&mid, card).await {
-                    eprintln!("[weft][im] patch human resolved card: {e}");
+                    eprintln!("[atlas][im] patch human resolved card: {e}");
                 }
             }
         }
@@ -861,7 +861,7 @@ pub async fn ensure_issue_topic(
                 )
                 .await
             {
-                eprintln!("[weft][im] ensure-topic missing issue: {e}");
+                eprintln!("[atlas][im] ensure-topic missing issue: {e}");
             }
         }
         return Ok(());
@@ -885,7 +885,7 @@ pub async fn ensure_issue_topic(
                 )
                 .await
             {
-                eprintln!("[weft][im] ensure-topic existing hint: {e}");
+                eprintln!("[atlas][im] ensure-topic existing hint: {e}");
             }
         }
         // route 保持不变：后续 lead 输出仍会进入已有 topic。
@@ -897,7 +897,7 @@ pub async fn ensure_issue_topic(
         .send_chat_text(
             chat_id,
             &format!(
-                "Weft issue #{} · {}\n这个飞书话题已绑定到 Weft issue。",
+                "Atlas issue #{} · {}\n这个飞书话题已绑定到 Atlas issue。",
                 thread.id, thread.title
             ),
         )
@@ -920,7 +920,7 @@ pub async fn ensure_issue_topic(
             )
             .await
         {
-            eprintln!("[weft][im] ensure-topic created hint: {e}");
+            eprintln!("[atlas][im] ensure-topic created hint: {e}");
         }
     }
     Ok(())
@@ -941,7 +941,7 @@ pub async fn consume_lead_out(
         Ok(Some(r)) => r,
         Ok(None) => return,
         Err(e) => {
-            eprintln!("[weft][im] lead-out lookup route: {e}");
+            eprintln!("[atlas][im] lead-out lookup route: {e}");
             return;
         }
     };
@@ -959,14 +959,14 @@ pub async fn consume_lead_out(
             ))
         };
         if let Err(e) = send {
-            eprintln!("[weft][im] concierge reply: {e}");
+            eprintln!("[atlas][im] concierge reply: {e}");
         }
         return;
     }
     let body = outbound::issue_reply_text(IM_LANG, &out.text);
     // im_thread_ref 即话题根 message_id：飞书 reply API 会把回复挂同一话题。
     if let Err(e) = ch.reply_text(&route.im_thread_ref, &body).await {
-        eprintln!("[weft][im] reply lead text: {e}");
+        eprintln!("[atlas][im] reply lead text: {e}");
         return; // reply 失败就不 clear 回执——下一条 lead 还会带它走。
     }
     // 出站成功 → 清掉这个 thread 上挂的所有 👀。
@@ -976,7 +976,7 @@ pub async fn consume_lead_out(
     };
     for (mid, rid) in pending {
         if let Err(e) = ch.delete_reaction(&mid, &rid).await {
-            eprintln!("[weft][im] delete reaction: {e}");
+            eprintln!("[atlas][im] delete reaction: {e}");
         }
     }
 }
@@ -1068,7 +1068,7 @@ async fn send_resync_summary(app: &tauri::AppHandle, ch: &dyn Channel) {
     let owner = match ImSettings::load(&db).await {
         Ok(s) => s.allow_open_ids.into_iter().next(),
         Err(e) => {
-            eprintln!("[weft][im] resync load owner: {e}");
+            eprintln!("[atlas][im] resync load owner: {e}");
             return;
         }
     };
@@ -1079,7 +1079,7 @@ async fn send_resync_summary(app: &tauri::AppHandle, ch: &dyn Channel) {
         return; // 无积压：spec 明确「上线时无待办则不打扰」
     }
     if let Err(e) = ch.send_text(&owner, &body).await {
-        eprintln!("[weft][im] resync send: {e}");
+        eprintln!("[atlas][im] resync send: {e}");
     }
 }
 

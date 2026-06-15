@@ -69,7 +69,7 @@ function Shell() {
         <AppTopBar />
         {showDock && <NeedsDock />}
         <ErrorBoundary key={routeKey}>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col weft-screen-in">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col atlas-screen-in">
             <Main />
           </div>
         </ErrorBoundary>

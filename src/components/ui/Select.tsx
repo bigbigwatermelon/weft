@@ -39,7 +39,7 @@ export function Select({
         <RS.Content
           position="popper"
           sideOffset={4}
-          className="weft-pop z-[60] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+          className="atlas-pop z-[60] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
         >
           <RS.Viewport>
             {options.map((o) => (

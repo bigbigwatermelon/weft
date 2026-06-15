@@ -28,7 +28,7 @@ type Command = {
 
 /** Open the palette from anywhere (e.g. the rail's search trigger). */
 export function openCommandPalette() {
-  window.dispatchEvent(new Event("weft:open-palette"));
+  window.dispatchEvent(new Event("atlas:open-palette"));
 }
 
 /**
@@ -71,10 +71,10 @@ export function CommandPalette() {
     };
     const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey, { capture: true });
-    window.addEventListener("weft:open-palette", onOpen);
+    window.addEventListener("atlas:open-palette", onOpen);
     return () => {
       window.removeEventListener("keydown", onKey, { capture: true });
-      window.removeEventListener("weft:open-palette", onOpen);
+      window.removeEventListener("atlas:open-palette", onOpen);
     };
   }, []);
 
@@ -219,13 +219,13 @@ export function CommandPalette() {
       {open && (
         <div className="fixed inset-0 z-[90]">
           <div
-            className="weft-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            className="atlas-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
             data-state="open"
             onClick={close}
           />
       <div className="absolute inset-x-0 top-[14vh] flex justify-center px-4">
         <div
-          className="weft-pop flex max-h-[60vh] w-[min(560px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.6)]"
+          className="atlas-pop flex max-h-[60vh] w-[min(560px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.6)]"
           data-state="open"
         >
           <div className="flex items-center gap-2.5 border-b border-border px-3.5">

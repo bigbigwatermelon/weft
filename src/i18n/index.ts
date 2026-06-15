@@ -4,7 +4,7 @@ import { en } from "./en";
 import { zh } from "./zh";
 
 export type Lang = "en" | "zh";
-const STORAGE = "weft-lang";
+const STORAGE = "atlas-lang";
 
 function initialLang(): Lang {
   const saved = localStorage.getItem(STORAGE);

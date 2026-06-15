@@ -61,7 +61,7 @@ pub fn format_brief(d: &BriefData) -> String {
 
     s.push_str(
         "\n## Coordinate\n\
-         Other directions in this thread may run in parallel. Use the weft_bus \
+         Other directions in this thread may run in parallel. Use the atlas_bus \
          tools to post updates (bus_post / bus_broadcast), read your inbox \
          (bus_inbox), announce contract changes (announce_interface_change), and \
          ask_human when a decision is only the operator's to make. Stay within \
@@ -104,12 +104,12 @@ pub fn format_generic_brief(task: &str, kind: &str, run: &str, mandate: &str) ->
     s.push_str(
         "\n## Purpose\n\
          Use this run to work with the human on the current task. This is a \
-         general agent run in weft: do not assume the work is coding work, and \
+         general agent run in atlas: do not assume the work is coding work, and \
          do not assume the workspace has a git repository.\n",
     );
     s.push_str(
         "\n## Coordinate\n\
-         Use the weft_bus tools to share concise progress updates, read your \
+         Use the atlas_bus tools to share concise progress updates, read your \
          inbox, and coordinate with any other runs in this thread. Use \
          ask_human when a decision, missing context, or tradeoff belongs to the \
          human. Keep outputs practical and tied to the requested task.\n",

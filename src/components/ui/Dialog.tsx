@@ -19,10 +19,10 @@ export function DialogContent({
 }) {
   return (
     <RD.Portal>
-      <RD.Overlay className="weft-overlay fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px]" />
+      <RD.Overlay className="atlas-overlay fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px]" />
       <RD.Content
         className={cn(
-          "weft-pop fixed left-1/2 top-1/2 z-50 w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2",
+          "atlas-pop fixed left-1/2 top-1/2 z-50 w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2",
           "rounded-[var(--radius-lg)] border border-border bg-surface p-5 shadow-[0_8px_28px_-8px_rgba(0,0,0,0.6)]",
           className,
         )}

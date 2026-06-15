@@ -1,5 +1,5 @@
 //! The Ask Bridge (ARCHITECTURE §4.3): permission Asks from every tool funnel to
-//! one weft endpoint, become Needs-you cards, the human answers, and the
+//! one atlas endpoint, become Needs-you cards, the human answers, and the
 //! decision flows back to the blocked tool. Each tool intercepts at its own
 //! structured point (Claude PreToolUse hook, Codex approval-request, OpenCode
 //! /event), but they all resolve through THIS registry — never by scraping the
@@ -40,7 +40,7 @@ pub enum AskEvent {
 
 /// The human's answer to a permission Ask. `Always` remembers this action for
 /// the asking task; `Full` auto-approves everything from that task. Both are
-/// weft-side passthrough rules, scoped per (thread, task), kept in memory.
+/// atlas-side passthrough rules, scoped per (thread, task), kept in memory.
 /// IM 回复作答的中英动词/序号宽松解析见 `im::inbound::parse_verdict`，
 /// 落点即本枚举（`parse`/`as_str` 是 verdict 串的严格双向映射）。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

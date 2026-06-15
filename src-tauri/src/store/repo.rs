@@ -992,12 +992,12 @@ mod tests {
         assert_eq!(d.repo_id, 0);
         assert!(direction_repo_of(&db, d.id).await.unwrap().is_none());
 
-        let s = create_session(&db, d.id, 0, "codex", "/tmp/weft-run")
+        let s = create_session(&db, d.id, 0, "codex", "/tmp/atlas-run")
             .await
             .unwrap();
         let latest = latest_session_for(&db, d.id, 0).await.unwrap().unwrap();
         assert_eq!(latest.id, s.id);
-        assert_eq!(latest.cwd, "/tmp/weft-run");
+        assert_eq!(latest.cwd, "/tmp/atlas-run");
     }
 
     #[tokio::test]

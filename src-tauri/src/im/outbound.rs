@@ -36,7 +36,7 @@ pub fn perm_card(ask: &crate::ask::Ask, lang: &str) -> Value {
         "{} · {}",
         t(lang, "权限请求", "Permission ask"),
         if ask.thread_title.is_empty() {
-            "weft"
+            "atlas"
         } else {
             &ask.thread_title
         }
@@ -163,15 +163,15 @@ pub fn resync_summary(lang: &str, items: &[(i32, String)]) -> String {
     let head = if items.len() == 1 {
         t(
             lang,
-            "Weft 桥已上线，当前 1 项待你处理：",
-            "Weft bridge online — 1 ask waiting:",
+            "Atlas 桥已上线，当前 1 项待你处理：",
+            "Atlas bridge online — 1 ask waiting:",
         )
         .to_string()
     } else {
         let tmpl = t(
             lang,
-            "Weft 桥已上线，当前 {n} 项待你处理：",
-            "Weft bridge online — {n} asks waiting:",
+            "Atlas 桥已上线，当前 {n} 项待你处理：",
+            "Atlas bridge online — {n} asks waiting:",
         );
         tmpl.replace("{n}", &items.len().to_string())
     };

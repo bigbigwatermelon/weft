@@ -75,7 +75,7 @@ export function WorkspaceKanban() {
                     className={cn(
                       "h-1.5 w-1.5 rounded-full",
                       col.dot,
-                      col.key === "working" && "weft-pulse",
+                      col.key === "working" && "atlas-pulse",
                     )}
                   />
                   <span className="text-[11.5px] font-semibold text-ink-muted">
@@ -220,7 +220,7 @@ function ThreadCard({ o, onOpen }: { o: ThreadOverview; onOpen: () => void }) {
               title={t("workspace.live", { count: live })}
               className="flex items-center gap-1 text-[11px] tabular-nums text-running"
             >
-              <span className="weft-pulse h-1.5 w-1.5 rounded-full bg-running" />
+              <span className="atlas-pulse h-1.5 w-1.5 rounded-full bg-running" />
               {live}
             </span>
           )}

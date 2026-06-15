@@ -1,9 +1,9 @@
-//! Scan assistant text for weft control sentinels so the engine can fork them
+//! Scan assistant text for atlas control sentinels so the engine can fork them
 //! out of the timeline body. Pure string scanning — no regex dep, no allocs
 //! beyond the cleaned output. Two markers today, matching the directives
 //! injected via `commands::SENTINEL_DIRECTIVES`:
-//!   `<weft:action_card>{json}</weft:action_card>` — assistant proposes a card.
-//!   `<weft:list_repos/>` — assistant requests the current workspace's repos.
+//!   `<atlas:action_card>{json}</atlas:action_card>` — assistant proposes a card.
+//!   `<atlas:list_repos/>` — assistant requests the current workspace's repos.
 //! Malformed (unclosed) action_card stays inline as plain text so a half-typed
 //! sentinel never silently swallows assistant output.
 
@@ -14,9 +14,9 @@ pub enum Sentinel {
     ListRepos,
 }
 
-const OPEN_AC: &str = "<weft:action_card>";
-const CLOSE_AC: &str = "</weft:action_card>";
-const LIST_REPOS: &str = "<weft:list_repos/>";
+const OPEN_AC: &str = "<atlas:action_card>";
+const CLOSE_AC: &str = "</atlas:action_card>";
+const LIST_REPOS: &str = "<atlas:list_repos/>";
 
 enum Next {
     ActionCard(usize),

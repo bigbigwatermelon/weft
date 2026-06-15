@@ -26,7 +26,7 @@ import { cn } from "../lib/cn";
 
 /** Task lifecycle column. Needs-you is a tag on the card (amber chip), never
  *  a stage: an open ask leaves the task in its lifecycle column and bubbles it
- *  to the top. Under automation-first, queued/planning/working all mean "weft
+ *  to the top. Under automation-first, queued/planning/working all mean "atlas
  *  is driving it" — one column, with the stored sub-state as a chip. */
 type TaskState = "working" | "review" | "done";
 
@@ -218,7 +218,7 @@ function DirectionCard({
   const testsKind =
     failed > 0 ? "fail" : allChecks.length > 0 && passed === allChecks.length ? "pass" : "pend";
   // The review-column primary action is honest: open the actual diff for human
-  // eyes (Task→PR is the delivery boundary; weft does not fake a PR step).
+  // eyes (Task→PR is the delivery boundary; atlas does not fake a PR step).
   const action =
     isRepoLess && !hasNeed
       ? { label: t("thread.openSession"), variant: "default" as const, diff: false }
@@ -401,7 +401,7 @@ function ProvenanceMenu({
           align="start"
           sideOffset={4}
           onClick={(e) => e.stopPropagation()}
-          className="weft-pop z-[60] w-72 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+          className="atlas-pop z-[60] w-72 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
         >
           {checks && checks.length > 0 && (
             <>
@@ -469,7 +469,7 @@ function TrustSignal({ kind, label }: { kind: TrustKind; label: string }) {
 }
 
 /** Keyboard/click path to restatus a task. Sets the stored status (§4.6);
- *  Needs-you is a weft-derived tag, not a status, so it isn't offered. */
+ *  Needs-you is a atlas-derived tag, not a status, so it isn't offered. */
 function StatusMenu({ direction }: { direction: Direction }) {
   const { setTaskStatus } = useStore();
   const { t } = useTranslation();
@@ -491,7 +491,7 @@ function StatusMenu({ direction }: { direction: Direction }) {
           align="end"
           sideOffset={4}
           onClick={(e) => e.stopPropagation()}
-          className="weft-pop z-[60] w-40 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+          className="atlas-pop z-[60] w-40 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
         >
           {settable.map((c) => (
             <DM.Item

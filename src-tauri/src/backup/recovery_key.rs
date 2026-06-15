@@ -70,6 +70,13 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
             FORMAT_VERSION
         ));
     }
+    if rec.service != KEYCHAIN_SERVICE || rec.account != KEYCHAIN_ACCOUNT {
+        return Err(anyhow!(
+            "recovery key identity mismatch: service={} account={}",
+            rec.service,
+            rec.account
+        ));
+    }
     let raw = base64::engine::general_purpose::STANDARD
         .decode(rec.key_b64.trim())
         .map_err(|e| anyhow!("decode key_b64: {e}"))?;
@@ -140,5 +147,50 @@ mod tests {
         )
         .unwrap();
         assert!(import_from(&p).is_err());
+    }
+
+    #[test]
+    fn rejects_non_atlas_service() {
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        let key_b64 = base64::engine::general_purpose::STANDARD.encode([0x11u8; 48]);
+        let old_service = ["we", "ft"].concat();
+        let body = serde_json::json!({
+            "version": 1,
+            "service": old_service,
+            "account": "db-key-v1",
+            "key_b64": key_b64,
+            "exported_at": "0",
+            "note": ""
+        });
+        std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
+        let err = import_from(&p).err().expect("must reject non-Atlas service");
+        assert!(err.to_string().contains("identity mismatch"));
+    }
+
+    #[test]
+    fn rejects_non_atlas_account() {
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        let key_b64 = base64::engine::general_purpose::STANDARD.encode([0x22u8; 48]);
+        let body = serde_json::json!({
+            "version": 1,
+            "service": "atlas",
+            "account": "other",
+            "key_b64": key_b64,
+            "exported_at": "0",
+            "note": ""
+        });
+        std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
+        let err = import_from(&p).err().expect("must reject non-Atlas account");
+        assert!(err.to_string().contains("identity mismatch"));
     }
 }

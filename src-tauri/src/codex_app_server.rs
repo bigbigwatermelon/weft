@@ -281,7 +281,7 @@ impl Client {
         tauri::async_runtime::spawn(async move { me.read_loop(stdout).await });
 
         // Handshake: initialize (await), then the `initialized` notification.
-        self.request("initialize", initialize_params("weft", env!("CARGO_PKG_VERSION")))
+        self.request("initialize", initialize_params("atlas", env!("CARGO_PKG_VERSION")))
             .await?;
         self.notify("initialized", None).await?;
         Ok(())

@@ -98,7 +98,7 @@ export function SessionView() {
           />
         </header>
 
-        {/* chat-engine worker: weft-owned timeline + composer */}
+        {/* chat-engine worker: atlas-owned timeline + composer */}
         <div className="flex min-h-0 flex-1 flex-col">
           <ChatTimeline
             messages={(leadMessages[active.threadId] ?? []).filter(

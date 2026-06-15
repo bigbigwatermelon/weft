@@ -11,7 +11,7 @@ import type { useRepoActions } from "./useRepoActions";
 type RunAction = ReturnType<typeof useRepoActions>["run"];
 
 /**
- * The chat-engine timeline: renders weft-owned LeadMessage rows (no polling,
+ * The chat-engine timeline: renders atlas-owned LeadMessage rows (no polling,
  * no jsonl). Structured cards (proposal/approval/worker events) live inline in
  * the flow, where they happened — the conversation IS the console. Tool calls
  * are NOT rows: the one currently running shows as a transient activity line

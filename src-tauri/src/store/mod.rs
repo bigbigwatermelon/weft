@@ -22,7 +22,7 @@ impl Db {
         Ok(Db(conn))
     }
 
-    /// Open `~/.weft/weft.db` as an encrypted SQLCipher database. The key is
+    /// Open `~/.atlas/atlas.db` as an encrypted SQLCipher database. The key is
     /// taken from (or minted into) the OS Keychain. Any pre-existing plaintext
     /// db is renamed aside — we do not migrate its data.
     pub async fn open_default() -> anyhow::Result<Self> {
@@ -77,17 +77,17 @@ impl Db {
         let target_str = target.to_string_lossy().replace('\'', "''");
 
         let attach = format!(
-            "ATTACH DATABASE '{}' AS weft_snap KEY {};",
+            "ATTACH DATABASE '{}' AS atlas_snap KEY {};",
             target_str, key_lit
         );
 
         let r = async {
             self.0.execute_unprepared(&attach).await?;
             self.0
-                .execute_unprepared("SELECT sqlcipher_export('weft_snap');")
+                .execute_unprepared("SELECT sqlcipher_export('atlas_snap');")
                 .await?;
             self.0
-                .execute_unprepared("DETACH DATABASE weft_snap;")
+                .execute_unprepared("DETACH DATABASE atlas_snap;")
                 .await?;
             Ok::<(), sea_orm::DbErr>(())
         }

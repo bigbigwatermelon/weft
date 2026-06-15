@@ -11,7 +11,7 @@ import { cn } from "../lib/cn";
  * Effective-config preview (M6 有效配置预览): for each repo in the workspace, the
  * skills + rules that actually apply, tagged with the layer they come from
  * (personal / repo) — a shadowed personal skill is shown struck through. Answers
- * "where does this skill/rule come from?" without leaving weft.
+ * "where does this skill/rule come from?" without leaving atlas.
  */
 export function EffectiveConfigDialog({
   open,

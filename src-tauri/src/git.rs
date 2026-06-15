@@ -109,9 +109,9 @@ pub fn remove_worktree(repo: &Path, worktree_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Delete a (weft-namespaced) branch from `repo`, ignoring "not found".
+/// Delete a (atlas-namespaced) branch from `repo`, ignoring "not found".
 pub fn delete_branch(repo: &Path, branch: &str) -> Result<()> {
-    // -D force-deletes; weft worktree branches are throwaway WIP and the caller
+    // -D force-deletes; atlas worktree branches are throwaway WIP and the caller
     // is explicitly tearing the direction down (zero-accumulation principle).
     git(repo, &["branch", "-D", branch]).map(|_| ()).or(Ok(()))
 }
@@ -140,7 +140,7 @@ pub fn init_repo(at: &Path) -> Result<()> {
 }
 
 /// Clone `url` into `dest` (which must not be an existing non-empty dir). Uses the
-/// system git credentials / SSH agent; weft never prompts for secrets, so a
+/// system git credentials / SSH agent; atlas never prompts for secrets, so a
 /// private repo without configured credentials fails with git's own error.
 pub fn clone_repo(url: &str, dest: &Path) -> Result<()> {
     if dest.exists()
@@ -163,9 +163,9 @@ pub fn clone_repo(url: &str, dest: &Path) -> Result<()> {
 pub fn init_demo_repo(at: &Path) -> Result<PathBuf> {
     std::fs::create_dir_all(at)?;
     git(at, &["init", "-q"])?;
-    git(at, &["config", "user.email", "demo@weft.local"])?;
-    git(at, &["config", "user.name", "weft demo"])?;
-    std::fs::write(at.join("README.md"), "# weft demo repo\n")?;
+    git(at, &["config", "user.email", "demo@atlas.local"])?;
+    git(at, &["config", "user.name", "atlas demo"])?;
+    std::fs::write(at.join("README.md"), "# atlas demo repo\n")?;
     git(at, &["add", "-A"])?;
     git(at, &["commit", "-q", "-m", "init"])?;
     Ok(at.to_path_buf())
@@ -302,7 +302,7 @@ pub fn head_commit(repo: &Path) -> Result<String> {
     git(repo, &["rev-parse", "--short", "HEAD"])
 }
 
-/// Append `name` to a worktree's git exclude (info/exclude) so weft's injected,
+/// Append `name` to a worktree's git exclude (info/exclude) so atlas's injected,
 /// untracked files never show in `git status` / diffs / accidental commits.
 /// Resolves the real exclude path via git (worktrees use a separate gitdir).
 /// Best-effort: silently does nothing if git isn't available.
@@ -351,7 +351,7 @@ mod tests {
     use super::*;
 
     fn tmp(name: &str) -> std::path::PathBuf {
-        let p = std::env::temp_dir().join(format!("weft-git-{}-{}", std::process::id(), name));
+        let p = std::env::temp_dir().join(format!("atlas-git-{}-{}", std::process::id(), name));
         let _ = std::fs::remove_dir_all(&p);
         p
     }

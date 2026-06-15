@@ -37,7 +37,7 @@ pub enum Route {
         text: String,
     },
     /// 已绑定 owner 在飞书群话题里发送 `/bind <thread_id>`，把当前飞书
-    /// 话题绑定到指定 Weft issue。群消息仍不能绑定 owner；只有 allowlist
+    /// 话题绑定到指定 Atlas issue。群消息仍不能绑定 owner；只有 allowlist
     /// 中的 sender 可以改 issue↔话题路由。
     BindIssueThread {
         thread_id: i32,
@@ -45,7 +45,7 @@ pub enum Route {
         im_thread_ref: String,
     },
     /// 已绑定 owner 在飞书群普通消息里发送 `/topic <thread_id>`，为已有
-    /// Weft issue 创建或复用一个飞书 topic。
+    /// Atlas issue 创建或复用一个飞书 topic。
     EnsureIssueTopic {
         thread_id: i32,
         chat_id: String,

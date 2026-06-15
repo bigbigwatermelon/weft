@@ -128,8 +128,8 @@ export function AppTopBar() {
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {navCollapsed && (
           <>
-            <img src="/weft-mark.svg" alt="" className="h-[18px] w-[18px]" draggable={false} />
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">weft</span>
+            <img src="/atlas-mark.png" alt="" className="h-[18px] w-[18px]" draggable={false} />
+            <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Atlas</span>
           </>
         )}
         {inSession && (

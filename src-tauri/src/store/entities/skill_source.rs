@@ -1,6 +1,6 @@
 use sea_orm::entity::prelude::*;
 
-/// A git-hosted skill source. Cloned to ~/.weft/skills/sources/<id>/.
+/// A git-hosted skill source. Cloned to ~/.atlas/skills/sources/<id>/.
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, serde::Serialize, serde::Deserialize)]
 #[sea_orm(table_name = "skill_source")]
 pub struct Model {

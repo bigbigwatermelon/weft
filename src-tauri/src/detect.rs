@@ -1,4 +1,4 @@
-//! Tool readiness: make GUI-launched Weft find CLIs installed via nvm/fnm/volta
+//! Tool readiness: make GUI-launched Atlas find CLIs installed via nvm/fnm/volta
 //! or native installers, and report each CLI's version. The core fix is
 //! augmenting THIS process's PATH from the user's login shell at startup —
 //! engine spawns inherit this process's env, so one augment makes every later
@@ -96,7 +96,7 @@ pub fn augment_path_from_login_shell() {
 }
 
 /// Soft minimum versions — surfaced as an "update recommended" hint in Settings,
-/// NOT a hard spawn gate. Reasons are the features Weft relies on.
+/// NOT a hard spawn gate. Reasons are the features Atlas relies on.
 pub(crate) fn min_version(tool: &str) -> Option<(u32, u32, u32)> {
     match tool {
         "claude" => Some((1, 0, 0)),

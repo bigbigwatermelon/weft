@@ -71,7 +71,7 @@ export function ObserveView() {
     };
   }, [directionId, repoId]);
 
-  // Chat-mode sessions render the weft-owned timeline; keep it hydrated.
+  // Chat-mode sessions render the atlas-owned timeline; keep it hydrated.
   useEffect(() => {
     if (activeThreadId != null) void loadLeadChat(activeThreadId);
   }, [activeThreadId, loadLeadChat]);

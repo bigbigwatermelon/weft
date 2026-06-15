@@ -52,8 +52,8 @@ export function WorkspaceNav() {
           title={t("nav.home")}
           className="flex w-fit select-none items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 transition-colors hover:bg-brand-ghost"
         >
-          <img src="/weft-mark.svg" alt="" className="h-[18px] w-[18px]" draggable={false} />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">weft</span>
+          <img src="/atlas-mark.png" alt="" className="h-[18px] w-[18px]" draggable={false} />
+          <span className="text-[15px] font-semibold text-ink">Atlas</span>
         </button>
       </div>
 
@@ -285,7 +285,7 @@ function ThreadRow({ thread, onRename }: { thread: Thread; onRename: (id: number
         <span className="truncate text-[13px]">{thread.title}</span>
         {liveCount > 0 && (
           <span className="flex items-center gap-1 text-[10px] text-running">
-            <span className="weft-pulse h-1.5 w-1.5 rounded-full bg-running" />
+            <span className="atlas-pulse h-1.5 w-1.5 rounded-full bg-running" />
             {liveCount}
           </span>
         )}

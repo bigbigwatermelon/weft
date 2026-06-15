@@ -20,7 +20,7 @@ type PromptState = {
 
 /**
  * The task console — a real chat, not a projection of the CLI's log. Messages
- * live in weft's own store, replies stream token-by-token over the lead-chat
+ * live in atlas's own store, replies stream token-by-token over the lead-chat
  * event, and structured cards sit inline in the timeline. The engine survives
  * restarts (resume) so history is always here and the composer always works.
  */

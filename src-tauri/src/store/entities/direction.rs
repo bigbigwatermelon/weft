@@ -11,7 +11,7 @@ pub struct Model {
     pub tool: String,
     pub branch: String,
     /// Agent/human-driven lifecycle: queued | planning | working | review | done.
-    /// Reversible; weft never forces it (an open ask overlays Needs-you in the UI).
+    /// Reversible; atlas never forces it (an open ask overlays Needs-you in the UI).
     #[sea_orm(default_value = "queued")]
     pub status: String,
     /// The one repo this direction writes (scope rework, spec Part 1). FK into

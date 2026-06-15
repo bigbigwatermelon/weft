@@ -102,7 +102,7 @@ export const api = {
   listWorktrees: (directionId: number) =>
     invoke<Worktree[]>("list_worktrees", { directionId }),
 
-  // Lead chat engine: weft-owned conversation (headless stream-json claude).
+  // Lead chat engine: atlas-owned conversation (headless stream-json claude).
   leadSend: (
     threadId: number,
     text: string,
