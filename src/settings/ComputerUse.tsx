@@ -14,13 +14,20 @@ export function ComputerUseSettings() {
   const [runningDoctor, setRunningDoctor] = useState(false);
   const [output, setOutput] = useState<string | null>(null);
 
-  async function refreshStatus(clearOutput = false) {
+  async function refreshStatus({
+    clearOutput = false,
+    preserveOutputOnError = false,
+  }: {
+    clearOutput?: boolean;
+    preserveOutputOnError?: boolean;
+  } = {}) {
     if (clearOutput) setOutput(null);
     setLoading(true);
     try {
       setStatus(await api.computerUseGetStatus());
     } catch (err: unknown) {
-      setOutput(String(err));
+      setStatus(null);
+      if (!preserveOutputOnError) setOutput(String(err));
     } finally {
       setLoading(false);
     }
@@ -45,8 +52,18 @@ export function ComputerUseSettings() {
     }
   }
 
+  const enabled = status?.enabled ?? false;
+  const busy = loading || saving || runningDoctor;
+  const canRunDoctor =
+    Boolean(
+      status?.enabled &&
+        status.supported &&
+        !DOCTOR_BLOCKED_STATUSES.has(status.status),
+    ) && !busy;
+  const visibleOutput = output ?? status?.doctor_summary ?? status?.error;
+
   async function runDoctor() {
-    if (runningDoctor) return;
+    if (!canRunDoctor) return;
     setRunningDoctor(true);
     try {
       const text = await api.computerUseRunDoctor();
@@ -54,14 +71,11 @@ export function ComputerUseSettings() {
       await refreshStatus();
     } catch (err: unknown) {
       setOutput(String(err));
+      await refreshStatus({ preserveOutputOnError: true });
     } finally {
       setRunningDoctor(false);
     }
   }
-
-  const enabled = status?.enabled ?? false;
-  const busy = loading || saving || runningDoctor;
-  const visibleOutput = output ?? status?.doctor_summary ?? status?.error;
 
   return (
     <div className="flex flex-col gap-10">
@@ -104,7 +118,7 @@ export function ComputerUseSettings() {
           <div className="flex justify-end gap-2 pt-1">
             <Button
               variant="default"
-              onClick={() => void refreshStatus(true)}
+              onClick={() => void refreshStatus({ clearOutput: true })}
               disabled={busy}
             >
               {loading ? t("settings.computerUseChecking") : t("settings.computerUseRecheck")}
@@ -112,7 +126,7 @@ export function ComputerUseSettings() {
             <Button
               variant="primary"
               onClick={() => void runDoctor()}
-              disabled={busy}
+              disabled={!canRunDoctor}
             >
               {runningDoctor
                 ? t("settings.computerUseChecking")
@@ -130,6 +144,13 @@ export function ComputerUseSettings() {
     </div>
   );
 }
+
+const DOCTOR_BLOCKED_STATUSES = new Set<ComputerUseStatusKind>([
+  "disabled",
+  "unsupported_platform",
+  "missing",
+  "not_executable",
+]);
 
 function DiagnosticLine({ label, children }: { label: string; children: ReactNode }) {
   return (
