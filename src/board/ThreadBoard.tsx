@@ -23,6 +23,7 @@ import { ToolIcon, toolFullName } from "../components/ToolIcon";
 import { RenameDialog } from "../nav/dialogs";
 import { LeadTab } from "../session/LeadTab";
 import { cn } from "../lib/cn";
+import { ScopeReview } from "./ScopeReview";
 
 /** Task lifecycle column. Needs-you is a tag on the card (amber chip), never
  *  a stage: an open ask leaves the task in its lifecycle column and bubbles it
@@ -49,6 +50,8 @@ export function ThreadBoard() {
     threads,
     activeThreadId,
     directionsByThread,
+    proposal,
+    reviewingProposal,
     setReviewingProposal,
     threadTab,
     setThreadTab,
@@ -90,6 +93,13 @@ export function ThreadBoard() {
       <div className="flex min-h-0 flex-1 flex-col">
         {threadTab === "lead" ? (
           <LeadTab onReview={() => setThreadTab("board")} />
+        ) : reviewingProposal && proposal && proposal.status === "proposed" ? (
+          <ScopeReview
+            onBack={() => {
+              setReviewingProposal(false);
+              setThreadTab("lead");
+            }}
+          />
         ) : dirs.length === 0 ? (
           <EmptyDiscuss />
         ) : (

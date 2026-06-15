@@ -30,9 +30,10 @@ export function WorkspaceNav() {
     openNeeds,
     needs,
     asks,
+    writeTriggers,
   } = useStore();
   // Live workspace-wide pending count for the Needs-you focal entry.
-  const needsCount = needs.length + asks.length;
+  const needsCount = needs.length + asks.length + writeTriggers.length;
   const [dlg, setDlg] = useState<null | "thread">(null);
   // Both rename surfaces store only an id and derive `initial` from the live
   // slice — so concurrent updates flow through instead of being captured.

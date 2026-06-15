@@ -146,7 +146,14 @@ pub async fn lead_engine(
     let system_prompt = if is_concierge {
         concierge_prompt(lang)
     } else {
-        format!("{}{}", lead_prompt(), lang_directive(lang))
+        let repo_state =
+            crate::lead_chat::repo_state::render_repo_state(db, Some(t.workspace_id)).await?;
+        format!(
+            "{}{}\n\n{}",
+            lead_prompt(),
+            lang_directive(lang),
+            repo_state
+        )
     };
     let inner = engine::EngineInner {
         thread_id,

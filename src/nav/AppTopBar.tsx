@@ -35,6 +35,7 @@ export function AppTopBar() {
     directionsByThread,
     needs,
     asks,
+    writeTriggers,
     proposal,
     reviewingProposal,
     setReviewingProposal,
@@ -73,7 +74,7 @@ export function AppTopBar() {
     viewing == null &&
     !showNeeds &&
     homeTab === "board";
-  const needsCount = needs.length + asks.length;
+  const needsCount = needs.length + asks.length + writeTriggers.length;
   const proposalPending =
     proposal?.status === "proposed" && proposal.directions.length > 0 && !reviewingProposal;
   const taskTabs = [

@@ -1114,13 +1114,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [driveDirection, resolveReviewSkill],
   );
 
-  const codingAutomationEnabled = false;
-
   // Automation-first: a task flowing into "review" triggers the review skill
   // by itself (once per entry; the setting turns this off).
   const autoReviewedRef = useRef<Set<number>>(new Set());
   useEffect(() => {
-    if (!codingAutomationEnabled) return;
     const all = Object.values(directionsByThread).flat();
     for (const d of all) {
       if (d.status !== "review") {
@@ -1382,7 +1379,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // phases verify: a planning turn produces a plan, not code worth checking.
   const prevTurnRef = useRef<Record<number, string>>({});
   useEffect(() => {
-    if (!codingAutomationEnabled) return;
     for (const [sidStr, turn] of Object.entries(workerTurn)) {
       const sid = Number(sidStr);
       const prev = prevTurnRef.current[sid];
