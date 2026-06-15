@@ -577,7 +577,7 @@ export const en = {
     backupNextAt: "Next backup",
     backupRestoreLink: "Restore from backup",
     backupRestoreHint:
-      "Use on a fresh machine. Refuses to run if atlas.db already exists in the Atlas home directory.",
+      "Use on a fresh machine or an empty Atlas shell database. Restore is refused when real Atlas data already exists.",
     backupRestoreRemoteLabel: "Remote URL to restore from",
     backupRestoreKeyLabel: "Recovery Key file",
     backupRestorePickKey: "Choose Recovery Key…",

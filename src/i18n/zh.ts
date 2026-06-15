@@ -559,7 +559,7 @@ export const zh = {
     backupStatusAgo: "上次备份",
     backupNextAt: "下次备份",
     backupRestoreLink: "从备份恢复",
-    backupRestoreHint: "用于全新机器。若 Atlas 主目录已有 atlas.db，会拒绝执行。",
+    backupRestoreHint: "用于全新机器或空的 Atlas shell 数据库；若已有真实 Atlas 数据会拒绝执行。",
     backupRestoreRemoteLabel: "要恢复的远端 URL",
     backupRestoreKeyLabel: "Recovery Key 文件",
     backupRestorePickKey: "选择 Recovery Key…",

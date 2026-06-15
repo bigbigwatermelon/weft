@@ -28,6 +28,7 @@ const PENDING_RESTORE_TMP_DIR: &str = "pending-restore.tmp";
 const PENDING_MANIFEST: &str = "manifest.json";
 const PENDING_RECOVERY_KEY: &str = "recovery-key.json";
 const RESTORE_DB_TMP: &str = "atlas.db.restore-new";
+const RESTORE_DB_OLD: &str = "atlas.db.restore-old";
 const PENDING_VERSION: u32 = 1;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -183,11 +184,14 @@ impl BackupService {
             let _ = std::fs::remove_dir_all(&tmp);
         }
         std::fs::create_dir_all(&tmp)?;
+        set_private_dir_permissions(&tmp)?;
 
         let staged_snapshot = tmp.join(snapshot::SNAPSHOT_NAME);
         std::fs::copy(snapshot_path, &staged_snapshot)?;
+        set_private_file_permissions(&staged_snapshot)?;
         let staged_key = tmp.join(PENDING_RECOVERY_KEY);
         std::fs::copy(recovery_key_path, &staged_key)?;
+        set_private_file_permissions(&staged_key)?;
 
         let manifest = PendingRestoreManifest {
             version: PENDING_VERSION,
@@ -200,6 +204,7 @@ impl BackupService {
             tmp.join(PENDING_MANIFEST),
             serde_json::to_vec_pretty(&manifest)?,
         )?;
+        set_private_file_permissions(&tmp.join(PENDING_MANIFEST))?;
 
         if pending.exists() {
             std::fs::remove_dir_all(&pending)?;
@@ -241,14 +246,36 @@ pub async fn apply_pending_restore_before_open(home: &Path) -> Result<()> {
 
     let db_path = home.join(snapshot::SNAPSHOT_NAME);
     if db_path.exists() {
+        if files_equal(&db_path, &snapshot_path)? {
+            verify_snapshot_with_key(&db_path, &imported).await?;
+            recovery_key::install_key(&imported)?;
+            verify_snapshot_with_key(&db_path, &imported).await?;
+            cleanup_restored_pending(home, &pending)?;
+            return Ok(());
+        }
+
         let current_key = crate::store::key::get_existing()?;
-        let conn = open_sqlcipher_existing(&db_path, &current_key).await?;
+        let conn = open_sqlcipher_existing(&db_path, &current_key)
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "refusing to restore: {} is neither the pending Atlas snapshot nor an openable shell database: {e}",
+                    db_path.display()
+                )
+            })?;
         ensure_connection_is_shell(&conn, &db_path).await?;
         drop(conn);
     }
 
-    recovery_key::install_key(&imported)?;
     replace_db_with_snapshot(home, &snapshot_path)?;
+    recovery_key::install_key(&imported)?;
+    verify_snapshot_with_key(&db_path, &imported).await?;
+    cleanup_restored_pending(home, &pending)?;
+    Ok(())
+}
+
+fn cleanup_restored_pending(home: &Path, pending: &Path) -> Result<()> {
+    remove_file_if_exists(&home.join(RESTORE_DB_OLD))?;
     std::fs::remove_dir_all(&pending)?;
     Ok(())
 }
@@ -306,9 +333,41 @@ fn current_schema_version() -> usize {
 
 async fn verify_snapshot_with_key(path: &Path, key: &SqlCipherKey) -> Result<()> {
     let conn = open_sqlcipher_existing(path, key).await?;
-    use sea_orm::ConnectionTrait;
-    conn.execute_unprepared("SELECT name FROM sqlite_master LIMIT 1;")
-        .await?;
+    ensure_atlas_schema(&conn, path).await?;
+    Ok(())
+}
+
+async fn ensure_atlas_schema(conn: &sea_orm::DatabaseConnection, path: &Path) -> Result<()> {
+    use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
+
+    const CORE_TABLES: &[&str] = &[
+        "workspace",
+        "backup_config",
+        "repo_ref",
+        "thread",
+        "session",
+        "skill_source",
+    ];
+
+    for table in CORE_TABLES {
+        let row = conn
+            .query_one(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                format!(
+                    "SELECT COUNT(*) AS n FROM sqlite_master \
+                     WHERE type = 'table' AND name = '{table}'"
+                ),
+            ))
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("validate Atlas schema: no sqlite_master row"))?;
+        let count: i64 = row.try_get("", "n")?;
+        if count != 1 {
+            return Err(anyhow::anyhow!(
+                "snapshot is not an Atlas database: {} missing table {table}",
+                path.display()
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -429,12 +488,69 @@ fn replace_db_with_snapshot(home: &Path, snapshot_path: &Path) -> Result<()> {
         std::fs::remove_file(&tmp)?;
     }
     std::fs::copy(snapshot_path, &tmp)?;
+    set_private_file_permissions(&tmp)?;
 
     remove_file_if_exists(&home.join("atlas.db-wal"))?;
     remove_file_if_exists(&home.join("atlas.db-shm"))?;
     remove_file_if_exists(&home.join("atlas.db-journal"))?;
-    remove_file_if_exists(&db_path)?;
+    let old = home.join(RESTORE_DB_OLD);
+    remove_file_if_exists(&old)?;
+    if db_path.exists() {
+        std::fs::rename(&db_path, &old)?;
+    }
     std::fs::rename(&tmp, &db_path)?;
+    Ok(())
+}
+
+fn files_equal(a: &Path, b: &Path) -> Result<bool> {
+    use std::io::Read;
+
+    let meta_a = std::fs::metadata(a)?;
+    let meta_b = std::fs::metadata(b)?;
+    if meta_a.len() != meta_b.len() {
+        return Ok(false);
+    }
+
+    let mut a = std::io::BufReader::new(std::fs::File::open(a)?);
+    let mut b = std::io::BufReader::new(std::fs::File::open(b)?);
+    let mut buf_a = [0_u8; 8192];
+    let mut buf_b = [0_u8; 8192];
+    loop {
+        let read_a = a.read(&mut buf_a)?;
+        let read_b = b.read(&mut buf_b)?;
+        if read_a != read_b {
+            return Ok(false);
+        }
+        if read_a == 0 {
+            return Ok(true);
+        }
+        if buf_a[..read_a] != buf_b[..read_b] {
+            return Ok(false);
+        }
+    }
+}
+
+#[cfg(unix)]
+fn set_private_dir_permissions(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_private_dir_permissions(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(unix)]
+fn set_private_file_permissions(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_private_file_permissions(_path: &Path) -> Result<()> {
     Ok(())
 }
 
