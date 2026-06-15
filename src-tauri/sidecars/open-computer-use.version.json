@@ -2,7 +2,14 @@
   "name": "open-computer-use",
   "upstream": "https://github.com/iFurySt/open-codex-computer-use",
   "license": "MIT",
+  "gitTag": "v0.1.53",
   "pinnedRef": "b753b790cace188152ffb755cd13b2ac9ff6ebf7",
+  "npmPackage": "open-computer-use@0.1.53",
+  "npmTarball": "https://registry.npmjs.org/open-computer-use/-/open-computer-use-0.1.53.tgz",
+  "npmShasum": "d740b0c3af25ecc706ca747c1758742a365658ab",
+  "npmIntegrity": "sha512-5qwCPl7Gm4Wk2i/wFkq2dVLN2SzNRQSJTd95zXdGF+u5ZsUXkFx1IFVdNbYelWOpc4fgy8Z8/gYrbacj/2chig==",
   "binary": "open-computer-use",
-  "notes": "Pinned to upstream main commit b753b790cace188152ffb755cd13b2ac9ff6ebf7, resolved on 2026-06-16 for the first Atlas integration plan."
+  "runtime": "open-computer-use-runtime/Open Computer Use.app/Contents/MacOS/OpenComputerUse",
+  "preparedBy": "scripts/prepare-open-computer-use-sidecar.mjs",
+  "notes": "Atlas bundles the native runtime from the pinned npm release artifact and does not run upstream global installer scripts."
 }

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+RUNTIME="${DIR}/open-computer-use-runtime/Open Computer Use.app/Contents/MacOS/OpenComputerUse"
+
+if [[ ! -x "${RUNTIME}" ]]; then
+  echo "Atlas Computer Use runtime is missing or not executable: ${RUNTIME}" >&2
+  exit 127
+fi
+
+exec "${RUNTIME}" "$@"
