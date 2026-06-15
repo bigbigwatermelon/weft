@@ -492,24 +492,8 @@ async fn write_forged_core_tables_db(path: &Path, key: [u8; 48]) {
     )
     .await
     .unwrap();
-    for version in [
-        "m0001_init",
-        "m0002_repo_profile",
-        "m0003_plan",
-        "m0004_direction_status",
-        "m0005_direction_repo_reason",
-        "m0006_drop_direction_repo",
-        "m0007_lead_message",
-        "m0008_direction_mandate",
-        "m0009_drop_thread_status",
-        "m0010_app_setting",
-        "m0011_thread_lead_tool",
-        "m0012_drop_repo_default_tool",
-        "m0013_skill_source",
-        "m0014_skill_enable",
-        "m0015_im_route",
-        "m0016_backup_config",
-    ] {
+    for migration in atlas_app_lib::store::migration::Migrator::migrations() {
+        let version = migration.name().replace('\'', "''");
         conn.execute_unprepared(&format!(
             "INSERT INTO seaql_migrations (version, applied_at) VALUES ('{version}', 0);"
         ))
@@ -1292,6 +1276,10 @@ async fn apply_pending_restore_quarantines_pending_when_real_user_data_exists() 
     let failed = failed_restore_dirs(&target_home);
     assert_eq!(failed.len(), 1);
     let note = std::fs::read_to_string(failed[0].join("restore-error.txt")).unwrap();
+    assert!(
+        note.starts_with("Atlas did not apply this pending restore.\n\n"),
+        "got: {note}"
+    );
     assert!(note.contains("contains existing Atlas data"), "got: {note}");
 
     let db = Db::open_default().await.unwrap();

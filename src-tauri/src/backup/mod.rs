@@ -361,9 +361,7 @@ fn quarantine_pending_restore(home: &Path, pending: &Path, reason: &str) -> Resu
     std::fs::rename(pending, &failed)?;
 
     let note = failed.join(PENDING_FAILURE_NOTE);
-    let body = format!(
-        "Atlas did not apply this pending restore because doing so would overwrite existing Atlas data.\n\n{reason}\n"
-    );
+    let body = format!("Atlas did not apply this pending restore.\n\n{reason}\n");
     if let Err(e) = std::fs::write(&note, body) {
         eprintln!(
             "[atlas] failed to write pending restore quarantine note {}: {e}",
