@@ -9,6 +9,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "computer-use:prepare-sidecar": "node scripts/prepare-open-computer-use-sidecar.mjs",
+    "computer-use:verify-sidecar": "node scripts/prepare-open-computer-use-sidecar.mjs --verify-only",
     "ci:pre-push": "pnpm preflight",
     "preflight": "scripts/preflight.sh",
     "preflight:quick": "scripts/preflight.sh --quick",
