@@ -35,6 +35,16 @@ History uses short conventional prefixes such as `feat(plan): ...`, `fix(store):
 
 PRs should include a concise summary, verification commands and results, linked issue/task when applicable, and screenshots or short recordings for visible UI changes.
 
+## Review Guidelines
+
+Codex Cloud automatic code review is configured through the GitHub App / Codex settings for this repository. Do not add a separate API-key-backed Codex GitHub Action unless the repository owner explicitly asks for a self-hosted review bot.
+
+When Codex reviews a pull request, review the PR diff against its base branch and focus on correctness, security, data safety, migration risk, regression risk, and missing tests. Lead with actionable findings ordered by severity and include exact file and line references where possible. Avoid style-only comments unless they mask a real bug.
+
+For broad identity or architecture changes, check all coupled surfaces rather than a single page: app metadata, bundle identifiers, data directories, database names, environment variables, protocol names, user-facing strings, tests, docs, release assets, and recovery paths should move together unless the PR explicitly documents a transition bridge.
+
+After a PR is opened or updated, expect `chatgpt-codex-connector` to review the latest head commit. If it leaves comments, address real defects with code and tests; push back clearly on out-of-scope or speculative feedback.
+
 ## Architecture & Configuration Notes
 
 Do not write cross-repo wiring into canonical repositories. Use temporary launch flags, worktree-local ignored files, or Weft-managed state. Current delivery reaches reviewable worktree diffs with pre-PR checks; PR creation, CI/CD observation, and deployment orchestration are roadmap work.
