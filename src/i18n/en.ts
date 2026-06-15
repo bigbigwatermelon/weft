@@ -583,7 +583,7 @@ export const en = {
     backupRestorePickKey: "Choose Recovery Key…",
     backupRestoreConfirm: "Restore",
     backupRestoring: "Restoring…",
-    backupRestoreSuccess: "Restored. Please restart Atlas.",
+    backupRestoreSuccess: "Restore staged. Restart Atlas to apply.",
     backupRestoreNoKey: "Select a Recovery Key file first.",
   },
   danger: {

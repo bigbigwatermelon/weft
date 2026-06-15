@@ -7,6 +7,7 @@ use atlas_app_lib::store::key::{format_for_pragma, SqlCipherKey};
 use atlas_app_lib::store::Db;
 use base64::Engine;
 use sea_orm::ConnectionTrait;
+use sea_orm_migration::MigratorTrait;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
@@ -21,6 +22,10 @@ fn iso_env_with(home: &Path, key: [u8; 48]) {
 fn set_test_key(key: [u8; 48]) {
     let b64 = base64::engine::general_purpose::STANDARD.encode(key);
     std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
+}
+
+fn current_schema_version() -> usize {
+    atlas_app_lib::store::migration::Migrator::migrations().len()
 }
 
 fn make_bare(parent: &Path) -> String {
@@ -101,6 +106,34 @@ async fn workspace_count(db: &Db) -> i64 {
         .unwrap()
         .expect("row exists");
     row.try_get("", "n").unwrap()
+}
+
+async fn repo_count(db: &Db) -> i64 {
+    let row =
+        db.0.query_one(sea_orm::Statement::from_string(
+            sea_orm::DbBackend::Sqlite,
+            "SELECT COUNT(*) AS n FROM repo_ref".to_owned(),
+        ))
+        .await
+        .unwrap()
+        .expect("row exists");
+    row.try_get("", "n").unwrap()
+}
+
+fn failed_restore_dirs(home: &Path) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = std::fs::read_dir(home)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .map(|name| name.starts_with("pending-restore.failed."))
+                .unwrap_or(false)
+        })
+        .collect();
+    dirs.sort();
+    dirs
 }
 
 async fn make_backup(
@@ -720,11 +753,129 @@ async fn malformed_meta_with_snapshot_does_not_stage_restore() {
 }
 
 #[tokio::test]
+async fn older_schema_backup_does_not_stage_restore() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let tmp = tempfile::tempdir().unwrap();
+    let key = [0x36u8; 48];
+    let older_meta = format!(r#"{{"schema_version":{}}}"#, current_schema_version() - 1);
+    let (url, rk) =
+        make_backup_with_meta_override(tmp.path(), key, "older-schema", &older_meta).await;
+
+    let home = tmp.path().join("target-home");
+    std::fs::create_dir_all(&home).unwrap();
+    iso_env_with(&home, key);
+    let db = Db::open_default().await.unwrap();
+    let _ = config::load(&db).await.unwrap();
+    let svc = BackupService::new(db.clone(), home.clone());
+
+    let err = svc
+        .restore_from(&url, &rk)
+        .await
+        .err()
+        .expect("must reject older schema backup");
+    assert!(
+        err.to_string()
+            .contains("older backup requires a matching Atlas version"),
+        "got: {err:#}"
+    );
+    assert!(home.join("atlas.db").exists());
+    assert!(!atlas_app_lib::backup::pending_restore_exists(&home));
+    assert_eq!(workspace_count(&db).await, 0);
+}
+
+#[tokio::test]
+async fn malicious_pending_manifest_filename_is_rejected() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let tmp = tempfile::tempdir().unwrap();
+    let key = [0x37u8; 48];
+    let source_home = tmp.path().join("source-home");
+    let (url, rk) = make_backup(tmp.path(), &source_home, key, "manifest-path").await;
+
+    let target_home = tmp.path().join("target-home");
+    std::fs::create_dir_all(&target_home).unwrap();
+    iso_env_with(&target_home, key);
+    let svc = {
+        let db = Db::connect("sqlite::memory:").await.unwrap();
+        BackupService::new(db, target_home.clone())
+    };
+    svc.restore_from(&url, &rk).await.unwrap();
+
+    let manifest_path = target_home.join("pending-restore").join("manifest.json");
+    let manifest = serde_json::json!({
+        "version": 1,
+        "schema_version": current_schema_version(),
+        "staged_at": "0",
+        "snapshot": "../atlas.db",
+        "recovery_key": "recovery-key.json"
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let err = atlas_app_lib::backup::apply_pending_restore_before_open(&target_home)
+        .await
+        .err()
+        .expect("must reject manifest path traversal");
+    assert!(
+        err.to_string().contains("snapshot must be atlas.db"),
+        "got: {err:#}"
+    );
+    assert!(atlas_app_lib::backup::pending_restore_exists(&target_home));
+    assert!(failed_restore_dirs(&target_home).is_empty());
+}
+
+#[tokio::test]
+async fn older_pending_manifest_is_rejected() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let tmp = tempfile::tempdir().unwrap();
+    let key = [0x38u8; 48];
+    let source_home = tmp.path().join("source-home");
+    let (url, rk) = make_backup(tmp.path(), &source_home, key, "pending-schema").await;
+
+    let target_home = tmp.path().join("target-home");
+    std::fs::create_dir_all(&target_home).unwrap();
+    iso_env_with(&target_home, key);
+    let svc = {
+        let db = Db::connect("sqlite::memory:").await.unwrap();
+        BackupService::new(db, target_home.clone())
+    };
+    svc.restore_from(&url, &rk).await.unwrap();
+
+    let manifest_path = target_home.join("pending-restore").join("manifest.json");
+    let manifest = serde_json::json!({
+        "version": 1,
+        "schema_version": current_schema_version() - 1,
+        "staged_at": "0",
+        "snapshot": "atlas.db",
+        "recovery_key": "recovery-key.json"
+    });
+    std::fs::write(
+        &manifest_path,
+        serde_json::to_vec_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
+
+    let err = atlas_app_lib::backup::apply_pending_restore_before_open(&target_home)
+        .await
+        .err()
+        .expect("must reject older pending restore");
+    assert!(
+        err.to_string()
+            .contains("older backup requires a matching Atlas version"),
+        "got: {err:#}"
+    );
+    assert!(atlas_app_lib::backup::pending_restore_exists(&target_home));
+    assert!(failed_restore_dirs(&target_home).is_empty());
+}
+
+#[tokio::test]
 async fn non_atlas_encrypted_snapshot_does_not_stage_restore() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let tmp = tempfile::tempdir().unwrap();
     let key = [0x34u8; 48];
-    let (url, rk) = make_non_atlas_backup(tmp.path(), key, 1).await;
+    let (url, rk) = make_non_atlas_backup(tmp.path(), key, current_schema_version()).await;
 
     let home = tmp.path().join("target-home");
     std::fs::create_dir_all(&home).unwrap();
@@ -752,7 +903,7 @@ async fn forged_core_tables_without_columns_do_not_stage_restore() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let tmp = tempfile::tempdir().unwrap();
     let key = [0x35u8; 48];
-    let (url, rk) = make_forged_core_table_backup(tmp.path(), key, 1).await;
+    let (url, rk) = make_forged_core_table_backup(tmp.path(), key, current_schema_version()).await;
 
     let home = tmp.path().join("target-home");
     std::fs::create_dir_all(&home).unwrap();
@@ -773,7 +924,7 @@ async fn forged_core_tables_without_columns_do_not_stage_restore() {
 }
 
 #[tokio::test]
-async fn apply_pending_restore_refuses_real_user_data_and_keeps_pending() {
+async fn apply_pending_restore_quarantines_pending_when_real_user_data_exists() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let tmp = tempfile::tempdir().unwrap();
     let key = [0x46u8; 48];
@@ -796,18 +947,19 @@ async fn apply_pending_restore_refuses_real_user_data_and_keeps_pending() {
         )
         .await
         .unwrap();
+        db.0.close().await.unwrap();
     }
 
-    let err = atlas_app_lib::backup::apply_pending_restore_before_open(&target_home)
+    atlas_app_lib::backup::apply_pending_restore_before_open(&target_home)
         .await
-        .err()
-        .expect("must reject existing data");
-    assert!(
-        err.to_string().contains("contains existing Atlas data"),
-        "got: {err:#}"
-    );
-    assert!(atlas_app_lib::backup::pending_restore_exists(&target_home));
+        .unwrap();
+    assert!(!atlas_app_lib::backup::pending_restore_exists(&target_home));
+    let failed = failed_restore_dirs(&target_home);
+    assert_eq!(failed.len(), 1);
+    let note = std::fs::read_to_string(failed[0].join("restore-error.txt")).unwrap();
+    assert!(note.contains("contains existing Atlas data"), "got: {note}");
 
     let db = Db::open_default().await.unwrap();
     assert_eq!(workspace_name(&db, 1).await, "Default");
+    assert_eq!(repo_count(&db).await, 1);
 }

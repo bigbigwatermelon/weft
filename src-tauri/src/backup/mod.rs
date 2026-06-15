@@ -25,8 +25,10 @@ pub mod snapshot;
 
 const PENDING_RESTORE_DIR: &str = "pending-restore";
 const PENDING_RESTORE_TMP_DIR: &str = "pending-restore.tmp";
+const PENDING_RESTORE_FAILED_PREFIX: &str = "pending-restore.failed.";
 const PENDING_MANIFEST: &str = "manifest.json";
 const PENDING_RECOVERY_KEY: &str = "recovery-key.json";
+const PENDING_FAILURE_NOTE: &str = "restore-error.txt";
 const RESTORE_DB_TMP: &str = "atlas.db.restore-new";
 const RESTORE_DB_OLD: &str = "atlas.db.restore-old";
 const PENDING_VERSION: u32 = 1;
@@ -146,12 +148,7 @@ impl BackupService {
             git_remote::clone_to(&tmp, remote_url)?;
 
             let backup_version = read_backup_schema_version(&tmp)?;
-            let current_version = current_schema_version();
-            if backup_version > current_version {
-                return Err(anyhow::anyhow!(
-                    "backup schema {backup_version} is newer than this Atlas ({current_version}); upgrade Atlas first"
-                ));
-            }
+            ensure_current_schema_version(backup_version, "backup")?;
 
             let snap = tmp.join(snapshot::SNAPSHOT_NAME);
             if !snap.exists() {
@@ -263,7 +260,20 @@ pub async fn apply_pending_restore_before_open(home: &Path) -> Result<()> {
                     db_path.display()
                 )
             })?;
-        ensure_connection_is_shell(&conn, &db_path).await?;
+        let user_rows = user_data_row_count(&conn).await?;
+        if user_rows > 0 {
+            drop(conn);
+            let reason = format!(
+                "pending restore refused because {} contains existing Atlas data",
+                db_path.display()
+            );
+            let failed = quarantine_pending_restore(home, &pending, &reason)?;
+            eprintln!(
+                "[atlas] pending restore quarantined at {}: {reason}",
+                failed.display()
+            );
+            return Ok(());
+        }
         drop(conn);
     }
 
@@ -278,6 +288,37 @@ fn cleanup_restored_pending(home: &Path, pending: &Path) -> Result<()> {
     remove_file_if_exists(&home.join(RESTORE_DB_OLD))?;
     std::fs::remove_dir_all(&pending)?;
     Ok(())
+}
+
+fn quarantine_pending_restore(home: &Path, pending: &Path, reason: &str) -> Result<PathBuf> {
+    let mut failed = home.join(format!("{PENDING_RESTORE_FAILED_PREFIX}{}", unix_now()));
+    let mut suffix = 1_u32;
+    while failed.exists() {
+        failed = home.join(format!(
+            "{PENDING_RESTORE_FAILED_PREFIX}{}.{suffix}",
+            unix_now()
+        ));
+        suffix += 1;
+    }
+    std::fs::rename(pending, &failed)?;
+
+    let note = failed.join(PENDING_FAILURE_NOTE);
+    let body = format!(
+        "Atlas did not apply this pending restore because doing so would overwrite existing Atlas data.\n\n{reason}\n"
+    );
+    if let Err(e) = std::fs::write(&note, body) {
+        eprintln!(
+            "[atlas] failed to write pending restore quarantine note {}: {e}",
+            note.display()
+        );
+    } else if let Err(e) = set_private_file_permissions(&note) {
+        eprintln!(
+            "[atlas] failed to restrict pending restore quarantine note {}: {e}",
+            note.display()
+        );
+    }
+
+    Ok(failed)
 }
 
 pub fn pending_restore_exists(home: &Path) -> bool {
@@ -299,13 +340,18 @@ fn read_pending_manifest(pending: &Path) -> Result<PendingRestoreManifest> {
             manifest.version
         ));
     }
-    let current = current_schema_version();
-    if manifest.schema_version > current {
+    if manifest.snapshot != snapshot::SNAPSHOT_NAME {
         return Err(anyhow::anyhow!(
-            "backup schema {} is newer than this Atlas ({current}); upgrade Atlas first",
-            manifest.schema_version
+            "invalid pending restore manifest: snapshot must be {}",
+            snapshot::SNAPSHOT_NAME
         ));
     }
+    if manifest.recovery_key != PENDING_RECOVERY_KEY {
+        return Err(anyhow::anyhow!(
+            "invalid pending restore manifest: recovery_key must be {PENDING_RECOVERY_KEY}"
+        ));
+    }
+    ensure_current_schema_version(manifest.schema_version, "pending restore")?;
     Ok(manifest)
 }
 
@@ -329,6 +375,21 @@ fn read_backup_schema_version(clone_dir: &Path) -> Result<usize> {
 fn current_schema_version() -> usize {
     use sea_orm_migration::MigratorTrait;
     crate::store::migration::Migrator::migrations().len()
+}
+
+fn ensure_current_schema_version(schema_version: usize, context: &str) -> Result<()> {
+    let current = current_schema_version();
+    if schema_version < current {
+        return Err(anyhow::anyhow!(
+            "{context} schema {schema_version} is older than this Atlas ({current}); older backup requires a matching Atlas version"
+        ));
+    }
+    if schema_version > current {
+        return Err(anyhow::anyhow!(
+            "{context} schema {schema_version} is newer than this Atlas ({current}); upgrade Atlas first"
+        ));
+    }
+    Ok(())
 }
 
 async fn verify_snapshot_with_key(path: &Path, key: &SqlCipherKey) -> Result<()> {

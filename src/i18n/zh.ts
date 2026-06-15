@@ -565,7 +565,7 @@ export const zh = {
     backupRestorePickKey: "选择 Recovery Key…",
     backupRestoreConfirm: "恢复",
     backupRestoring: "恢复中…",
-    backupRestoreSuccess: "已恢复。请重启 Atlas。",
+    backupRestoreSuccess: "恢复已暂存。请重启 Atlas 以应用。",
     backupRestoreNoKey: "请先选择 Recovery Key 文件。",
   },
   danger: {

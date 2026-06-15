@@ -5,6 +5,7 @@
 use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
 
 use crate::store::key::SqlCipherKey;
@@ -50,7 +51,7 @@ pub fn export_to(target: &Path) -> Result<()> {
         exported_at: now,
         note: NOTE.into(),
     };
-    std::fs::write(target, serde_json::to_vec_pretty(&rec)?)?;
+    write_private_file(target, &serde_json::to_vec_pretty(&rec)?)?;
     Ok(())
 }
 
@@ -108,6 +109,31 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
     Ok(key)
 }
 
+#[cfg(unix)]
+fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,6 +170,22 @@ mod tests {
         let p = tmp.path().join("rk.json");
         std::fs::write(&p, b"{}").unwrap();
         assert!(export_to(&p).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn export_writes_private_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        export_to(&p).unwrap();
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
     }
 
     #[test]

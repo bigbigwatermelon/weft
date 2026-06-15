@@ -37,8 +37,11 @@ content_pattern="$(
 )"
 
 required_tracked=(
+  assets/brand/atlas-icon-embedded.png
   assets/brand/atlas-icon-master.png
   assets/brand/atlas-icon-source.svg
+  public/atlas-icon.png
+  public/atlas-mark.png
   src-tauri/icons/icon.png
   src-tauri/icons/icon.icns
   src-tauri/icons/icon.ico
