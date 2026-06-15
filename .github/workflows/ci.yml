@@ -74,4 +74,9 @@ jobs:
         run: protoc --version
 
       - name: Run Rust tests
+        if: ${{ matrix.platform != 'windows-latest' }}
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Build Windows Rust test binaries
+        if: ${{ matrix.platform == 'windows-latest' }}
+        run: cargo test --manifest-path src-tauri/Cargo.toml --no-run
