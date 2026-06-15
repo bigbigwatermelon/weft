@@ -49,7 +49,7 @@ pub async fn ensure_default_workspace(db: State<'_, Db>) -> R<i32> {
 }
 
 /// Register an existing local git repo: validate, record, profile. Shared by
-/// add (existing) / clone / create — they all converge on "a path weft refs".
+/// add (existing) / clone / create — they all converge on "a path atlas refs".
 async fn register_repo(
     db: &Db,
     workspace_id: i32,
@@ -646,7 +646,7 @@ pub fn set_keep_awake(power: tauri::State<'_, crate::power::PowerGuard>, on: boo
 
 /// Runaway-guardrail caps (§7 跑飞护栏), enforced per busy turn by the chat
 /// engine's watchdog (lead_chat::engine::spawn_watchdog). Configurable at
-/// runtime from Settings; seeded from the WEFT_* env defaults so an env
+/// runtime from Settings; seeded from the ATLAS_* env defaults so an env
 /// override still sets the initial value. 0 on either disables that cap.
 pub struct GuardrailState {
     inner: std::sync::Mutex<(u64, u64)>, // (idle_secs, wall_secs)
@@ -656,8 +656,8 @@ impl Default for GuardrailState {
     fn default() -> Self {
         Self {
             inner: std::sync::Mutex::new((
-                env_secs("WEFT_IDLE_WATCHDOG_SECS", 1800), // 30 min
-                env_secs("WEFT_WALL_CAP_SECS", 7200),      // 2 h
+                env_secs("ATLAS_IDLE_WATCHDOG_SECS", 1800), // 30 min
+                env_secs("ATLAS_WALL_CAP_SECS", 7200),      // 2 h
             )),
         }
     }
@@ -767,10 +767,10 @@ async fn session_for_inner(db: &Db, direction_id: i32, repo_id: i32) -> R<Option
 }
 
 /// Effective config for a repo (M6 有效配置预览): the skills + rules that apply,
-/// each tagged with the layer it comes from (personal / weft-global /
-/// weft-workspace / repo) and whether a higher layer shadows it. `ws_id`
-/// is optional — when absent, weft-managed layers are omitted (personal + repo
-/// only), keeping backward-compat with existing frontend calls that don't pass it.
+/// each tagged with the layer it comes from (personal / atlas-global /
+/// atlas-workspace / repo) and whether a higher layer shadows it. `ws_id`
+/// is optional — when absent, atlas-managed layers are omitted (personal + repo
+/// only), keeping repo-only lookups narrowly scoped.
 #[tauri::command]
 pub async fn effective_config(
     db: State<'_, Db>,
@@ -778,7 +778,7 @@ pub async fn effective_config(
     ws_id: Option<i32>,
 ) -> R<Vec<crate::config::ConfigItem>> {
     let home = dirs::home_dir().ok_or_else(|| "no home".to_string())?;
-    let weft: Vec<(String, String, String)> = match ws_id {
+    let atlas: Vec<(String, String, String)> = match ws_id {
         Some(w) => crate::skills::enabled_for_workspace(&db, w)
             .await
             .map_err(e)?
@@ -786,9 +786,9 @@ pub async fn effective_config(
             .filter(|s| !s.overridden)
             .map(|s| {
                 let layer = if s.global {
-                    "weft-global"
+                    "atlas-global"
                 } else {
-                    "weft-workspace"
+                    "atlas-workspace"
                 };
                 (s.name, layer.to_string(), s.dir)
             })
@@ -798,7 +798,7 @@ pub async fn effective_config(
     Ok(crate::config::effective_for_with_atlas(
         std::path::Path::new(&repo_path),
         &home,
-        &weft,
+        &atlas,
     ))
 }
 
@@ -1076,23 +1076,23 @@ mod tests {
     use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
-    struct WeftHomeGuard {
+    struct AtlasHomeGuard {
         old: Option<OsString>,
         tmp: PathBuf,
     }
 
-    impl WeftHomeGuard {
+    impl AtlasHomeGuard {
         fn new(name: &str) -> Self {
-            let old = std::env::var_os("WEFT_HOME");
+            let old = std::env::var_os("ATLAS_HOME");
             let tmp = std::env::temp_dir().join(format!(
-                "weft-commands-{name}-{}-{}",
+                "atlas-commands-{name}-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_nanos()
             ));
-            std::env::set_var("WEFT_HOME", &tmp);
+            std::env::set_var("ATLAS_HOME", &tmp);
             Self { old, tmp }
         }
 
@@ -1101,12 +1101,12 @@ mod tests {
         }
     }
 
-    impl Drop for WeftHomeGuard {
+    impl Drop for AtlasHomeGuard {
         fn drop(&mut self) {
             if let Some(old) = self.old.take() {
-                std::env::set_var("WEFT_HOME", old);
+                std::env::set_var("ATLAS_HOME", old);
             } else {
-                std::env::remove_var("WEFT_HOME");
+                std::env::remove_var("ATLAS_HOME");
             }
             let _ = std::fs::remove_dir_all(&self.tmp);
         }
@@ -1115,7 +1115,7 @@ mod tests {
     #[tokio::test]
     async fn session_for_repo_less_direction_returns_run_home_without_session() {
         let _lock = crate::paths::ENV_LOCK.lock().unwrap();
-        let home = WeftHomeGuard::new("repo-less-session-for");
+        let home = AtlasHomeGuard::new("repo-less-session-for");
         let db = Db::connect("sqlite::memory:").await.unwrap();
         let ws = repo::create_workspace(&db, "People Ops").await.unwrap();
         let thread = repo::create_thread(&db, ws.id, "Draft Offer", "task", "codex")
