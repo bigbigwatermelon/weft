@@ -3,6 +3,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   BackupStatusDto,
   BusMsg,
+  ComputerUseStatus,
   ConfigItem,
   DefaultToolInfo,
   Direction,
@@ -182,6 +183,12 @@ export const api = {
 
   // Which coding-agent CLIs are installed locally (for Settings).
   detectTools: () => invoke<ToolStatus[]>("detect_tools"),
+  computerUseGetStatus: () =>
+    invoke<ComputerUseStatus>("computer_use_get_status"),
+  computerUseSetEnabled: (enabled: boolean) =>
+    invoke<void>("computer_use_set_enabled", { enabled }),
+  computerUseRunDoctor: () =>
+    invoke<string>("computer_use_run_doctor"),
   getDefaultTool: () => invoke<DefaultToolInfo>("get_default_tool"),
   setDefaultTool: (tool: string) => invoke<void>("set_default_tool", { tool }),
   // Dangerous mode (global): every agent's tool asks auto-allow.

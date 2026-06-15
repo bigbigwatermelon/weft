@@ -3,6 +3,27 @@
 export type Tool = "claude" | "codex" | "opencode" | "none";
 export type ThreadKind = "feature" | "bugfix" | "refactor" | "spike";
 
+export type ComputerUseStatusKind =
+  | "disabled"
+  | "unsupported_platform"
+  | "missing"
+  | "not_executable"
+  | "found"
+  | "doctor_failed"
+  | "permission_missing"
+  | "ready"
+  | "unknown";
+
+export interface ComputerUseStatus {
+  enabled: boolean;
+  supported: boolean;
+  status: ComputerUseStatusKind;
+  helper_path: string | null;
+  helper_version: string | null;
+  doctor_summary: string;
+  error: string | null;
+}
+
 export interface Workspace {
   id: number;
   name: string;
