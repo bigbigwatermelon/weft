@@ -56,15 +56,18 @@ pub fn run() {
     // Make GUI-launched spawns find nvm/fnm/native-installer CLIs (see detect.rs).
     detect::augment_path_from_login_shell();
 
+    let atlas_home = paths::atlas_home().unwrap_or_else(|e| fatal("atlas_home for backup", e));
+    tauri::async_runtime::block_on(async {
+        backup::apply_pending_restore_before_open(&atlas_home).await
+    })
+    .unwrap_or_else(|e| fatal("apply pending restore", e));
+
     // Open the DB synchronously before building the app.
     let db = tauri::async_runtime::block_on(async { store::Db::open_default().await })
         .unwrap_or_else(|e| fatal("open atlas.db", e));
 
     // App-level backup handle: scheduler + on-exit + commands all share it.
-    let backup_svc = backup::BackupService::new(
-        db.clone(),
-        paths::atlas_home().unwrap_or_else(|e| fatal("atlas_home for backup", e)),
-    );
+    let backup_svc = backup::BackupService::new(db.clone(), atlas_home);
 
     // Start the local HTTP server (thread bus MCP + planner MCP + Ask Bridge).
     let bus = bus::BusRegistry::new();

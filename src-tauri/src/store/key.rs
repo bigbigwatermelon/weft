@@ -92,6 +92,22 @@ pub fn get_or_create() -> Result<SqlCipherKey> {
     }
 }
 
+/// Read the existing SQLCipher key without minting a new one. Used during
+/// startup restore safety checks before replacing a shell database.
+pub fn get_existing() -> Result<SqlCipherKey> {
+    if let Ok(b64) = std::env::var("ATLAS_TEST_DB_KEY_B64") {
+        return decode_b64_key(&b64);
+    }
+
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|e| anyhow::anyhow!("keyring entry: {e}"))?;
+    match entry.get_password() {
+        Ok(b64) => decode_b64_key(&b64),
+        Err(keyring::Error::NoEntry) => Err(anyhow::anyhow!("keyring key not found")),
+        Err(e) => Err(anyhow::anyhow!("keyring read: {e}")),
+    }
+}
+
 fn encode_b64_key(k: &SqlCipherKey) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(k.to_bytes())

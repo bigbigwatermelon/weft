@@ -46,6 +46,10 @@ paths=(
   assets/diagrams
   assets/readme
   src
+  src-tauri/Cargo.toml
+  src-tauri/Cargo.lock
+  src-tauri/build.rs
+  src-tauri/capabilities
   src-tauri/src
   src-tauri/tests
   src-tauri/tauri.conf.json

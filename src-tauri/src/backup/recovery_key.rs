@@ -2,7 +2,7 @@
 //! file holds the SQLCipher key as base64 so a user with this file + the
 //! backup git repo can decrypt their data on a fresh machine. Spec §4.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -54,11 +54,9 @@ pub fn export_to(target: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Read `source`, validate format, and write the key back into the Keychain
-/// (overwriting any existing entry). When `ATLAS_TEST_DB_KEY_B64` is set, we
-/// only validate format and return the parsed key without touching the OS
-/// Keychain — same bypass policy as `store::key`.
-pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
+/// Read `source` and validate the Atlas recovery key identity and payload
+/// without mutating the OS Keychain.
+pub fn read_from(source: &Path) -> Result<SqlCipherKey> {
     let bytes = std::fs::read(source)
         .map_err(|e| anyhow!("read recovery key {}: {e}", source.display()))?;
     let rec: RecoveryKeyFile = serde_json::from_slice(&bytes)
@@ -80,10 +78,15 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
     let raw = base64::engine::general_purpose::STANDARD
         .decode(rec.key_b64.trim())
         .map_err(|e| anyhow!("decode key_b64: {e}"))?;
-    let key = SqlCipherKey::from_bytes(&raw)?;
+    SqlCipherKey::from_bytes(&raw)
+}
 
+/// Install a previously validated recovery key into the Atlas keychain. Under
+/// `ATLAS_TEST_DB_KEY_B64`, this intentionally no-ops so tests remain isolated
+/// from the OS keychain.
+pub fn install_key(key: &SqlCipherKey) -> Result<()> {
     if std::env::var("ATLAS_TEST_DB_KEY_B64").is_ok() {
-        return Ok(key);
+        return Ok(());
     }
 
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
@@ -92,6 +95,16 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
     entry
         .set_password(&b64)
         .map_err(|e| anyhow!("keyring write: {e}"))?;
+    Ok(())
+}
+
+/// Read `source`, validate format, and write the key back into the Keychain
+/// (overwriting any existing entry). When `ATLAS_TEST_DB_KEY_B64` is set, we
+/// only validate format and return the parsed key without touching the OS
+/// Keychain — same bypass policy as `store::key`.
+pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
+    let key = read_from(source)?;
+    install_key(&key)?;
     Ok(key)
 }
 
@@ -168,7 +181,9 @@ mod tests {
             "note": ""
         });
         std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
-        let err = import_from(&p).err().expect("must reject non-Atlas service");
+        let err = import_from(&p)
+            .err()
+            .expect("must reject non-Atlas service");
         assert!(err.to_string().contains("identity mismatch"));
     }
 
@@ -190,7 +205,9 @@ mod tests {
             "note": ""
         });
         std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
-        let err = import_from(&p).err().expect("must reject non-Atlas account");
+        let err = import_from(&p)
+            .err()
+            .expect("must reject non-Atlas account");
         assert!(err.to_string().contains("identity mismatch"));
     }
 }
