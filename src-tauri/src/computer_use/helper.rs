@@ -23,24 +23,35 @@ pub struct HelperInfo {
 }
 
 pub fn resolve_helper_path(app: Option<&AppHandle>) -> HelperInfo {
-    if let Ok(path) = std::env::var(ENV_HELPER) {
+    let env_value = std::env::var(ENV_HELPER).ok();
+    let resource_dir = app.and_then(|app| app.path().resource_dir().ok());
+
+    resolve_helper_path_from(
+        env_value.as_deref(),
+        resource_dir.as_deref(),
+        &manifest_dir(),
+    )
+}
+
+fn resolve_helper_path_from(
+    env_value: Option<&str>,
+    resource_dir: Option<&Path>,
+    manifest_dir: &Path,
+) -> HelperInfo {
+    if let Some(path) = env_value {
         if !path.trim().is_empty() {
             return validate_helper_path(PathBuf::from(path));
         }
     }
 
-    if let Some(app) = app {
-        return match app.path().resource_dir() {
-            Ok(dir) => validate_helper_path(dir.join("sidecars").join(HELPER_NAME)),
-            Err(err) => HelperInfo {
-                state: HelperState::Missing,
-                path: None,
-                error: Some(format!("could not resolve resource directory: {err}")),
-            },
-        };
+    if let Some(dir) = resource_dir {
+        let info = validate_helper_path(dir.join("sidecars").join(HELPER_NAME));
+        if info.state == HelperState::Found {
+            return info;
+        }
     }
 
-    validate_helper_path(dev_helper_path())
+    validate_helper_path(manifest_dir.join("sidecars").join(HELPER_NAME))
 }
 
 pub fn validate_helper_path(path: impl AsRef<Path>) -> HelperInfo {
@@ -91,10 +102,8 @@ pub fn validate_helper_path(path: impl AsRef<Path>) -> HelperInfo {
     }
 }
 
-fn dev_helper_path() -> PathBuf {
+fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("sidecars")
-        .join(HELPER_NAME)
 }
 
 #[cfg(unix)]
@@ -113,6 +122,21 @@ fn is_executable(_metadata: &std::fs::Metadata) -> bool {
 mod tests {
     use super::*;
 
+    fn helper_path(root: &Path) -> PathBuf {
+        root.join("sidecars").join(HELPER_NAME)
+    }
+
+    fn write_executable_helper(path: &Path) {
+        let parent = path.parent().unwrap();
+        std::fs::create_dir_all(parent).unwrap();
+        std::fs::write(path, "#!/bin/sh\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+    }
+
     #[test]
     fn missing_helper_is_reported() {
         let tmp = tempfile::tempdir().unwrap();
@@ -126,6 +150,86 @@ mod tests {
             Some(helper.to_string_lossy().as_ref())
         );
         assert!(info.error.unwrap().contains("helper not found"));
+    }
+
+    #[test]
+    fn env_helper_wins_over_resource_and_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let env_helper = tmp.path().join("env-helper");
+        let resource_dir = tmp.path().join("resource");
+        let manifest_dir = tmp.path().join("manifest");
+        write_executable_helper(&env_helper);
+        write_executable_helper(&helper_path(&resource_dir));
+        write_executable_helper(&helper_path(&manifest_dir));
+
+        let info = resolve_helper_path_from(
+            Some(env_helper.to_string_lossy().as_ref()),
+            Some(&resource_dir),
+            &manifest_dir,
+        );
+
+        assert_eq!(info.state, HelperState::Found);
+        assert_eq!(
+            info.path.as_deref(),
+            Some(env_helper.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn resource_helper_wins_over_manifest_when_usable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let resource_dir = tmp.path().join("resource");
+        let manifest_dir = tmp.path().join("manifest");
+        write_executable_helper(&helper_path(&resource_dir));
+        write_executable_helper(&helper_path(&manifest_dir));
+
+        let info = resolve_helper_path_from(None, Some(&resource_dir), &manifest_dir);
+
+        assert_eq!(info.state, HelperState::Found);
+        assert_eq!(
+            info.path.as_deref(),
+            Some(helper_path(&resource_dir).to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn manifest_helper_is_used_when_resource_helper_is_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let resource_dir = tmp.path().join("resource");
+        let manifest_dir = tmp.path().join("manifest");
+        write_executable_helper(&helper_path(&manifest_dir));
+
+        let info = resolve_helper_path_from(None, Some(&resource_dir), &manifest_dir);
+
+        assert_eq!(info.state, HelperState::Found);
+        assert_eq!(
+            info.path.as_deref(),
+            Some(helper_path(&manifest_dir).to_string_lossy().as_ref())
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn manifest_helper_is_used_when_resource_helper_is_not_executable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let resource_dir = tmp.path().join("resource");
+        let manifest_dir = tmp.path().join("manifest");
+        let resource_helper = helper_path(&resource_dir);
+        let parent = resource_helper.parent().unwrap();
+        std::fs::create_dir_all(parent).unwrap();
+        std::fs::write(&resource_helper, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&resource_helper, std::fs::Permissions::from_mode(0o600)).unwrap();
+        write_executable_helper(&helper_path(&manifest_dir));
+
+        let info = resolve_helper_path_from(None, Some(&resource_dir), &manifest_dir);
+
+        assert_eq!(info.state, HelperState::Found);
+        assert_eq!(
+            info.path.as_deref(),
+            Some(helper_path(&manifest_dir).to_string_lossy().as_ref())
+        );
     }
 
     #[cfg(unix)]
