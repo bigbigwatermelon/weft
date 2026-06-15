@@ -55,8 +55,11 @@ fn inject_claude(cwd: &Path, helper: &Path) -> Injection {
             }
         }
     });
-    if let Ok(bytes) = serde_json::to_vec_pretty(&json) {
-        let _ = std::fs::write(&cfg, bytes);
+    let Ok(bytes) = serde_json::to_vec_pretty(&json) else {
+        return Injection { args: vec![] };
+    };
+    if std::fs::write(&cfg, bytes).is_err() {
+        return Injection { args: vec![] };
     }
     crate::git::git_exclude(cwd, CLAUDE_CONFIG);
     Injection {
@@ -80,12 +83,16 @@ fn inject_codex(helper: &Path) -> Injection {
 
 fn merge_opencode_config(cwd: &Path, helper: &Path) {
     let path = cwd.join("opencode.json");
-    let mut root: serde_json::Value = std::fs::read_to_string(&path)
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_else(|| serde_json::json!({}));
+    let mut root: serde_json::Value = match std::fs::read_to_string(&path) {
+        Ok(raw) => match serde_json::from_str(&raw) {
+            Ok(value) => value,
+            Err(_) => return,
+        },
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => serde_json::json!({}),
+        Err(_) => return,
+    };
     if !root.is_object() {
-        root = serde_json::json!({});
+        return;
     }
     let Some(obj) = root.as_object_mut() else {
         return;
@@ -155,6 +162,18 @@ mod tests {
     }
 
     #[test]
+    fn claude_config_write_failure_returns_no_usable_injection() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing_cwd = tmp.path().join("missing-cwd");
+
+        let injection =
+            build_stdio_injection("claude", &missing_cwd, Path::new("/tmp/open-computer-use"));
+
+        assert!(injection.args.is_empty());
+        assert!(!missing_cwd.exists());
+    }
+
+    #[test]
     fn codex_injection_uses_inline_stdio_config() {
         let helper = Path::new("/tmp/open-computer-use");
 
@@ -169,6 +188,19 @@ mod tests {
                 "mcp_servers.open_computer_use.args=[\"mcp\"]".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn codex_injection_toml_quotes_helper_paths_with_spaces_quotes_and_backslashes() {
+        let helper = r#"/tmp/open computer "use" \bin/open-computer-use"#;
+
+        let injection = build_stdio_injection("codex", Path::new("/unused"), Path::new(helper));
+
+        let command_value = injection.args[1]
+            .strip_prefix("mcp_servers.open_computer_use.command=")
+            .unwrap();
+        let parsed: toml::Value = toml::from_str(&format!("value = {command_value}")).unwrap();
+        assert_eq!(parsed["value"].as_str().unwrap(), helper);
     }
 
     #[test]
@@ -208,6 +240,23 @@ mod tests {
             serde_json::json!([helper.to_string_lossy(), "mcp"])
         );
         assert_eq!(server["enabled"], true);
+    }
+
+    #[test]
+    fn opencode_invalid_existing_config_is_preserved_and_not_overwritten() {
+        let tmp = tempfile::tempdir().unwrap();
+        let invalid_config = "{ invalid json";
+        let config_path = tmp.path().join("opencode.json");
+        std::fs::write(&config_path, invalid_config).unwrap();
+
+        let injection =
+            build_stdio_injection("opencode", tmp.path(), Path::new("/tmp/open-computer-use"));
+
+        assert!(injection.args.is_empty());
+        assert_eq!(
+            std::fs::read_to_string(config_path).unwrap(),
+            invalid_config
+        );
     }
 
     #[test]
