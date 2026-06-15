@@ -2,15 +2,16 @@
 //! file holds the SQLCipher key as base64 so a user with this file + the
 //! backup git repo can decrypt their data on a fresh machine. Spec §4.
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
 
 use crate::store::key::SqlCipherKey;
 
 const FORMAT_VERSION: u32 = 1;
-const KEYCHAIN_SERVICE: &str = "weft";
+const KEYCHAIN_SERVICE: &str = "atlas";
 const KEYCHAIN_ACCOUNT: &str = "db-key-v1";
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,7 +25,7 @@ struct RecoveryKeyFile {
 }
 
 const NOTE: &str =
-    "Keep this file safe. Anyone with this file AND your backup repo can decrypt your Weft data.";
+    "Keep this file safe. Anyone with this file AND your backup repo can decrypt your Atlas data.";
 
 /// Read the live key out of the Keychain (or env bypass) and write it to
 /// `target` (must not exist) as pretty-printed JSON.
@@ -50,15 +51,13 @@ pub fn export_to(target: &Path) -> Result<()> {
         exported_at: now,
         note: NOTE.into(),
     };
-    std::fs::write(target, serde_json::to_vec_pretty(&rec)?)?;
+    write_private_file(target, &serde_json::to_vec_pretty(&rec)?)?;
     Ok(())
 }
 
-/// Read `source`, validate format, and write the key back into the Keychain
-/// (overwriting any existing entry). When `WEFT_TEST_DB_KEY_B64` is set, we
-/// only validate format and return the parsed key without touching the OS
-/// Keychain — same bypass policy as `store::key`.
-pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
+/// Read `source` and validate the Atlas recovery key identity and payload
+/// without mutating the OS Keychain.
+pub fn read_from(source: &Path) -> Result<SqlCipherKey> {
     let bytes = std::fs::read(source)
         .map_err(|e| anyhow!("read recovery key {}: {e}", source.display()))?;
     let rec: RecoveryKeyFile = serde_json::from_slice(&bytes)
@@ -70,13 +69,25 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
             FORMAT_VERSION
         ));
     }
+    if rec.service != KEYCHAIN_SERVICE || rec.account != KEYCHAIN_ACCOUNT {
+        return Err(anyhow!(
+            "recovery key identity mismatch: service={} account={}",
+            rec.service,
+            rec.account
+        ));
+    }
     let raw = base64::engine::general_purpose::STANDARD
         .decode(rec.key_b64.trim())
         .map_err(|e| anyhow!("decode key_b64: {e}"))?;
-    let key = SqlCipherKey::from_bytes(&raw)?;
+    SqlCipherKey::from_bytes(&raw)
+}
 
-    if std::env::var("WEFT_TEST_DB_KEY_B64").is_ok() {
-        return Ok(key);
+/// Install a previously validated recovery key into the Atlas keychain. Under
+/// `ATLAS_TEST_DB_KEY_B64`, this intentionally no-ops so tests remain isolated
+/// from the OS keychain.
+pub fn install_key(key: &SqlCipherKey) -> Result<()> {
+    if std::env::var("ATLAS_TEST_DB_KEY_B64").is_ok() {
+        return Ok(());
     }
 
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
@@ -85,7 +96,42 @@ pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
     entry
         .set_password(&b64)
         .map_err(|e| anyhow!("keyring write: {e}"))?;
+    Ok(())
+}
+
+/// Read `source`, validate format, and write the key back into the Keychain
+/// (overwriting any existing entry). When `ATLAS_TEST_DB_KEY_B64` is set, we
+/// only validate format and return the parsed key without touching the OS
+/// Keychain — same bypass policy as `store::key`.
+pub fn import_from(source: &Path) -> Result<SqlCipherKey> {
+    let key = read_from(source)?;
+    install_key(&key)?;
     Ok(key)
+}
+
+#[cfg(unix)]
+fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_private_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -96,12 +142,12 @@ mod tests {
     fn iso_key_env() {
         let raw = [0x77u8; 48];
         let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
-        std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+        std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
     }
 
     #[test]
     fn export_then_import_roundtrip() {
-        let _g = crate::backup::TEST_ENV_LOCK
+        let _g = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         iso_key_env();
@@ -116,7 +162,7 @@ mod tests {
 
     #[test]
     fn rejects_existing_export_target() {
-        let _g = crate::backup::TEST_ENV_LOCK
+        let _g = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         iso_key_env();
@@ -126,9 +172,25 @@ mod tests {
         assert!(export_to(&p).is_err());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn export_writes_private_permissions() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        export_to(&p).unwrap();
+        let mode = std::fs::metadata(&p).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+    }
+
     #[test]
     fn rejects_unknown_version() {
-        let _g = crate::backup::TEST_ENV_LOCK
+        let _g = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         iso_key_env();
@@ -136,9 +198,58 @@ mod tests {
         let p = tmp.path().join("rk.json");
         std::fs::write(
             &p,
-            br#"{"version":99,"service":"weft","account":"db-key-v1","key_b64":"AA==","exported_at":"0","note":""}"#,
+            br#"{"version":99,"service":"atlas","account":"db-key-v1","key_b64":"AA==","exported_at":"0","note":""}"#,
         )
         .unwrap();
         assert!(import_from(&p).is_err());
+    }
+
+    #[test]
+    fn rejects_non_atlas_service() {
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        let key_b64 = base64::engine::general_purpose::STANDARD.encode([0x11u8; 48]);
+        let old_service = ["we", "ft"].concat();
+        let body = serde_json::json!({
+            "version": 1,
+            "service": old_service,
+            "account": "db-key-v1",
+            "key_b64": key_b64,
+            "exported_at": "0",
+            "note": ""
+        });
+        std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
+        let err = import_from(&p)
+            .err()
+            .expect("must reject non-Atlas service");
+        assert!(err.to_string().contains("identity mismatch"));
+    }
+
+    #[test]
+    fn rejects_non_atlas_account() {
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        iso_key_env();
+        let tmp = tempfile::tempdir().unwrap();
+        let p = tmp.path().join("rk.json");
+        let key_b64 = base64::engine::general_purpose::STANDARD.encode([0x22u8; 48]);
+        let body = serde_json::json!({
+            "version": 1,
+            "service": "atlas",
+            "account": "other",
+            "key_b64": key_b64,
+            "exported_at": "0",
+            "note": ""
+        });
+        std::fs::write(&p, serde_json::to_vec(&body).unwrap()).unwrap();
+        let err = import_from(&p)
+            .err()
+            .expect("must reject non-Atlas account");
+        assert!(err.to_string().contains("identity mismatch"));
     }
 }

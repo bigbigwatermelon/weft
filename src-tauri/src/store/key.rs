@@ -4,7 +4,7 @@ use anyhow::Result;
 
 const KEY_LEN: usize = 32;
 const SALT_LEN: usize = 16;
-const KEYCHAIN_SERVICE: &str = "weft";
+const KEYCHAIN_SERVICE: &str = "atlas";
 const KEYCHAIN_ACCOUNT: &str = "db-key-v1";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,10 +68,10 @@ pub fn format_for_pragma(k: &SqlCipherKey) -> String {
 
 /// 从 OS Keychain 取密钥；不存在则随机生成并写回。
 ///
-/// 测试旁路：环境变量 `WEFT_TEST_DB_KEY_B64` 存在时直接用它（base64 编码的 48 字节），
-/// 完全绕开 Keychain。集成测试用 `tempfile + WEFT_HOME + WEFT_TEST_DB_KEY_B64` 隔离环境。
+/// 测试旁路：环境变量 `ATLAS_TEST_DB_KEY_B64` 存在时直接用它（base64 编码的 48 字节），
+/// 完全绕开 Keychain。集成测试用 `tempfile + ATLAS_HOME + ATLAS_TEST_DB_KEY_B64` 隔离环境。
 pub fn get_or_create() -> Result<SqlCipherKey> {
-    if let Ok(b64) = std::env::var("WEFT_TEST_DB_KEY_B64") {
+    if let Ok(b64) = std::env::var("ATLAS_TEST_DB_KEY_B64") {
         return decode_b64_key(&b64);
     }
 
@@ -88,6 +88,22 @@ pub fn get_or_create() -> Result<SqlCipherKey> {
                 .map_err(|e| anyhow::anyhow!("keyring write: {e}"))?;
             Ok(k)
         }
+        Err(e) => Err(anyhow::anyhow!("keyring read: {e}")),
+    }
+}
+
+/// Read the existing SQLCipher key without minting a new one. Used during
+/// startup restore safety checks before replacing a shell database.
+pub fn get_existing() -> Result<SqlCipherKey> {
+    if let Ok(b64) = std::env::var("ATLAS_TEST_DB_KEY_B64") {
+        return decode_b64_key(&b64);
+    }
+
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_ACCOUNT)
+        .map_err(|e| anyhow::anyhow!("keyring entry: {e}"))?;
+    match entry.get_password() {
+        Ok(b64) => decode_b64_key(&b64),
+        Err(keyring::Error::NoEntry) => Err(anyhow::anyhow!("keyring key not found")),
         Err(e) => Err(anyhow::anyhow!("keyring read: {e}")),
     }
 }
@@ -166,11 +182,14 @@ mod tests {
     #[test]
     fn get_or_create_uses_env_bypass() {
         use base64::Engine;
+        let _g = crate::paths::ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let raw = [0x7Fu8; 48];
         let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
-        std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+        std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
         let k = get_or_create().unwrap();
-        std::env::remove_var("WEFT_TEST_DB_KEY_B64");
+        std::env::remove_var("ATLAS_TEST_DB_KEY_B64");
         assert_eq!(k.to_bytes(), raw);
     }
 }

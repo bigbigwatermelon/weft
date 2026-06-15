@@ -30,12 +30,12 @@ target/
 # Docs (design specs, plans, diagrams — kept local)
 docs/
 
-# weft local worktrees (materialized per task)
+# Atlas local worktrees (materialized per task)
 .claude/worktrees/
 
 # Local code index
 .codegraph/
 
 # Local Tauri signing keys
-src-tauri/weft.key
-src-tauri/weft.key.pub
+src-tauri/atlas.key
+src-tauri/atlas.key.pub

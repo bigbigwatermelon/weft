@@ -14,7 +14,7 @@ const MAP: Record<
 
 function Glyph({ status }: { status: SessionStatus }) {
   if (status === "running")
-    return <Circle size={9} className="weft-pulse fill-current" />;
+    return <Circle size={9} className="atlas-pulse fill-current" />;
   if (status === "exited") return <X size={11} />;
   return <Square size={9} className="fill-current" />;
 }

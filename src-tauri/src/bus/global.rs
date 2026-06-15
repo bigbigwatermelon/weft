@@ -1,4 +1,4 @@
-//! `weft_global` MCP server (spec §5 / M3-2): a stable, NOT-per-thread tool face
+//! `atlas_global` MCP server (spec §5 / M3-2): a stable, NOT-per-thread tool face
 //! exposed to the Concierge engine — so the IM conversation assistant can read workspaces /
 //! issues / Needs-you, answer asks on behalf of the user, message a lead, or
 //! file a new issue. Pure tool dispatch; the human is still the decision side
@@ -47,7 +47,7 @@ pub async fn handle_global(
         "initialize" => json!({
             "protocolVersion": "2024-11-05",
             "capabilities": { "tools": { "listChanged": false } },
-            "serverInfo": { "name": "weft_global", "version": "1.0.0" }
+            "serverInfo": { "name": "atlas_global", "version": "1.0.0" }
         }),
         "tools/list" => json!({ "tools": global_specs() }),
         "tools/call" => {

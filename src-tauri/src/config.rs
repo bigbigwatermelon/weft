@@ -1,5 +1,5 @@
 //! Effective-config resolution (§ MVP "配置物化" / M6 有效配置预览): which skills
-//! and rules actually apply to a repo, and which LAYER each comes from. weft
+//! and rules actually apply to a repo, and which LAYER each comes from. atlas
 //! drives the native `claude` CLI, so the layers are the conventional Claude
 //! ones: personal `~/.claude/` (lowest precedence) is overridden by the repo's
 //! own `<repo>/.claude/` + `<repo>/CLAUDE.md` (highest). A team layer (via
@@ -14,7 +14,7 @@ pub struct ConfigItem {
     pub name: String,
     /// "skill" | "rule"
     pub kind: String,
-    /// "personal" | "weft-global" | "weft-workspace" | "repo" (room for "team" later)
+    /// "personal" | "atlas-global" | "atlas-workspace" | "repo" (room for "team" later)
     pub layer: String,
     pub path: String,
     /// A skill shadowed by a same-named one in a higher-precedence layer.
@@ -25,8 +25,8 @@ pub struct ConfigItem {
 fn precedence(layer: &str) -> u8 {
     match layer {
         "repo" => 4,
-        "weft-workspace" => 3,
-        "weft-global" => 2,
+        "atlas-workspace" => 3,
+        "atlas-global" => 2,
         "team" => 1,
         _ => 0, // personal
     }
@@ -118,20 +118,20 @@ pub fn effective_for(repo_path: &Path, home: &Path) -> Vec<ConfigItem> {
     resolve_effective(out)
 }
 
-/// Like `effective_for`, but injects weft-managed skills as `weft-global` /
-/// `weft-workspace` layers between personal and repo. `weft` is (name, layer,
-/// dir) — layer is "weft-global" or "weft-workspace". Pure over its inputs.
-pub fn effective_for_with_weft(
+/// Like `effective_for`, but injects atlas-managed skills as `atlas-global` /
+/// `atlas-workspace` layers between personal and repo. `atlas` is (name, layer,
+/// dir) — layer is "atlas-global" or "atlas-workspace". Pure over its inputs.
+pub fn effective_for_with_atlas(
     repo_path: &Path,
     home: &Path,
-    weft: &[(String, String, String)],
+    atlas: &[(String, String, String)],
 ) -> Vec<ConfigItem> {
     let mut out = Vec::new();
     let personal = home.join(".claude");
     list_skills(&personal, "personal", &mut out);
     push_rule_if(personal.join("CLAUDE.md"), "personal", &mut out);
 
-    for (name, layer, dir) in weft {
+    for (name, layer, dir) in atlas {
         out.push(ConfigItem {
             name: name.clone(),
             kind: "skill".into(),
@@ -192,39 +192,39 @@ mod tests {
     fn tmp() -> std::path::PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let d = std::env::temp_dir().join(format!("weft-config-{}-{}", std::process::id(), id));
+        let d = std::env::temp_dir().join(format!("atlas-config-{}-{}", std::process::id(), id));
         let _ = std::fs::create_dir_all(&d);
         d
     }
 
     #[test]
-    fn weft_layers_sit_between_personal_and_repo() {
+    fn atlas_layers_sit_between_personal_and_repo() {
         let out = resolve_effective(vec![
             item("deploy", "skill", "personal"),
-            item("deploy", "skill", "weft-global"),
-            item("deploy", "skill", "weft-workspace"),
+            item("deploy", "skill", "atlas-global"),
+            item("deploy", "skill", "atlas-workspace"),
             item("deploy", "skill", "repo"),
         ]);
         // highest precedence (repo) wins; the rest overridden
         let effective: Vec<_> = out.iter().filter(|i| !i.overridden).collect();
         assert_eq!(effective.len(), 1);
         assert_eq!(effective[0].layer, "repo");
-        // and weft-workspace beats weft-global beats personal in the shadow order
+        // and atlas-workspace beats atlas-global beats personal in the shadow order
         assert!(out
             .iter()
-            .any(|i| i.layer == "weft-workspace" && i.overridden));
-        assert!(out.iter().any(|i| i.layer == "weft-global" && i.overridden));
+            .any(|i| i.layer == "atlas-workspace" && i.overridden));
+        assert!(out.iter().any(|i| i.layer == "atlas-global" && i.overridden));
 
-        // weft-workspace shadows weft-global shadows personal when no repo skill exists
+        // atlas-workspace shadows atlas-global shadows personal when no repo skill exists
         let out = resolve_effective(vec![
             item("deploy", "skill", "personal"),
-            item("deploy", "skill", "weft-global"),
-            item("deploy", "skill", "weft-workspace"),
+            item("deploy", "skill", "atlas-global"),
+            item("deploy", "skill", "atlas-workspace"),
         ]);
         let eff: Vec<_> = out.iter().filter(|i| !i.overridden).collect();
         assert_eq!(eff.len(), 1);
-        assert_eq!(eff[0].layer, "weft-workspace"); // beats weft-global AND personal
-        assert!(out.iter().any(|i| i.layer == "weft-global" && i.overridden));
+        assert_eq!(eff[0].layer, "atlas-workspace"); // beats atlas-global AND personal
+        assert!(out.iter().any(|i| i.layer == "atlas-global" && i.overridden));
         assert!(out.iter().any(|i| i.layer == "personal" && i.overridden));
     }
 

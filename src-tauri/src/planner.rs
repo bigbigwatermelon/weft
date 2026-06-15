@@ -438,17 +438,17 @@ mod tests {
 
     #[tokio::test]
     async fn approve_deny_pending_against_db() {
-        // Hold the shared env lock for the whole window WEFT_HOME is set, so the
+        // Hold the shared env lock for the whole window ATLAS_HOME is set, so the
         // default-home paths test can't observe our override. Panic-tolerant.
         let _env = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let tag = format!("weft-planner-{}", std::process::id());
+        let tag = format!("atlas-planner-{}", std::process::id());
         let root = std::env::temp_dir().join(format!("{tag}-root"));
-        let weft_home = std::env::temp_dir().join(format!("{tag}-home"));
+        let atlas_home = std::env::temp_dir().join(format!("{tag}-home"));
         let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&weft_home);
-        std::env::set_var("WEFT_HOME", weft_home.to_str().unwrap());
+        let _ = std::fs::remove_dir_all(&atlas_home);
+        std::env::set_var("ATLAS_HOME", atlas_home.to_str().unwrap());
         let repo_path = make_repo(&root, "api");
 
         let db = Db::connect("sqlite::memory:").await.unwrap();
@@ -549,8 +549,8 @@ mod tests {
         // Cleanup.
         let removed = repo::delete_thread_cascade(&db, t.id).await.unwrap();
         let _ = materialize::cleanup_worktrees(&db, &removed).await;
-        std::env::remove_var("WEFT_HOME");
+        std::env::remove_var("ATLAS_HOME");
         let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&weft_home);
+        let _ = std::fs::remove_dir_all(&atlas_home);
     }
 }

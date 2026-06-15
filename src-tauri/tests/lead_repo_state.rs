@@ -2,8 +2,8 @@
 //! the lead's system prompt: count, current workspace id, up to 8 repos
 //! (name @ path, single-lined + 80-char-clipped), with truncation tail and
 //! a "no repos" action_card hint for empty workspaces.
-use weft_app_lib::lead_chat::repo_state::render_repo_state;
-use weft_app_lib::store::{repo, Db};
+use atlas_app_lib::lead_chat::repo_state::render_repo_state;
+use atlas_app_lib::store::{repo, Db};
 
 #[tokio::test]
 async fn renders_empty_with_hint() {
@@ -22,7 +22,7 @@ async fn renders_empty_with_hint() {
         "missing hint sentence in {out}"
     );
     assert!(
-        out.contains("<weft:action_card>"),
+        out.contains("<atlas:action_card>"),
         "missing action_card mention in {out}"
     );
     assert!(
@@ -72,7 +72,7 @@ async fn renders_three_repos_no_hint() {
         "unexpected empty hint in {out}"
     );
     assert!(
-        !out.contains("more, use <weft:list_repos/>"),
+        !out.contains("more, use <atlas:list_repos/>"),
         "unexpected truncation in {out}"
     );
 }
@@ -102,7 +102,7 @@ async fn truncates_over_eight() {
         "missing truncation tail in {out}"
     );
     assert!(
-        out.contains("<weft:list_repos/>"),
+        out.contains("<atlas:list_repos/>"),
         "missing list_repos sentinel in {out}"
     );
     let row_count = out.lines().filter(|l| l.starts_with("  - ")).count();

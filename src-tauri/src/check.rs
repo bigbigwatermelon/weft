@@ -166,7 +166,7 @@ mod tests {
     fn tmp(files: &[(&str, &str)]) -> std::path::PathBuf {
         static N: AtomicU64 = AtomicU64::new(0);
         let id = N.fetch_add(1, Ordering::Relaxed);
-        let d = std::env::temp_dir().join(format!("weft-check-{}-{}", std::process::id(), id));
+        let d = std::env::temp_dir().join(format!("atlas-check-{}-{}", std::process::id(), id));
         let _ = std::fs::create_dir_all(&d);
         for (rel, c) in files {
             std::fs::write(d.join(rel), c).unwrap();
@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn missing_tool_is_a_fail_not_a_panic() {
         let d = tmp(&[]);
-        let r = run_check(&d, &check("x", "weft-nonexistent-binary-xyz", &[]));
+        let r = run_check(&d, &check("x", "atlas-nonexistent-binary-xyz", &[]));
         assert_eq!(r.status, "fail");
         assert!(r.output_tail.contains("could not run"));
     }

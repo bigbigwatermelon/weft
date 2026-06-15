@@ -1,7 +1,7 @@
 //! `<repo_state>` block injected into the lead's system prompt: tells the LLM
 //! which workspace it's in, how many repos exist, and lists up to 8 of them
 //! (single-lined + 80-char-clipped). Empty workspaces get a hint to render an
-//! action_card; truncated lists get a hint to call <weft:list_repos/>.
+//! action_card; truncated lists get a hint to call <atlas:list_repos/>.
 //!
 //! This is wire content for the model, not user-facing UI — keep it English
 //! and don't run it through i18n.
@@ -12,7 +12,7 @@ const MAX_LISTED: usize = 8;
 const FIELD_CAP: usize = 80;
 const ELLIPSIS: char = '…';
 const EMPTY_HINT: &str =
-    "User has no repos. Suggest creating or importing one via <weft:action_card>...</weft:action_card> before further work.";
+    "User has no repos. Suggest creating or importing one via <atlas:action_card>...</atlas:action_card> before further work.";
 
 /// Render the `<repo_state>` block. `workspace_id == None` short-circuits to
 /// the empty form (no DB access) so the lead engine can call this even before
@@ -49,7 +49,7 @@ pub async fn render_repo_state(db: &Db, workspace_id: Option<i32>) -> anyhow::Re
         if total > MAX_LISTED {
             body.push('\n');
             body.push_str(&format!(
-                "  ... +{} more, use <weft:list_repos/> for full",
+                "  ... +{} more, use <atlas:list_repos/> for full",
                 total - MAX_LISTED
             ));
         }

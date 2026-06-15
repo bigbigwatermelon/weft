@@ -13,7 +13,7 @@ fn sh(dir: &PathBuf, args: &[&str]) {
 
 #[test]
 fn worktree_list_and_diff() {
-    let root = std::env::temp_dir().join(format!("weft-m2-git-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("atlas-m2-git-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let repo = root.join("repo");
     let wt = root.join("wt");
@@ -40,10 +40,10 @@ fn worktree_list_and_diff() {
     // new untracked file in the worktree
     std::fs::write(wt.join("hello.txt"), "a\nb\n").unwrap();
 
-    let wts = weft_app_lib::git::list_worktrees(&repo).unwrap();
+    let wts = atlas_app_lib::git::list_worktrees(&repo).unwrap();
     assert!(wts.iter().any(|(_, b)| b == "ws/d/t/m"));
 
-    let diff = weft_app_lib::git::repo_diff(&wt).unwrap();
+    let diff = atlas_app_lib::git::repo_diff(&wt).unwrap();
     let hello = diff.files.iter().find(|f| f.path == "hello.txt").unwrap();
     assert_eq!(hello.added, 2);
 

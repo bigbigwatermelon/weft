@@ -92,7 +92,7 @@ pub async fn add_skill_source(
 ) -> Result<skill_source::Model> {
     let ref_norm = git_ref.unwrap_or("").to_string();
     // Idempotent: same (url, ref) reuses the existing row so repeat clicks /
-    // re-imports don't pile up duplicate clones under ~/.weft/skills/sources/.
+    // re-imports don't pile up duplicate clones under ~/.atlas/skills/sources/.
     // A *different* ref on the same URL is still a distinct source.
     if let Some(existing) = skill_source::Entity::find()
         .filter(skill_source::Column::GitUrl.eq(git_url))
@@ -988,6 +988,28 @@ mod tests {
             .await
             .unwrap()
             .is_none());
+    }
+
+    #[tokio::test]
+    async fn repo_less_direction_can_back_a_generic_session() {
+        let db = Db::connect("sqlite::memory:").await.unwrap();
+        let ws = create_workspace(&db, "People Ops").await.unwrap();
+        let t = create_thread(&db, ws.id, "Draft offer email", "task", "codex")
+            .await
+            .unwrap();
+
+        let d = create_direction(&db, t.id, "Main run", "codex", 0, "", "plan+impl")
+            .await
+            .unwrap();
+        assert_eq!(d.repo_id, 0);
+        assert!(direction_repo_of(&db, d.id).await.unwrap().is_none());
+
+        let s = create_session(&db, d.id, 0, "codex", "/tmp/atlas-run")
+            .await
+            .unwrap();
+        let latest = latest_session_for(&db, d.id, 0).await.unwrap().unwrap();
+        assert_eq!(latest.id, s.id);
+        assert_eq!(latest.cwd, "/tmp/atlas-run");
     }
 
     #[tokio::test]

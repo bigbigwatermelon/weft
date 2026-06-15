@@ -40,7 +40,7 @@
     <rect class="chip" x="668" y="98" width="284" height="86" rx="11"/>
     <g transform="translate(692,132)" class="gl" stroke="#c4bdb2"><rect x="-8" y="-7" width="16" height="14" rx="2"/><path d="M-4,-2 l3,3 l-3,3"/><path d="M1,4 h4"/></g>
     <text class="clbl" x="716" y="130">Session chat</text>
-    <text class="csub" x="716" y="160">weft-owned timeline · composer</text>
+    <text class="csub" x="716" y="160">atlas-owned timeline · composer</text>
   </g>
   <g>
     <rect class="chip" x="970" y="98" width="284" height="86" rx="11"/>
@@ -91,7 +91,7 @@
   <g>
     <rect class="chip" x="872" y="424" width="384" height="78" rx="11"/>
     <text class="clbl" x="892" y="458">SQLite</text>
-    <text class="csub" x="892" y="480">sea-orm · ~/.weft/weft.db</text>
+    <text class="csub" x="892" y="480">sea-orm · ~/.atlas/atlas.db</text>
   </g>
   <!-- BE chips row 3 -->
   <g>

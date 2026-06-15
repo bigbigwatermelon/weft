@@ -36,7 +36,7 @@ pub async fn discover_commands(cwd: &str) -> Vec<SlashCmd> {
     match discover_inner(cwd).await {
         Ok(v) => v,
         Err(e) => {
-            eprintln!("[weft][opencode] discover commands: {e}");
+            eprintln!("[atlas][opencode] discover commands: {e}");
             vec![]
         }
     }

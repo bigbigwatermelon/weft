@@ -15,46 +15,33 @@ pub struct SessionInfo {
     pub session_id: i32,
     pub repo: String,
     pub worktree: String,
+    pub cwd: String,
     pub branch: String,
     pub tool: String,
     pub resumed: bool,
     pub native_id: Option<String>,
 }
 
-const BASE_PROMPT: &str = "You are the lead for this thread in weft — the human's main collaborator. \
-Start by greeting briefly and using the weft_planner MCP tools to orient: call get_task to read \
-what's being asked, and get_repo_map to learn each repo's role and the cross-repo dependency graph. \
-Then DISCUSS the requirement and approach with the human; ask clarifying questions when it matters. \
-You do not write code, and you do not plan the directions' implementations — each worker plans its \
-own direction. Your job is to converge the scope and ASSIGN ROLES. When you and the human have \
-converged on how to split the work, call propose_directions with a short rationale and the directions \
-(name, the ONE repo each writes, reason, mandate); only list repos each direction must WRITE \
-(reads are free). Pick mandate per direction: plan+impl (default — the worker plans first) or \
-impl-only (small/fully-specified — build straight away). The human reviews and confirms in weft; you \
-can re-propose after more discussion. Prefer splitting frontend/backend/shared work to run in \
-parallel, owner of a shared contract first.";
+const BASE_PROMPT: &str = "You are the coordinator for this task in Atlas, a local Agent App. \
+Start by calling get_task to read what the human is asking. Discuss the goal, constraints, \
+and next step with the human. You may answer directly, ask a concise clarifying question, \
+or suggest a named run for a focused agent session. Do not assume the workspace contains code \
+repositories. Do not bring up repository-specific planning artifacts, diffs, or code-review checks \
+unless the human explicitly asks for coding work. When a decision belongs to the human, ask it \
+directly in chat. Keep the conversation practical and grounded in the current task.";
 
-/// Sentinel usage directives appended to the lead prompt. Each subsequent task
-/// (Task 3-5) keeps growing this block, so it lives as its own const for easy
-/// editing — raw string keeps quotes/JSON readable.
-const SENTINEL_DIRECTIVES: &str = r#"When the user has no suitable repo for the work, render a single-line action card by outputting exactly:
-<weft:action_card>{"title":"...","body":"...","actions":[{"id":"...","label":"...","kind":"add"|"new"|"clone"}]}</weft:action_card>
-Each action's kind must be one of "add" (import existing folder), "new" (create a new repo), or "clone" (clone a remote URL). Use language matching the user's locale for title/body/label. To query the full repo list when the <repo_state> hint is truncated, emit on its own line: <weft:list_repos/> You will receive the reply as <weft:list_repos_result>{...}</weft:list_repos_result>. After a user finishes an action, you will receive <weft:repo_action>{...}</weft:repo_action> with status: ok/error/cancelled."#;
-
-/// The conversational lead prompt. The lead is the human's main collaborator for
-/// the thread: it discusses the work, and the plan EMERGES from that conversation
-/// rather than from a one-shot propose-and-exit. It proposes when (and only when)
-/// the human has converged with it, and may re-propose after more discussion.
+/// The conversational lead prompt. The lead coordinates the current task with
+/// the human and does not assume the workspace is a code repository.
 pub fn lead_prompt() -> String {
-    format!("{BASE_PROMPT}\n\n{SENTINEL_DIRECTIVES}")
+    BASE_PROMPT.to_string()
 }
 
 /// Agent-output language directive (ARCHITECTURE §4.8, layer 2). Appended to the
-/// lead prompt / worker brief so prose follows the operator's UI language; code
-/// and identifiers always stay English. Empty for English (the default).
+/// lead prompt / worker brief so prose follows the operator's UI language while
+/// preserving domain-specific terms as written. Empty for English (the default).
 pub fn lang_directive(lang: &str) -> &'static str {
     if lang == "zh" {
-        "\n\n用中文撰写所有自然语言产出(计划、摘要、bus 消息、PR/commit 文案);代码、标识符与技术约定始终用英文。"
+        "\n\n用中文撰写所有自然语言产出(计划、摘要、bus 消息和给用户的说明);保留产品名、工具名、文件名、命令和用户提供的专有术语。"
     } else {
         ""
     }
@@ -62,13 +49,13 @@ pub fn lang_directive(lang: &str) -> &'static str {
 
 /// System prompt for the IM Concierge engine (M3-3). Concierge is scoped to
 /// the current IM conversation — NOT a per-issue lead.
-/// It never plans or writes; it only reads weft state via the `weft_global` MCP
+/// It never plans or writes; it only reads Atlas state via the `atlas_global` MCP
 /// and answers / triggers actions on the human's behalf. Bilingual: language
 /// follows the caller's lang (defaults to zh — IM bridge fixes it that way).
 pub fn concierge_prompt(lang: &str) -> String {
     let body = if lang == "zh" {
-        "你是 weft 桌面端的助理（Concierge），用户从某个飞书会话找你。weft 桌面端正在运行，\
-真实状态都在 weft_global MCP 工具里——回答任何关于工作区、issue、待办、agent 提问的问题前，\
+        "你是 Atlas 桌面端的助理（Concierge），用户从某个飞书会话找你。Atlas 桌面端正在运行，\
+真实状态都在 atlas_global MCP 工具里——回答任何关于工作区、issue、待办、agent 提问的问题前，\
 必须先用工具核实（list_workspaces / list_issues / pending_needs_you / issue_status），不要凭印象作答。\n\
 如果用户消息里带有 feishu_chat_id，那就是当前飞书会话的 chat_id；只有用户语义明确要求为某个已有 issue 创建、打开或继续飞书 topic 时，才可把这个 chat_id 传给 ensure_issue_topic。\n\
 \n\
@@ -87,8 +74,8 @@ pub fn concierge_prompt(lang: &str) -> String {
 \n\
 回复风格：简短中文，用 markdown 列表/编号；引用 issue 时带 thread_id；引用 ask 时带 ask_id。"
     } else {
-        "You are weft's desktop Concierge, reached by the user through one Feishu conversation. weft is \
-running on the user's desktop and authoritative state lives behind the `weft_global` MCP \
+        "You are Atlas's desktop Concierge, reached by the user through one Feishu conversation. Atlas is \
+running on the user's desktop and authoritative state lives behind the `atlas_global` MCP \
 tools — ALWAYS verify with the tools before answering anything about workspaces, issues, \
 pending asks, or agent questions (list_workspaces / list_issues / pending_needs_you / \
 issue_status). Never answer from your imagination.\n\
@@ -119,7 +106,7 @@ Style: short, markdown bullets / numbered lists; mention thread_id when citing a
 /// message lands on a bound issue (spec §4 / M2-3).
 ///
 /// Concierge branch (`t.kind == "concierge"`, M3-1/-3): swap planner MCP →
-/// `weft_global` MCP and the lead prompt → `concierge_prompt(lang)`. Everything
+/// `atlas_global` MCP and the lead prompt → `concierge_prompt(lang)`. Everything
 /// else (cwd, ask hook, skills) stays identical so this engine survives
 /// app restarts and obeys per-task permissions the same way.
 pub async fn lead_engine(
@@ -135,7 +122,7 @@ pub async fn lead_engine(
     let t = repo::get_thread(db, thread_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
-    let cwd = crate::paths::weft_home()?
+    let cwd = crate::paths::atlas_home()?
         .join("leads")
         .join(thread_id.to_string());
     std::fs::create_dir_all(&cwd)?;
@@ -291,7 +278,7 @@ pub async fn lead_state(
             queued: 0,
             native_id: repo::lead_native_id(&db, thread_id).await.ok().flatten(),
             slash_commands: vec![],
-            cwd: crate::paths::weft_home()
+            cwd: crate::paths::atlas_home()
                 .map(|h| {
                     h.join("leads")
                         .join(thread_id.to_string())
@@ -372,14 +359,14 @@ pub async fn list_lead_messages(
 
 // ───────────────────── chat-mode workers ─────────────────────
 //
-// Every worker (claude/codex/opencode) runs on the engine: a weft-owned chat
+// Every worker (claude/codex/opencode) runs on the engine: an Atlas-owned chat
 // timeline in the SessionView, with per-tool wire dialects (engine::per_turn).
 // Each session remains takeover-able in the user's own terminal via its
 // native id.
 
 /// Spawn (or resume) a chat-mode worker for a (direction, repo) slot: worktree
 /// cwd, thread-bus MCP + ask bridge, the assembled brief as the first user
-/// message of a weft-owned conversation.
+/// message of an Atlas-owned conversation.
 #[tauri::command]
 pub async fn chat_open_worker(
     app: AppHandle,
@@ -399,6 +386,24 @@ pub async fn chat_open_worker(
     .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+pub async fn chat_open_run(
+    app: AppHandle,
+    db: State<'_, Db>,
+    direction_id: i32,
+    lang: Option<String>,
+) -> Result<SessionInfo, String> {
+    chat_open_worker_impl(
+        &app,
+        &db,
+        direction_id,
+        0,
+        lang.as_deref().unwrap_or("en"),
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
 async fn chat_open_worker_impl(
     app: &AppHandle,
     db: &Db,
@@ -407,14 +412,29 @@ async fn chat_open_worker_impl(
     lang: &str,
 ) -> anyhow::Result<SessionInfo> {
     use sea_orm::EntityTrait;
-    let wt = repo::worktree_for(db, direction_id, repo_id)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("no materialized worktree for that direction+repo"))?;
     let dir = crate::store::entities::direction::Entity::find_by_id(direction_id)
         .one(&db.0)
         .await?
         .ok_or_else(|| anyhow::anyhow!("direction not found"))?;
-    let cwd = std::path::PathBuf::from(&wt.path);
+    let thread = repo::get_thread(db, dir.thread_id)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("thread not found"))?;
+    let workspace = crate::store::entities::workspace::Entity::find_by_id(thread.workspace_id)
+        .one(&db.0)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("workspace not found"))?;
+    let (cwd, branch) = if repo_id == 0 {
+        (
+            crate::paths::run_home(&workspace.slug, &thread.slug, &dir.slug)?,
+            String::new(),
+        )
+    } else {
+        let wt = repo::worktree_for(db, direction_id, repo_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("no materialized worktree for that direction+repo"))?;
+        (std::path::PathBuf::from(&wt.path), wt.branch)
+    };
+    let cwd_str = cwd.to_string_lossy().to_string();
 
     // Resume an earlier conversation when this slot already captured one.
     let prior = repo::latest_session_for(db, direction_id, repo_id).await?;
@@ -422,7 +442,7 @@ async fn chat_open_worker_impl(
     let resumed = native.is_some();
     let sess = match prior {
         Some(s) if s.native_session_id.is_some() => s,
-        _ => repo::create_session(db, direction_id, repo_id, &dir.tool, &wt.path).await?,
+        _ => repo::create_session(db, direction_id, repo_id, &dir.tool, &cwd_str).await?,
     };
 
     let base = app.state::<crate::BusBase>().0.clone();
@@ -440,9 +460,7 @@ async fn chat_open_worker_impl(
         &dir.tool,
         &cwd,
     );
-    if let Ok(Some(th)) = repo::get_thread(db, dir.thread_id).await {
-        crate::skills::inject_for(db, th.workspace_id, &cwd).await;
-    }
+    crate::skills::inject_for(db, thread.workspace_id, &cwd).await;
     let mut extra = ask.args;
     extra.extend(inj.args);
 
@@ -502,9 +520,10 @@ async fn chat_open_worker_impl(
 
     Ok(SessionInfo {
         session_id: sess.id,
-        repo: wt.path.clone(),
-        worktree: wt.path,
-        branch: wt.branch,
+        repo: cwd_str.clone(),
+        worktree: cwd_str.clone(),
+        cwd: cwd_str,
+        branch,
         tool: dir.tool,
         resumed,
         native_id: native,
@@ -655,7 +674,7 @@ pub async fn flag_lead_skill_refresh(
 }
 
 /// Frontend callback after a repo onboarding action card finishes (add /
-/// new / clone). Wraps the payload in `<weft:repo_action>…</weft:repo_action>`
+/// new / clone). Wraps the payload in `<atlas:repo_action>…</atlas:repo_action>`
 /// and delivers it as an invisible user turn so the agent can react without
 /// the result polluting the visible timeline. Respects the turn machine:
 /// mid-turn clicks get queued and flush at the next boundary instead of
@@ -669,7 +688,7 @@ pub async fn post_lead_tool_result(
     payload: serde_json::Value,
 ) -> Result<(), String> {
     let json = serde_json::to_string(&payload).map_err(|e| e.to_string())?;
-    let text = format!("<weft:repo_action>{json}</weft:repo_action>");
+    let text = format!("<atlas:repo_action>{json}</atlas:repo_action>");
     let key = lead_key(thread_id);
     match app.state::<LeadChatState>().get(key) {
         Some(eng) => {
@@ -691,7 +710,7 @@ pub async fn post_lead_tool_result(
             }
         }
         None => {
-            eprintln!("[weft] post_lead_tool_result: no lead engine for thread {thread_id}");
+            eprintln!("[atlas] post_lead_tool_result: no lead engine for thread {thread_id}");
         }
     }
     Ok(())

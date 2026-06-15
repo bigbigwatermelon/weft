@@ -325,6 +325,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-app"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "dirs 5.0.1",
+ "futures",
+ "hex",
+ "keepawake",
+ "keyring",
+ "libsqlite3-sys",
+ "open-lark",
+ "rand 0.8.6",
+ "reqwest 0.12.28",
+ "sea-orm",
+ "sea-orm-migration",
+ "serde",
+ "serde_json",
+ "sha1",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-mcp-bridge",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+ "tempfile",
+ "tokio",
+ "toml 0.8.2",
+ "tower",
+]
+
+[[package]]
 name = "atoi"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7400,42 +7436,6 @@ dependencies = [
  "thiserror 2.0.18",
  "windows 0.61.3",
  "windows-core 0.61.2",
-]
-
-[[package]]
-name = "weft-app"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum",
- "base64 0.22.1",
- "dirs 5.0.1",
- "futures",
- "hex",
- "keepawake",
- "keyring",
- "libsqlite3-sys",
- "open-lark",
- "rand 0.8.6",
- "reqwest 0.12.28",
- "sea-orm",
- "sea-orm-migration",
- "serde",
- "serde_json",
- "sha1",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-mcp-bridge",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-updater",
- "tempfile",
- "tokio",
- "toml 0.8.2",
- "tower",
 ]
 
 [[package]]

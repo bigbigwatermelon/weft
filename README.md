@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="public/weft-logo.svg" alt="Weft" width="220" />
+  <img src="public/atlas-mark.png" alt="Atlas" width="96" />
 
 ### Local-first delivery hub for coding agents
 
-Give Weft a feature, bugfix, or refactor. A lead agent turns it into scoped
-worker lanes, Weft materializes each approved lane as an isolated `git worktree`,
+Give Atlas a feature, bugfix, or refactor. A lead agent turns it into scoped
+worker lanes, Atlas materializes each approved lane as an isolated `git worktree`,
 and Claude Code, Codex, or OpenCode drive the work until there is a diff you can
 review.
 
@@ -14,13 +14,13 @@ review.
 </div>
 
 <p align="center">
-  <img src="assets/readme/weft-overview.png" alt="Weft overview: repositories feed a lead workspace, scoped workers produce checked review diffs" width="940" />
+  <img src="assets/readme/atlas-overview.png" alt="Atlas overview: repositories feed a lead workspace, scoped workers produce checked review diffs" width="940" />
 </p>
 
-## Why Weft
+## Why Atlas
 
 Coding agents are strongest when they get tight scope, real repository context,
-and a clear handoff back to a human. Weft keeps that loop local:
+and a clear handoff back to a human. Atlas keeps that loop local:
 
 - Your source stays on your machine.
 - Workers run through the native CLIs you already use and authenticate.
@@ -48,7 +48,7 @@ Sub-tasks. User-facing docs and UI use **Issue** and **Sub-task**.
 2. Start an issue and discuss the goal with the lead agent.
 3. The lead proposes sub-tasks with write scope, tool choice, reason, and mandate.
 4. You approve the write declarations that should become worktrees.
-5. Workers run in headless Claude/Codex/OpenCode sessions and stream into Weft.
+5. Workers run in headless Claude/Codex/OpenCode sessions and stream into Atlas.
 6. You observe progress, answer asks, inspect diffs, and run checks before PR.
 
 ## Product Surfaces
@@ -64,7 +64,7 @@ Sub-tasks. User-facing docs and UI use **Issue** and **Sub-task**.
 ## Architecture
 
 <p align="center">
-  <img src="assets/diagrams/arch-en.svg" alt="Weft local-first architecture" width="940" />
+  <img src="assets/diagrams/arch-en.svg" alt="Atlas local-first architecture" width="940" />
 </p>
 
 The Rust backend owns the local SQLite store, git worktree lifecycle, headless
@@ -91,7 +91,7 @@ The bridge currently covers:
 - Permission asks and agent questions.
 - Issue-to-Feishu thread routes for lead messages; bind a topic by sending
   `/bind <issue-id>` from that Feishu topic.
-- Concierge-style direct chat backed by the `weft_global` MCP tools.
+- Concierge-style direct chat backed by the `atlas_global` MCP tools.
 - Online resync summaries for pending Needs-you items.
 
 Binding is conservative: the first private-chat sender can become owner, group
@@ -103,7 +103,7 @@ messages cannot bind ownership, and DB errors fail closed.
 - Claude lead sessions with planner MCP and write-scope review.
 - Lead action cards for adding, cloning, or creating repos from the conversation.
 - Worker sessions for Claude Code, Codex, and OpenCode.
-- Weft-owned chat timeline with queueing, interrupt, resume, slash commands, and attachments.
+- Atlas-owned chat timeline with queueing, interrupt, resume, slash commands, and attachments.
 - Ask Bridge for tool permission requests: Allow, Always, Full, and Deny.
 - Skill source manager with git-backed sync and global/workspace enablement.
 - Sidecar observation for Claude jsonl, Codex rollout jsonl, and OpenCode SQLite.
@@ -118,14 +118,20 @@ long-running semantic Curator.
 ## Development
 
 ```bash
-npm install
-npm run dev          # Vite frontend
-npm run build        # TypeScript check + production frontend bundle
-npm run tauri dev    # full desktop app
-npm run tauri build  # release app bundle
+pnpm install
+pnpm dev             # Vite frontend
+pnpm build           # TypeScript check + production frontend bundle
+pnpm preflight:quick # fast local pre-PR gate
+pnpm preflight       # full local pre-PR gate
+pnpm tauri dev       # full desktop app
+pnpm tauri build     # release app bundle
 cd src-tauri && cargo test
 git diff --check
 ```
+
+Run `pnpm preflight` before pushing a PR branch. The GitHub `CI` workflow is a
+manual cross-platform fallback for cases that need remote Linux/macOS/Windows
+confirmation; it is not part of the default PR loop.
 
 ## Project Layout
 
@@ -139,7 +145,7 @@ src/
   i18n/                 English and Chinese strings
 src-tauri/src/
   lead_chat/            headless agent session engine
-    sentinels.rs        parse <weft:action_card> / <weft:list_repos/> markers
+    sentinels.rs        parse <atlas:action_card> / <atlas:list_repos/> markers
     repo_state.rs       <repo_state> snapshot injected into the lead prompt
   im/                   IM bridge (Channel trait + Feishu adapter, ws + cards)
   store/                SQLite/SeaORM entities and migrations
@@ -155,6 +161,6 @@ assets/
 
 ## Design Constraints
 
-Weft drives native CLIs through structured, headless interfaces and renders its
+Atlas drives native CLIs through structured, headless interfaces and renders its
 own UI. Do not add embedded terminal/TUI dependencies for normal chat surfaces.
 Terminal takeover remains an escape hatch for users who want the original CLI.

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import * as RD from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
-import { FolderOpen, Network, X } from "lucide-react";
+import { FolderOpen } from "lucide-react";
 import { Dialog, DialogContent } from "../components/ui/Dialog";
 import { Button } from "../components/ui/Button";
 import { Input, Field } from "../components/ui/Input";
@@ -10,12 +9,18 @@ import { useStore } from "../state/store";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 
+type RepoMode = "local" | "clone" | "new";
+
+const basename = (p: string) => p.trim().replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? "";
+const repoNameFromUrl = (u: string) =>
+  u.trim().replace(/\.git$/, "").replace(/\/+$/, "").split(/[/:]/).filter(Boolean).pop() ?? "";
+
 export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
   const { createWorkspace } = useStore();
+  const { t } = useTranslation();
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const { t } = useTranslation();
 
   useEffect(() => {
     if (!open) {
@@ -26,11 +31,12 @@ export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
   }, [open]);
 
   async function submit() {
-    if (!value.trim() || busy) return;
+    const name = value.trim();
+    if (!name || busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await createWorkspace(value.trim());
+      await createWorkspace(name);
       onOpenChange(false);
     } catch (e) {
       setErr(String(e));
@@ -38,78 +44,39 @@ export function CreateWorkspaceDialog({ open, onOpenChange }: DProps) {
       setBusy(false);
     }
   }
-  return (
-    <RD.Root open={open} onOpenChange={onOpenChange}>
-      <RD.Portal>
-        <RD.Overlay className="weft-overlay fixed inset-0 z-50 bg-black/55 backdrop-blur-[1px]" />
-        <RD.Content
-          className={cn(
-            "weft-pop fixed left-1/2 top-1/2 z-50 w-[min(500px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-hidden",
-            "rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_20px_58px_-28px_rgba(0,0,0,0.9)]",
-          )}
-        >
-          <div className="flex items-center gap-3 border-b border-border px-5 py-4">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[var(--radius-md)] bg-brand-ghost text-brand">
-              <Network size={15} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <RD.Title className="text-[14px] font-semibold text-ink">
-                {t("dialog.newWorkspaceTitle")}
-              </RD.Title>
-            </div>
-            <RD.Close
-              aria-label={t("common.close")}
-              className="-mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] text-ink-faint transition-colors hover:bg-brand-ghost hover:text-ink focus-visible:outline-2 focus-visible:outline-brand focus-visible:outline-offset-1"
-            >
-              <X size={15} />
-            </RD.Close>
-          </div>
 
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent title={t("dialog.newWorkspaceTitle")}>
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void submit();
           }}
-          className="flex flex-col"
+          className="flex flex-col gap-4"
         >
-          <div className="flex flex-col gap-4 px-5 py-5">
+          <Field label={t("dialog.workspaceName")}>
             <Input
               autoFocus
               placeholder={t("dialog.workspaceNamePlaceholder")}
               value={value}
               onChange={(e) => setValue(e.currentTarget.value)}
-              className="h-9"
             />
-            {err && <p className="text-[12px] text-danger">{err}</p>}
-          </div>
-
-          <div className="flex items-center justify-end gap-3 border-t border-border bg-bg/70 px-5 py-3">
-            <div className="ml-auto flex items-center gap-2">
+          </Field>
+          {err && <p className="text-[12px] text-danger">{err}</p>}
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              className="h-9 px-4"
-              disabled={!value.trim() || busy}
-            >
+            <Button type="submit" variant="primary" disabled={!value.trim() || busy}>
               {busy ? t("dialog.creating") : t("dialog.createWorkspace")}
             </Button>
-            </div>
           </div>
         </form>
-        </RD.Content>
-      </RD.Portal>
-    </RD.Root>
+      </DialogContent>
+    </Dialog>
   );
 }
-
-type RepoMode = "local" | "clone" | "new";
-
-const basename = (p: string) => p.trim().replace(/\/+$/, "").split("/").filter(Boolean).pop() ?? "";
-const repoNameFromUrl = (u: string) =>
-  u.trim().replace(/\.git$/, "").replace(/\/+$/, "").split(/[/:]/).filter(Boolean).pop() ?? "";
 
 export function AddRepoDialog({ open, onOpenChange }: DProps) {
   const { addRepo, cloneRepo, createRepo, projectsDir } = useStore();
@@ -351,8 +318,8 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        title={t("dialog.newThreadTitle")}
-        description={t("dialog.newThreadDesc")}
+        title={t("dialog.newTaskTitle")}
+        description={t("dialog.newTaskDesc")}
       >
         <form
           onSubmit={(e) => {
@@ -361,10 +328,10 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
           }}
           className="flex flex-col gap-4"
         >
-          <Field label={t("dialog.threadTitle")}>
+          <Field label={t("dialog.taskTitle")}>
             <Input
               autoFocus
-              placeholder={t("dialog.threadTitlePlaceholder")}
+              placeholder={t("dialog.taskTitleHint")}
               value={title}
               onChange={(e) => setTitle(e.currentTarget.value)}
             />
@@ -388,7 +355,7 @@ export function CreateThreadDialog({ open, onOpenChange }: DProps) {
               {t("common.cancel")}
             </Button>
             <Button type="submit" variant="primary" disabled={!title.trim() || busy}>
-              {busy ? t("dialog.creating") : t("dialog.createThread")}
+              {busy ? t("dialog.creating") : t("dialog.createTask")}
             </Button>
           </div>
         </form>

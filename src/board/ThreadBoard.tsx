@@ -9,7 +9,6 @@ import {
   GitBranch,
   GitCompare,
   Layers,
-  MessagesSquare,
   Pencil,
   ScanEye,
   TerminalSquare,
@@ -21,14 +20,14 @@ import { Button } from "../components/ui/Button";
 import { StatusDot } from "../components/ui/StatusChip";
 import { Tooltip } from "../components/ui/Tooltip";
 import { ToolIcon, toolFullName } from "../components/ToolIcon";
-import { ScopeReview } from "./ScopeReview";
 import { RenameDialog } from "../nav/dialogs";
 import { LeadTab } from "../session/LeadTab";
 import { cn } from "../lib/cn";
+import { ScopeReview } from "./ScopeReview";
 
 /** Task lifecycle column. Needs-you is a tag on the card (amber chip), never
  *  a stage: an open ask leaves the task in its lifecycle column and bubbles it
- *  to the top. Under automation-first, queued/planning/working all mean "weft
+ *  to the top. Under automation-first, queued/planning/working all mean "atlas
  *  is driving it" — one column, with the stored sub-state as a chip. */
 type TaskState = "working" | "review" | "done";
 
@@ -102,7 +101,7 @@ export function ThreadBoard() {
             }}
           />
         ) : dirs.length === 0 ? (
-          <EmptyDiscuss onTalk={() => setThreadTab("lead")} />
+          <EmptyDiscuss />
         ) : (
           <div className="min-h-0 flex-1 overflow-auto">
             <div className="flex h-full min-w-fit gap-3 px-5 py-4">
@@ -153,20 +152,41 @@ export function ThreadBoard() {
   );
 }
 
-function EmptyDiscuss({ onTalk }: { onTalk: () => void }) {
+function EmptyDiscuss() {
+  const { activeThreadId, createRun, defaultTool } = useStore();
   const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const startRun = async () => {
+    if (activeThreadId == null || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await createRun(activeThreadId, t("thread.defaultRunName"), defaultTool);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 text-center">
       <div className="grid h-11 w-11 place-items-center rounded-[var(--radius-lg)] border border-border bg-surface">
         <Layers size={20} className="text-ink-faint" />
       </div>
-      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.discussTitle")}</h2>
+      <h2 className="mt-3 text-[14px] font-semibold text-ink">{t("thread.emptyTitle")}</h2>
       <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
-        {t("thread.discussBody")}
+        {t("thread.emptyBody")}
       </p>
-      <Button variant="primary" className="mt-4" onClick={onTalk}>
-        <MessagesSquare size={14} />
-        {t("lead.title")}
+      {err && <p className="mt-2 max-w-sm text-[12px] text-danger">{err}</p>}
+      <Button
+        variant="primary"
+        className="mt-4"
+        disabled={busy}
+        onClick={() => void startRun()}
+      >
+        <TerminalSquare size={14} />
+        {busy ? t("lead.starting") : t("thread.startRun")}
       </Button>
     </div>
   );
@@ -184,6 +204,7 @@ function DirectionCard({
     repos,
     sessions,
     viewDirection,
+    driveRun,
     needs,
     asks,
     checksByDirection,
@@ -201,18 +222,37 @@ function DirectionCard({
   const hasNeed =
     needs.some((n) => n.direction_id === direction.id) ||
     asks.some((a) => a.dir === String(direction.id));
+  const isRepoLess = direction.repo_id === 0;
   const firstWrite = writes[0];
 
   const testsKind =
     failed > 0 ? "fail" : allChecks.length > 0 && passed === allChecks.length ? "pass" : "pend";
   // The review-column primary action is honest: open the actual diff for human
-  // eyes (Task→PR is the delivery boundary; weft does not fake a PR step).
-  const action = hasNeed
-    ? { label: t("thread.handle"), variant: "primary" as const, diff: false }
-    : direction.status === "review"
-      ? { label: t("thread.viewChanges"), variant: "primary" as const, diff: true }
-      : { label: t("thread.openSession"), variant: "default" as const, diff: false };
-  const canRunReview = direction.status === "review";
+  // eyes (Task→PR is the delivery boundary; atlas does not fake a PR step).
+  const action =
+    isRepoLess && !hasNeed
+      ? { label: t("thread.openSession"), variant: "default" as const, diff: false }
+      : hasNeed
+        ? { label: t("thread.handle"), variant: "primary" as const, diff: false }
+        : direction.status === "review"
+          ? { label: t("thread.viewChanges"), variant: "primary" as const, diff: true }
+          : { label: t("thread.openSession"), variant: "default" as const, diff: false };
+  const canRunReview = !isRepoLess && direction.status === "review";
+  const primaryDisabled = !isRepoLess && !firstWrite;
+  const primaryTitle = primaryDisabled ? t("thread.noWriteCopy") : undefined;
+  const onPrimary = () => {
+    if (isRepoLess) {
+      if (hasNeed) {
+        openNeeds();
+      } else {
+        void driveRun(direction.id, true);
+      }
+      return;
+    }
+    if (firstWrite) {
+      viewDirection(direction.id, firstWrite.repo_id, { diff: action.diff });
+    }
+  };
 
   return (
     <motion.div
@@ -287,15 +327,21 @@ function DirectionCard({
       {/* One honest trust signal (the real checks) + provenance, then actions. */}
       <div className="flex items-center justify-between gap-2 border-t border-border bg-bg/55 px-3 py-2">
         <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-          <TrustSignal
-            kind={testsKind}
-            label={
-              allChecks.length > 0
-                ? t("thread.testsProgress", { passed, count: allChecks.length })
-                : t("thread.testsPending")
-            }
-          />
-          <ProvenanceMenu writes={writes} checks={checks} />
+          {isRepoLess ? (
+            <span className="truncate text-[11px] text-ink-faint">{t("thread.run")}</span>
+          ) : (
+            <>
+              <TrustSignal
+                kind={testsKind}
+                label={
+                  allChecks.length > 0
+                    ? t("thread.testsProgress", { passed, count: allChecks.length })
+                    : t("thread.testsPending")
+                }
+              />
+              <ProvenanceMenu writes={writes} checks={checks} />
+            </>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {canRunReview && (
@@ -322,12 +368,9 @@ function DirectionCard({
           <Button
             size="sm"
             variant={action.variant}
-            disabled={!firstWrite}
-            title={firstWrite ? undefined : t("thread.noWriteCopy")}
-            onClick={() =>
-              firstWrite &&
-              viewDirection(direction.id, firstWrite.repo_id, { diff: action.diff })
-            }
+            disabled={primaryDisabled}
+            title={primaryTitle}
+            onClick={onPrimary}
           >
             {action.diff ? <GitCompare size={13} /> : <TerminalSquare size={13} />}
             {action.label}
@@ -368,7 +411,7 @@ function ProvenanceMenu({
           align="start"
           sideOffset={4}
           onClick={(e) => e.stopPropagation()}
-          className="weft-pop z-[60] w-72 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+          className="atlas-pop z-[60] w-72 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
         >
           {checks && checks.length > 0 && (
             <>
@@ -436,7 +479,7 @@ function TrustSignal({ kind, label }: { kind: TrustKind; label: string }) {
 }
 
 /** Keyboard/click path to restatus a task. Sets the stored status (§4.6);
- *  Needs-you is a weft-derived tag, not a status, so it isn't offered. */
+ *  Needs-you is a atlas-derived tag, not a status, so it isn't offered. */
 function StatusMenu({ direction }: { direction: Direction }) {
   const { setTaskStatus } = useStore();
   const { t } = useTranslation();
@@ -458,7 +501,7 @@ function StatusMenu({ direction }: { direction: Direction }) {
           align="end"
           sideOffset={4}
           onClick={(e) => e.stopPropagation()}
-          className="weft-pop z-[60] w-40 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
+          className="atlas-pop z-[60] w-40 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.5)]"
         >
           {settable.map((c) => (
             <DM.Item

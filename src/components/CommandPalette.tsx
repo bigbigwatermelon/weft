@@ -5,9 +5,7 @@ import {
   CornerDownLeft,
   HelpCircle,
   LayoutDashboard,
-  Network,
   PanelLeft,
-  Plus,
   Search,
   Settings,
   SquarePen,
@@ -15,7 +13,7 @@ import {
 } from "lucide-react";
 import { useStore } from "../state/store";
 import { useTheme } from "../state/theme";
-import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
+import { CreateThreadDialog } from "../nav/dialogs";
 import { cn } from "../lib/cn";
 
 type Command = {
@@ -30,12 +28,12 @@ type Command = {
 
 /** Open the palette from anywhere (e.g. the rail's search trigger). */
 export function openCommandPalette() {
-  window.dispatchEvent(new Event("weft:open-palette"));
+  window.dispatchEvent(new Event("atlas:open-palette"));
 }
 
 /**
  * ⌘K / Ctrl+K command palette — the silky cross-app jump (§ navigation unify).
- * One keystroke to reach any issue or workspace surface without hunting the
+ * One keystroke to reach any task or app surface without hunting the
  * sidebar. Self-contained: a capture-phase window listener owns the hotkey (so
  * it beats any focused input), arrow/Enter drive selection.
  */
@@ -46,7 +44,6 @@ export function CommandPalette() {
     selectThread,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     openNeeds,
     navCollapsed,
     setNavCollapsed,
@@ -58,7 +55,7 @@ export function CommandPalette() {
   const [selected, setSelected] = useState(0);
   // The palette owns its dialogs (it's always mounted, unlike the rail which
   // unmounts when collapsed), so actions work regardless of sidebar state.
-  const [dialog, setDialog] = useState<null | "ws" | "thread">(null);
+  const [dialog, setDialog] = useState<null | "thread">(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef<HTMLButtonElement>(null);
 
@@ -74,10 +71,10 @@ export function CommandPalette() {
     };
     const onOpen = () => setOpen(true);
     window.addEventListener("keydown", onKey, { capture: true });
-    window.addEventListener("weft:open-palette", onOpen);
+    window.addEventListener("atlas:open-palette", onOpen);
     return () => {
       window.removeEventListener("keydown", onKey, { capture: true });
-      window.removeEventListener("weft:open-palette", onOpen);
+      window.removeEventListener("atlas:open-palette", onOpen);
     };
   }, []);
 
@@ -92,9 +89,9 @@ export function CommandPalette() {
   }, [open]);
 
   const commands = useMemo<Command[]>(() => {
-    const issues: Command[] = threads.map((th) => ({
-      key: `issue-${th.id}`,
-      group: t("palette.issue"),
+    const tasks: Command[] = threads.map((th) => ({
+      key: `task-${th.id}`,
+      group: t("palette.task"),
       label: th.title,
       icon: <CircleDot size={14} />,
       run: () => selectThread(th.id),
@@ -119,14 +116,6 @@ export function CommandPalette() {
         },
       },
       {
-        key: "nav-repos",
-        group: t("palette.go"),
-        label: t("palette.repos"),
-        icon: <Network size={14} />,
-        hint: "⌘2",
-        run: () => openRepoMap(),
-      },
-      {
         key: "nav-sidebar",
         group: t("palette.go"),
         label: t("palette.toggleSidebar"),
@@ -139,7 +128,7 @@ export function CommandPalette() {
       ...(activeWorkspaceId != null
         ? [
             {
-              key: "act-issue",
+              key: "act-task",
               group: t("palette.action"),
               label: t("nav.newThread"),
               icon: <SquarePen size={14} />,
@@ -147,13 +136,6 @@ export function CommandPalette() {
             },
           ]
         : []),
-      {
-        key: "act-workspace",
-        group: t("palette.action"),
-        label: t("nav.newWorkspace"),
-        icon: <Plus size={14} />,
-        run: () => setDialog("ws"),
-      },
       {
         key: "act-theme",
         group: t("palette.action"),
@@ -172,13 +154,12 @@ export function CommandPalette() {
         },
       },
     ];
-    return [...issues, ...nav, ...actions];
+    return [...tasks, ...nav, ...actions];
   }, [
     threads,
     selectThread,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     openNeeds,
     navCollapsed,
     setNavCollapsed,
@@ -238,13 +219,13 @@ export function CommandPalette() {
       {open && (
         <div className="fixed inset-0 z-[90]">
           <div
-            className="weft-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+            className="atlas-overlay absolute inset-0 bg-black/55 backdrop-blur-[1px]"
             data-state="open"
             onClick={close}
           />
       <div className="absolute inset-x-0 top-[14vh] flex justify-center px-4">
         <div
-          className="weft-pop flex max-h-[60vh] w-[min(560px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.6)]"
+          className="atlas-pop flex max-h-[60vh] w-[min(560px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[0_16px_48px_-12px_rgba(0,0,0,0.6)]"
           data-state="open"
         >
           <div className="flex items-center gap-2.5 border-b border-border px-3.5">
@@ -311,7 +292,6 @@ export function CommandPalette() {
       )}
 
       <CreateThreadDialog open={dialog === "thread"} onOpenChange={(o) => !o && setDialog(null)} />
-      <CreateWorkspaceDialog open={dialog === "ws"} onOpenChange={(o) => !o && setDialog(null)} />
     </>
   );
 }

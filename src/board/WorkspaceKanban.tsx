@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { useTranslation } from "react-i18next";
-import { Layers, Plus, SquarePen, X } from "lucide-react";
+import { Layers, SquarePen, X } from "lucide-react";
 import { useStore } from "../state/store";
 import type { ThreadOverview } from "../lib/types";
 import { Button } from "../components/ui/Button";
-import { CreateThreadDialog, CreateWorkspaceDialog } from "../nav/dialogs";
+import { CreateThreadDialog } from "../nav/dialogs";
 import { cn } from "../lib/cn";
 
 type Phase = "planning" | "working" | "review" | "done";
@@ -75,7 +75,7 @@ export function WorkspaceKanban() {
                     className={cn(
                       "h-1.5 w-1.5 rounded-full",
                       col.dot,
-                      col.key === "working" && "weft-pulse",
+                      col.key === "working" && "atlas-pulse",
                     )}
                   />
                   <span className="text-[11.5px] font-semibold text-ink-muted">
@@ -111,8 +111,8 @@ export function WorkspaceKanban() {
 function EmptyBoard() {
   const { activeWorkspaceId } = useStore();
   const { t } = useTranslation();
-  const [dlg, setDlg] = useState<null | "ws" | "thread">(null);
-  const hasWs = activeWorkspaceId != null;
+  const [dlg, setDlg] = useState<null | "thread">(null);
+  const ready = activeWorkspaceId != null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -121,21 +121,18 @@ function EmptyBoard() {
           <Layers size={20} className="text-brand" />
         </div>
         <h2 className="mt-3 text-[14px] font-semibold text-ink">
-          {hasWs ? t("workspace.emptyTitleHas") : t("workspace.emptyTitleNoWs")}
+          {ready ? t("workspace.emptyTitleHas") : t("workspace.preparingTitle")}
         </h2>
         <p className="mt-1.5 max-w-sm text-[12px] leading-relaxed text-ink-faint">
-          {hasWs ? t("workspace.emptyBodyHas") : t("workspace.emptyBodyNoWs")}
+          {ready ? t("workspace.emptyBodyHas") : t("workspace.preparingBody")}
         </p>
-        <Button
-          variant="primary"
-          className="mt-4"
-          onClick={() => setDlg(hasWs ? "thread" : "ws")}
-        >
-          {hasWs ? <SquarePen size={14} /> : <Plus size={14} />}
-          {hasWs ? t("nav.newThread") : t("nav.newWorkspace")}
-        </Button>
+        {ready && (
+          <Button variant="primary" className="mt-4" onClick={() => setDlg("thread")}>
+            <SquarePen size={14} />
+            {t("nav.newThread")}
+          </Button>
+        )}
 
-        <CreateWorkspaceDialog open={dlg === "ws"} onOpenChange={(o) => !o && setDlg(null)} />
         <CreateThreadDialog open={dlg === "thread"} onOpenChange={(o) => !o && setDlg(null)} />
       </div>
     </div>
@@ -223,7 +220,7 @@ function ThreadCard({ o, onOpen }: { o: ThreadOverview; onOpen: () => void }) {
               title={t("workspace.live", { count: live })}
               className="flex items-center gap-1 text-[11px] tabular-nums text-running"
             >
-              <span className="weft-pulse h-1.5 w-1.5 rounded-full bg-running" />
+              <span className="atlas-pulse h-1.5 w-1.5 rounded-full bg-running" />
               {live}
             </span>
           )}

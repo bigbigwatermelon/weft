@@ -1,7 +1,7 @@
 //! ensure_default_workspace: creates a "Default" workspace on empty DB,
 //! otherwise returns the most-recently created one (highest id).
-use weft_app_lib::commands::ensure_default_workspace_inner;
-use weft_app_lib::store::{repo, Db};
+use atlas_app_lib::commands::ensure_default_workspace_inner;
+use atlas_app_lib::store::{repo, Db};
 
 #[tokio::test]
 async fn creates_when_none() {

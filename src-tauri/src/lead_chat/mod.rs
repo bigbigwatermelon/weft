@@ -1,5 +1,5 @@
 //! The chat engine behind the issue console: lead and worker timelines run
-//! through their selected tool, with weft-owned messages in SQLite and
+//! through their selected tool, with atlas-owned messages in SQLite and
 //! incremental pushes to the frontend.
 //! Spec: docs/superpowers/specs/2026-06-10-lead-chat-engine-design.md
 

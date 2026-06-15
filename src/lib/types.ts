@@ -38,6 +38,8 @@ export interface Thread {
   created_at: string;
 }
 
+export type Task = Thread;
+
 export interface FileDiff {
   path: string;
   added: number;
@@ -61,12 +63,15 @@ export interface Direction {
   slug: string;
   tool: string;
   branch: string;
+  repo_id: number;
   /** agent/human-driven lifecycle: queued | planning | working | review | done. */
   status: string;
   /** worker mandate: "plan+impl" (plans its direction first) | "impl-only". */
   mandate: string;
   created_at: string;
 }
+
+export type Run = Direction;
 
 export interface Worktree {
   id: number;
@@ -81,6 +86,7 @@ export interface SessionInfo {
   session_id: number;
   repo: string;
   worktree: string;
+  cwd: string;
   branch: string;
   tool: string;
   resumed: boolean;

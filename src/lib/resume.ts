@@ -1,6 +1,6 @@
 // Build the shell command to resume a session in the user's own terminal, and
-// the app deep link where one exists. weft drives native CLIs, so a session can
-// always be picked back up outside weft (architecture §5.6).
+// the app deep link where one exists. atlas drives native CLIs, so a session can
+// always be picked back up outside atlas (architecture §5.6).
 
 function shq(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`;

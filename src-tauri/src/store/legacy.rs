@@ -32,13 +32,13 @@ pub fn archive_if_plaintext(path: &Path) -> Result<Option<PathBuf>> {
         "{}.legacy-plaintext.{}",
         path.file_name()
             .and_then(|n| n.to_str())
-            .unwrap_or("weft.db"),
+            .unwrap_or("atlas.db"),
         ts
     ));
     std::fs::rename(path, &archived)
         .map_err(|e| anyhow::anyhow!("rename {} -> {}: {e}", path.display(), archived.display()))?;
     eprintln!(
-        "[weft] archived legacy plaintext db: {} -> {}",
+        "[atlas] archived legacy plaintext db: {} -> {}",
         path.display(),
         archived.display()
     );
@@ -66,14 +66,14 @@ mod tests {
     #[test]
     fn plaintext_file_is_renamed() {
         let dir = tmp();
-        let p = dir.path().join("weft.db");
+        let p = dir.path().join("atlas.db");
         std::fs::write(&p, b"SQLite format 3\0\x01\x02\x03\x04").unwrap();
         let archived = archive_if_plaintext(&p).unwrap().expect("renamed");
         assert!(!p.exists(), "original should be gone");
         assert!(archived.exists(), "archive should exist");
         let name = archived.file_name().unwrap().to_string_lossy().to_string();
         assert!(
-            name.starts_with("weft.db.legacy-plaintext."),
+            name.starts_with("atlas.db.legacy-plaintext."),
             "archive name = {name}"
         );
     }
@@ -81,7 +81,7 @@ mod tests {
     #[test]
     fn non_magic_file_is_left_alone() {
         let dir = tmp();
-        let p = dir.path().join("weft.db");
+        let p = dir.path().join("atlas.db");
         std::fs::write(&p, b"this is not sqlite at all xxxxxx").unwrap();
         let r = archive_if_plaintext(&p).unwrap();
         assert!(r.is_none(), "non-magic file should be left alone");
@@ -91,7 +91,7 @@ mod tests {
     #[test]
     fn read_too_short_is_left_alone() {
         let dir = tmp();
-        let p = dir.path().join("weft.db");
+        let p = dir.path().join("atlas.db");
         let mut f = std::fs::File::create(&p).unwrap();
         f.write_all(b"short").unwrap();
         let r = archive_if_plaintext(&p).unwrap();

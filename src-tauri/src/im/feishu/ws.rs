@@ -68,7 +68,7 @@ pub async fn run_ws(
                 &m.content,
             ) {
                 eprintln!(
-                    "[weft][im] inbound feishu text chat_type={} chat_id={} thread_id={} message_id={}",
+                    "[atlas][im] inbound feishu text chat_type={} chat_id={} thread_id={} message_id={}",
                     m.chat_type,
                     m.chat_id,
                     m.thread_id.as_deref().unwrap_or("-"),

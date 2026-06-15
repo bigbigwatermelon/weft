@@ -60,7 +60,7 @@ pub fn router(bus: BusRegistry, db: Db, asks: AskRegistry) -> Router {
         .with_state(ServerState { bus, db, asks })
 }
 
-/// How long weft holds a permission Ask before letting the tool fall back to its
+/// How long atlas holds a permission Ask before letting the tool fall back to its
 /// own prompt. Kept under the hook's own timeout so the fallback is clean.
 // Hold the tool call until the human answers in Needs-you. Long by design
 // (automation-first): a permission decision is the human's to make, so we wait
@@ -69,7 +69,7 @@ pub fn router(bus: BusRegistry, db: Db, asks: AskRegistry) -> Router {
 const ASK_WAIT: Duration = Duration::from_secs(3600);
 
 /// The Ask Bridge endpoint. A tool's permission hook POSTs its PreToolUse-style
-/// payload here and BLOCKS until the human answers in weft (→ allow/deny) or the
+/// payload here and BLOCKS until the human answers in atlas (→ allow/deny) or the
 /// wait elapses (→ empty body, so the tool runs its own prompt — never a
 /// silent stall). Identity (thread/dir) comes from the URL path, not the body.
 async fn handle_ask(
@@ -87,7 +87,7 @@ async fn handle_ask(
 
     // A standing rule (full access / always-allow) decides without surfacing.
     if asks.auto_decision(thread, &dir, &summary) == Some(Decision::Allow) {
-        return hook_decision("allow", "Auto-approved by a weft rule");
+        return hook_decision("allow", "Auto-approved by a atlas rule");
     }
 
     let (id, rx) = asks.request(thread, &dir, tool, &summary, &detail);
@@ -95,8 +95,8 @@ async fn handle_ask(
     match tokio::time::timeout(ASK_WAIT, rx).await {
         Ok(Ok(decision)) => {
             let (d, reason) = match decision {
-                Decision::Allow => ("allow", "Approved in weft"),
-                Decision::Deny => ("deny", "Denied in weft"),
+                Decision::Allow => ("allow", "Approved in atlas"),
+                Decision::Deny => ("deny", "Denied in atlas"),
             };
             hook_decision(d, reason)
         }
@@ -178,7 +178,7 @@ async fn handle(
         "initialize" => json!({
             "protocolVersion": "2024-11-05",
             "capabilities": { "tools": { "listChanged": false } },
-            "serverInfo": { "name": "weft_bus", "version": "1.0.0" }
+            "serverInfo": { "name": "atlas_bus", "version": "1.0.0" }
         }),
         "tools/list" => json!({ "tools": tool_specs() }),
         "tools/call" => {
@@ -284,7 +284,7 @@ async fn handle_planner(
         "initialize" => json!({
             "protocolVersion": "2024-11-05",
             "capabilities": { "tools": { "listChanged": false } },
-            "serverInfo": { "name": "weft_planner", "version": "1.0.0" }
+            "serverInfo": { "name": "atlas_planner", "version": "1.0.0" }
         }),
         "tools/list" => json!({ "tools": planner_specs() }),
         "tools/call" => {
@@ -303,64 +303,13 @@ async fn handle_planner(
     sse(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
 }
 
-async fn call_planner(db: &Db, thread: i32, name: &str, args: &Value) -> Value {
+async fn call_planner(db: &Db, thread: i32, name: &str, _args: &Value) -> Value {
     match name {
-        "get_repo_map" => match repo_map_json(db, thread).await {
-            Ok(v) => text_result(v),
-            Err(e) => text_result(format!("error: {e}")),
-        },
         "get_task" => match crate::store::repo::get_thread(db, thread).await {
             Ok(Some(t)) => text_result(json!({ "title": t.title, "type": t.kind }).to_string()),
             Ok(None) => text_result("error: thread not found".into()),
             Err(e) => text_result(format!("error: {e}")),
         },
-        "propose_directions" => {
-            let proposal: crate::planner::Proposal =
-                serde_json::from_value(args.clone()).unwrap_or_default();
-            let n = proposal.directions.len();
-            match crate::planner::save_proposal(db, thread, &proposal).await {
-                Ok(()) => {
-                    // Anchor the proposal in the chat timeline at the moment it
-                    // happened — the console renders it as an interactive card.
-                    let content = serde_json::json!({
-                        "rationale": proposal.rationale,
-                        "count": n,
-                    })
-                    .to_string();
-                    let turn = crate::store::repo::next_turn_id(db, thread)
-                        .await
-                        .unwrap_or(1)
-                        - 1;
-                    if let Ok(m) = crate::store::repo::insert_lead_message(
-                        db,
-                        thread,
-                        None,
-                        turn.max(1),
-                        "system",
-                        "proposal",
-                        &content,
-                        "complete",
-                    )
-                    .await
-                    {
-                        if let Some(app) = crate::APP_HANDLE.get() {
-                            use tauri::Emitter;
-                            let _ = app.emit(
-                                crate::lead_chat::engine::EVENT,
-                                crate::lead_chat::engine::Push::Message {
-                                    thread_id: thread,
-                                    message: m,
-                                },
-                            );
-                        }
-                    }
-                    text_result(format!(
-                        "proposed {n} direction(s); the human will review and confirm in weft"
-                    ))
-                }
-                Err(e) => text_result(format!("error: {e}")),
-            }
-        }
         _ => text_result(format!("unknown tool: {name}")),
     }
 }
@@ -374,31 +323,11 @@ async fn repo_map_json(db: &Db, thread: i32) -> anyhow::Result<String> {
 }
 
 fn planner_specs() -> Value {
-    let str_prop = || json!({ "type": "string" });
     json!([
         {
             "name": "get_task",
-            "description": "Read this thread's Task: its title and type (feature|bugfix|refactor|spike).",
+            "description": "Read this task's title and type.",
             "inputSchema": { "type": "object", "properties": {} }
-        },
-        {
-            "name": "get_repo_map",
-            "description": "Read the workspace repo map: each repo's role/stack/summary/published+declared packages, plus the cross-repo dependency edges. Use it to decide which repos a task must touch and in what order.",
-            "inputSchema": { "type": "object", "properties": {} }
-        },
-        {
-            "name": "propose_directions",
-            "description": "Propose how to split this task into directions. Each direction targets EXACTLY ONE repo it will modify (by name, from the repo map) and MUST include a `reason` explaining why that repo must change. Reads are free — an agent may read any repo without declaring it, so never list reads. To modify N repos, propose N directions. The human reviews each as a Needs-you card and approves before any worktree is created.",
-            "inputSchema": { "type": "object", "properties": {
-                "rationale": str_prop(),
-                "directions": { "type": "array", "items": { "type": "object", "properties": {
-                    "name": str_prop(),
-                    "repo": str_prop(),
-                    "reason": str_prop(),
-                    "mandate": { "type": "string", "enum": ["plan+impl", "impl-only"],
-                        "description": "Granularity of the role: plan+impl (default) — the worker plans its own direction first, then builds; impl-only — the direction is small/fully specified, the worker builds straight away. Do NOT write the direction's implementation plan yourself; that is the worker's job." }
-                }, "required": ["name", "repo", "reason"] } }
-            }, "required": ["directions"] }
         }
     ])
 }
@@ -426,7 +355,7 @@ fn tool_specs() -> Value {
         },
         {
             "name": "ask_human",
-            "description": "Ask the human operator a question that only they can decide (a judgment call, a missing requirement, an approval). Surfaces in weft's Needs-you inbox; their answer returns via bus_inbox. Non-blocking — keep working and check your inbox.",
+            "description": "Ask the human operator a question that only they can decide (a judgment call, a missing requirement, an approval). Surfaces in atlas's Needs-you inbox; their answer returns via bus_inbox. Non-blocking — keep working and check your inbox.",
             "inputSchema": { "type": "object",
                 "properties": { "text": str_prop() }, "required": ["text"] }
         },
@@ -470,4 +399,18 @@ pub async fn serve(
         let _ = axum::serve(listener, app).await;
     });
     Ok((base, handle))
+}
+
+#[cfg(test)]
+mod planner_tests {
+    use super::planner_specs;
+
+    #[test]
+    fn planner_specs_expose_generic_task_tools_only() {
+        let specs = planner_specs().to_string();
+        assert!(specs.contains("get_task"));
+        assert!(!specs.contains("get_repo_map"));
+        assert!(!specs.contains("propose_directions"));
+        assert!(!specs.contains("repo map"));
+    }
 }

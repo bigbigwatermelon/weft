@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export type Theme = "dark" | "light";
-const KEY = "weft-theme";
+const KEY = "atlas-theme";
 
 /** Saved choice, else the OS preference, else dark. */
 export function resolveInitialTheme(): Theme {

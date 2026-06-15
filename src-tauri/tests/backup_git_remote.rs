@@ -2,7 +2,7 @@
 //! local `git init --bare` repo as the "remote".
 
 use std::process::Command;
-use weft_app_lib::backup::git_remote;
+use atlas_app_lib::backup::git_remote;
 
 fn make_bare_remote(parent: &std::path::Path) -> std::path::PathBuf {
     let bare = parent.join("remote.git");
@@ -40,8 +40,8 @@ fn ensure_clone_commit_push_then_clone_back() {
     let staging = tmp.path().join("staging");
     git_remote::ensure_clone(&staging, &url).unwrap();
 
-    std::fs::write(staging.join("weft.db"), b"\x00\xffSOMEBYTES\x00").unwrap();
-    std::fs::write(staging.join(".weft-backup-meta.json"), b"{}").unwrap();
+    std::fs::write(staging.join("atlas.db"), b"\x00\xffSOMEBYTES\x00").unwrap();
+    std::fs::write(staging.join(".atlas-backup-meta.json"), b"{}").unwrap();
 
     let r = git_remote::commit_and_push(&staging, "snapshot test").unwrap();
     assert!(!r.commit_sha.is_empty());
@@ -49,7 +49,7 @@ fn ensure_clone_commit_push_then_clone_back() {
 
     let restore = tmp.path().join("restore");
     git_remote::clone_to(&restore, &url).unwrap();
-    let db = std::fs::read(restore.join("weft.db")).unwrap();
+    let db = std::fs::read(restore.join("atlas.db")).unwrap();
     assert_eq!(db, b"\x00\xffSOMEBYTES\x00");
 }
 

@@ -1,4 +1,4 @@
-//! Materializes a snapshot pair (`weft.db` + `.weft-backup-meta.json`) into a
+//! Materializes a snapshot pair (`atlas.db` + `.atlas-backup-meta.json`) into a
 //! staging directory ready for `git add -A`.
 
 use anyhow::Result;
@@ -6,10 +6,10 @@ use std::path::Path;
 
 use crate::store::Db;
 
-const META_NAME: &str = ".weft-backup-meta.json";
-pub const SNAPSHOT_NAME: &str = "weft.db";
+const META_NAME: &str = ".atlas-backup-meta.json";
+pub const SNAPSHOT_NAME: &str = "atlas.db";
 
-/// Write `staging_dir/weft.db` (overwrite) + `staging_dir/.weft-backup-meta.json`
+/// Write `staging_dir/atlas.db` (overwrite) + `staging_dir/.atlas-backup-meta.json`
 /// (overwrite). `snapshot_to` insists the target file not exist, so we delete
 /// the previous snapshot first. Returns the snapshot byte count.
 pub async fn write_snapshot(db: &Db, staging_dir: &Path) -> Result<i64> {
@@ -25,7 +25,7 @@ pub async fn write_snapshot(db: &Db, staging_dir: &Path) -> Result<i64> {
         "schema_version": current_schema_version(),
         "snapshot_at": now_unix_secs(),
         "db_bytes": bytes,
-        "weft_version": env!("CARGO_PKG_VERSION"),
+        "atlas_version": env!("CARGO_PKG_VERSION"),
     });
     std::fs::write(staging_dir.join(META_NAME), serde_json::to_vec_pretty(&meta)?)?;
     Ok(bytes)
@@ -33,7 +33,7 @@ pub async fn write_snapshot(db: &Db, staging_dir: &Path) -> Result<i64> {
 
 /// Schema version = number of registered migrations. Bumps by 1 every time we
 /// land a new M00NN. Restore uses this to refuse a backup written by a newer
-/// Weft.
+/// Atlas.
 fn current_schema_version() -> usize {
     use sea_orm_migration::MigratorTrait;
     crate::store::migration::Migrator::migrations().len()
@@ -53,15 +53,15 @@ mod tests {
     use base64::Engine;
 
     fn iso_env(home: &std::path::Path) {
-        std::env::set_var("WEFT_HOME", home);
+        std::env::set_var("ATLAS_HOME", home);
         let raw = [0x55u8; 48];
         let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
-        std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+        std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
     }
 
     #[tokio::test]
     async fn writes_snapshot_and_meta() {
-        let _g = crate::backup::TEST_ENV_LOCK
+        let _g = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().unwrap();
@@ -85,7 +85,7 @@ mod tests {
 
     #[tokio::test]
     async fn overwrites_previous_snapshot() {
-        let _g = crate::backup::TEST_ENV_LOCK
+        let _g = crate::paths::ENV_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let tmp = tempfile::tempdir().unwrap();

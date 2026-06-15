@@ -1,8 +1,8 @@
 //! Drives the bus HTTP MCP handler exactly like a CLI client would: initialize,
 //! tools/list, then two directions exchanging a message.
-use weft_app_lib::ask::AskRegistry;
-use weft_app_lib::bus::{server, BusRegistry};
-use weft_app_lib::store::Db;
+use atlas_app_lib::ask::AskRegistry;
+use atlas_app_lib::bus::{server, BusRegistry};
+use atlas_app_lib::store::Db;
 
 async fn rpc(base: &str, thread: i32, dir: &str, body: serde_json::Value) -> String {
     let url = format!("{base}/bus/{thread}/{dir}/mcp");
@@ -33,7 +33,7 @@ async fn two_directions_exchange_a_message() {
         )
         .await;
         assert!(
-            out.contains("weft_bus"),
+            out.contains("atlas_bus"),
             "initialize must return serverInfo"
         );
     }

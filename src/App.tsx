@@ -10,7 +10,6 @@ import { DangerToast } from "./components/DangerToast";
 import { Toasts } from "./components/Toast";
 import { CommandPalette } from "./components/CommandPalette";
 import { NeedsDock } from "./components/NeedsDock";
-import { FirstRunOnboarding } from "./components/FirstRunOnboarding";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { SettingsScreen } from "./nav/SettingsDialog";
 import { useAppShortcuts } from "./state/shortcuts";
@@ -70,7 +69,7 @@ function Shell() {
         <AppTopBar />
         {showDock && <NeedsDock />}
         <ErrorBoundary key={routeKey}>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col weft-screen-in">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col atlas-screen-in">
             <Main />
           </div>
         </ErrorBoundary>
@@ -78,7 +77,6 @@ function Shell() {
       <DangerToast />
       <Toasts />
       <CommandPalette />
-      <FirstRunOnboarding />
     </div>
   );
 }

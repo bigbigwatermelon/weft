@@ -16,9 +16,9 @@ genuinely stuck, not to push every step forward.
 
 ## Product Purpose
 
-weft is a local-first, no-server **delivery hub** where coding agents drive
+atlas is a local-first, no-server **delivery hub** where coding agents drive
 multi-repo work from a **Task toward shipped code**. The north star is
-**automation**: you state a task; weft plans it, decides which repos to touch,
+**automation**: you state a task; atlas plans it, decides which repos to touch,
 spawns the agents, coordinates them, verifies the result, and drives it out the
 door. You supervise and handle exceptions — you are not a required checkpoint in
 the loop.
@@ -32,7 +32,7 @@ The shape of the work:
 
 1. **Understand** — a workspace is a logical list of repo references. A
    workspace-level **curator** agent profiles each repo (one-line role,
-   interfaces, stack) and weft builds a **cross-repo dependency graph**. This
+   interfaces, stack) and atlas builds a **cross-repo dependency graph**. This
    map is the fuel for the core trick below.
 2. **Decompose (the wow)** — you give a **Task** (PRD / bug / refactor / spike /
    link; PRD is just one kind). A per-thread **lead** agent classifies it, then
@@ -57,10 +57,10 @@ The shape of the work:
 derives scope, and drives workers — it does not write code. Sessions carry
 `role = curator | lead | worker`. Workers report **structured summaries + diff
 stat** through the bus; the lead never ingests their raw transcripts. Each
-session's surface is a weft-rendered conversation driven over the native CLI's
+session's surface is a atlas-rendered conversation driven over the native CLI's
 structured stream; the native TUI stays one takeover away in your own terminal.
 
-**The human handles exceptions, not the assembly line.** weft adds **no approval
+**The human handles exceptions, not the assembly line.** atlas adds **no approval
 gate of its own**. The only blocking interruptions are the tools' own permission
 prompts (passed through verbatim, never overridden) plus a configurable
 irreversible-action boundary (e.g. merging a protected branch, or a production
@@ -69,9 +69,9 @@ surfaced at the top of every view.
 
 **Delivery is phased — now reviewable diff, next Task → PR, the goal Task →
 shipped.** Current code reaches local worktree diffs with light pre-PR
-verification. The next boundary is a PR per repo: weft drives the native CLIs
+verification. The next boundary is a PR per repo: atlas drives the native CLIs
 (it doesn't bypass hooks), so opening a PR naturally triggers the repo's own
-checks. The north star reaches past the PR — weft **drives merge, then deploy
+checks. The north star reaches past the PR — atlas **drives merge, then deploy
 across environments (staging → production)** — by *orchestrating the repo's
 existing pipelines*, never re-implementing CI/CD. The unit of *done* becomes
 shipped code; irreversible steps stay gated by the configurable boundary above.
@@ -97,7 +97,7 @@ designed, system-following + toggleable).
   flourish animations. Showy, attention-scattering, slow.
 - **Dry enterprise back-office** — gray-on-gray, dense tables with zero
   rhythm, zero craft. Usable but joyless.
-- **Terminal/"matrix" aesthetic** — weft frames terminals; it is not one.
+- **Terminal/"matrix" aesthetic** — atlas frames terminals; it is not one.
   Avoid neon-green-on-black, scanlines, faux-CRT, monospace-everything.
 
 ## Design Principles
@@ -106,12 +106,12 @@ designed, system-following + toggleable).
    shipped code out. Every surface is built for *supervising* that flow, not for
    driving it step by step. If a screen assumes the human pushes each step forward, it
    fights the product.
-2. **The human handles exceptions, not the line.** weft adds no gate of its own.
+2. **The human handles exceptions, not the line.** atlas adds no gate of its own.
    Surface the rare blocker (a tool's permission prompt, a true agent
    escalation, a hard conflict) loudly; let routine flow pass silently. Never
    manufacture a checkpoint where automation would do.
 3. **Structure is the product.** The `workspace → thread → direction → scope`
-   model, and the repo map that powers scope decomposition, are what weft sells.
+   model, and the repo map that powers scope decomposition, are what atlas sells.
    Surfaces make that structure legible and editable; the terminal is a leaf.
 4. **Cross-repo scope decomposition is the wow.** One Task becoming "these
    repos, this split, in this order" is the irreplaceable moment. Protect its
@@ -127,9 +127,9 @@ designed, system-following + toggleable).
    are Approve / Answer / Open / Review / Merge. "Needs you" aggregates real
    exceptions at every level and is always the most prominent thing.
 7. **Drive native, render product.** Sessions drive the native CLIs headless
-   through their structured streams, rendered as weft's own conversation;
+   through their structured streams, rendered as atlas's own conversation;
    native state (permissions, sessions, config) is mirrored, never overridden.
-   Surface and observation are decoupled — a session can run in weft, in its
+   Surface and observation are decoupled — a session can run in atlas, in its
    own app, or taken over in your terminal, observed the same way throughout.
 8. **Hide the mechanism, present the decisions.** worktrees / headless agent
    processes / MCP bus / add-dir / sidecar are plumbing — they recede into Inspect. What the user owns

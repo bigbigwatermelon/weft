@@ -25,7 +25,7 @@ struct PowerState {
 
 impl Default for PowerState {
     fn default() -> Self {
-        // Default ON, matching the frontend default ("weft-keep-awake" !== "0").
+        // Default ON, matching the frontend default ("atlas-keep-awake" !== "0").
         Self {
             enabled: true,
             busy: false,
@@ -65,7 +65,7 @@ impl PowerState {
 fn spawn_holder() -> std::sync::mpsc::Sender<bool> {
     let (tx, rx) = std::sync::mpsc::channel::<bool>();
     let spawned = std::thread::Builder::new()
-        .name("weft-power-holder".into())
+        .name("atlas-power-holder".into())
         .spawn(move || {
             // Created and dropped on this thread only (Windows thread affinity).
             let mut held: Option<keepawake::KeepAwake> = None;
@@ -73,27 +73,27 @@ fn spawn_holder() -> std::sync::mpsc::Sender<bool> {
                 if want && held.is_none() {
                     match keepawake::Builder::default()
                         .idle(true) // PreventUserIdleSystemSleep: 熄屏不受影响
-                        .reason("Weft: agent session running")
-                        .app_name("Weft")
-                        .app_reverse_domain("com.weft.app")
+                        .reason("Atlas: agent session running")
+                        .app_name("Atlas")
+                        .app_reverse_domain("com.jingchen.atlas")
                         .create()
                     {
                         Ok(h) => {
                             held = Some(h);
-                            eprintln!("[weft] keep-awake: assertion acquired");
+                            eprintln!("[atlas] keep-awake: assertion acquired");
                         }
                         // Best-effort by design: keep-awake failing must never
                         // affect the sessions themselves.
-                        Err(e) => eprintln!("[weft] keep-awake: acquire failed: {e}"),
+                        Err(e) => eprintln!("[atlas] keep-awake: acquire failed: {e}"),
                     }
                 } else if !want && held.is_some() {
                     held = None;
-                    eprintln!("[weft] keep-awake: assertion released");
+                    eprintln!("[atlas] keep-awake: assertion released");
                 }
             }
         });
     if let Err(e) = spawned {
-        eprintln!("[weft] keep-awake: holder thread failed to start: {e}");
+        eprintln!("[atlas] keep-awake: holder thread failed to start: {e}");
     }
     tx
 }

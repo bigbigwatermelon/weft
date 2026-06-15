@@ -1,5 +1,5 @@
 //! Background GC: reclaim leaked worktrees — ones git still has registered but
-//! Weft's DB no longer tracks (crash / partial-cleanup residue). Safety-first:
+//! Atlas's DB no longer tracks (crash / partial-cleanup residue). Safety-first:
 //! only ever touches paths UNDER worktree_home that are NOT DB-tracked and are
 //! older than a TTL. Never the canonical repo, never user dirs, never a tracked
 //! worktree. done-direction / artifact cleanup is intentionally out of scope.
@@ -87,7 +87,7 @@ fn sweep_repo(
         if should_sweep(&pc, home_canon, tracked, ttl, now, mtime) {
             let _ = git::remove_worktree(canonical_repo, &path);
             if !path.exists() {
-                eprintln!("[weft] gc: reclaimed orphan worktree {}", path.display());
+                eprintln!("[atlas] gc: reclaimed orphan worktree {}", path.display());
                 removed += 1;
             }
         }
@@ -126,7 +126,7 @@ pub async fn sweep_orphan_worktrees(db: &Db, ttl_secs: u64) -> anyhow::Result<us
 pub fn spawn_periodic(app: tauri::AppHandle) {
     use tauri::Manager;
     std::thread::spawn(move || {
-        let ttl = env_secs("WEFT_GC_ORPHAN_TTL_SECS", 259_200); // 72h; 0 disables
+        let ttl = env_secs("ATLAS_GC_ORPHAN_TTL_SECS", 259_200); // 72h; 0 disables
         loop {
             if let Some(db) = app.try_state::<Db>() {
                 let db = Db(db.0.clone());
@@ -219,7 +219,7 @@ mod tests {
     }
     #[test]
     fn sweep_repo_removes_orphan_keeps_tracked() {
-        let base = std::env::temp_dir().join(format!("weft-gc-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-gc-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let repo = base.join("repo");
         let home = base.join("worktrees");

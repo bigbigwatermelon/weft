@@ -1,11 +1,11 @@
 //! IM 桥集成测试：FakeChannel + 真 registry + 内存 Db。不打真飞书。
 
 use std::sync::{Arc, Mutex};
-use weft_app_lib::ask::{Answer, AskRegistry, Decision};
-use weft_app_lib::bus::BusRegistry;
-use weft_app_lib::im::{self, inbound::Route, Channel};
-use weft_app_lib::store::repo;
-use weft_app_lib::store::Db;
+use atlas_app_lib::ask::{Answer, AskRegistry, Decision};
+use atlas_app_lib::bus::BusRegistry;
+use atlas_app_lib::im::{self, inbound::Route, Channel};
+use atlas_app_lib::store::repo;
+use atlas_app_lib::store::Db;
 
 #[derive(Default)]
 struct FakeChannel {
@@ -413,7 +413,7 @@ async fn consume_lead_out_replies_and_drains_acks() {
     // 端到端 M2-4 + M2-6：bind im_route → 模拟入站累计两条 👀 →
     // consume_lead_out 一次回流 + 清空两条 reaction。
     use std::collections::HashMap;
-    use weft_app_lib::lead_chat::out_hub::LeadOut;
+    use atlas_app_lib::lead_chat::out_hub::LeadOut;
     let db = mem_db().await;
     let ch = FakeChannel::default();
     let ws = repo::create_workspace(&db, "ws").await.unwrap();
@@ -457,7 +457,7 @@ async fn consume_lead_out_replies_and_drains_acks() {
 async fn consume_lead_out_unbound_thread_is_noop() {
     // thread 没绑 im_route → 桥不 reply、不动 reactions。
     use std::collections::HashMap;
-    use weft_app_lib::lead_chat::out_hub::LeadOut;
+    use atlas_app_lib::lead_chat::out_hub::LeadOut;
     let db = mem_db().await;
     let ch = FakeChannel::default();
     let acks = std::sync::Arc::new(tokio::sync::Mutex::new(
@@ -493,7 +493,7 @@ async fn ensure_issue_topic_creates_feishu_root_and_binds_issue() {
     let chat_texts = ch.chat_texts.lock().unwrap();
     assert_eq!(chat_texts.len(), 1);
     assert_eq!(chat_texts[0].0, "oc_g");
-    assert!(chat_texts[0].1.contains("Weft issue"));
+    assert!(chat_texts[0].1.contains("Atlas issue"));
     let replies = ch.replies.lock().unwrap();
     assert_eq!(replies.len(), 1);
     assert_eq!(replies[0].0, "om_cmd");
@@ -503,7 +503,7 @@ async fn ensure_issue_topic_creates_feishu_root_and_binds_issue() {
 #[tokio::test]
 async fn consume_lead_out_concierge_replies_to_bound_dm_route() {
     use std::collections::HashMap;
-    use weft_app_lib::lead_chat::out_hub::LeadOut;
+    use atlas_app_lib::lead_chat::out_hub::LeadOut;
 
     let db = mem_db().await;
     let ch = FakeChannel::default();
@@ -540,7 +540,7 @@ async fn consume_lead_out_concierge_replies_to_bound_dm_route() {
 #[tokio::test]
 async fn consume_lead_out_concierge_replies_to_bound_group_route() {
     use std::collections::HashMap;
-    use weft_app_lib::lead_chat::out_hub::LeadOut;
+    use atlas_app_lib::lead_chat::out_hub::LeadOut;
 
     let db = mem_db().await;
     let ch = FakeChannel::default();

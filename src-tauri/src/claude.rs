@@ -6,14 +6,14 @@
 //! `--dangerously-skip-permissions`; per-action edit/command approvals still
 //! apply — they're intercepted and surfaced via the Ask Bridge (see `ask` +
 //! `inject_ask_hook`). We DO pre-accept the one-time FOLDER-TRUST onboarding for
-//! the dirs weft itself created (`ensure_trusted`): a fresh worktree per dispatch
+//! the dirs atlas itself created (`ensure_trusted`): a fresh worktree per dispatch
 //! would otherwise stall every unattended agent on "Do you trust this folder?",
 //! a startup gate that no hook can surface. That gate is not a per-action
 //! permission.
 
 use std::path::{Path, PathBuf};
 
-/// Pre-accept claude's one-time folder-trust onboarding for a dir weft created
+/// Pre-accept claude's one-time folder-trust onboarding for a dir atlas created
 /// (a worktree or lead scratch dir), so a dispatched agent starts immediately
 /// instead of blocking on the trust gate. This writes exactly what clicking
 /// "Yes, I trust this folder" writes — `~/.claude.json` →
@@ -73,7 +73,7 @@ fn ensure_trusted_in(cfg: &Path, cwd: &Path) {
 
     if changed {
         if let Ok(bytes) = serde_json::to_vec_pretty(&root) {
-            let tmp = cfg.with_extension("json.weft-tmp");
+            let tmp = cfg.with_extension("json.atlas-tmp");
             if std::fs::write(&tmp, &bytes).is_ok() {
                 let _ = std::fs::rename(&tmp, cfg);
             }
@@ -109,8 +109,8 @@ mod tests {
 
     #[test]
     fn encodes_slashes_and_dots() {
-        let p = Path::new("/private/tmp/weft/.claude-worktrees/x");
-        assert_eq!(encode_cwd(p), "-private-tmp-weft--claude-worktrees-x");
+        let p = Path::new("/private/tmp/atlas/.claude-worktrees/x");
+        assert_eq!(encode_cwd(p), "-private-tmp-atlas--claude-worktrees-x");
     }
 
     #[test]
@@ -120,7 +120,7 @@ mod tests {
 
     #[test]
     fn ensure_trusted_sets_flag_for_a_dir_without_clobbering() {
-        let base = std::env::temp_dir().join(format!("weft-trust-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-trust-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         let cfg = base.join(".claude.json");
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn ensure_trusted_noop_when_no_config() {
-        let base = std::env::temp_dir().join(format!("weft-trust-none-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-trust-none-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         let cfg = base.join(".claude.json"); // does not exist

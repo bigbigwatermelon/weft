@@ -66,7 +66,7 @@
   <rect x="356" y="316" width="608" height="120" rx="13" fill="#211b12" stroke="#725927" stroke-width="1.2"/>
   <g class="gl" stroke="#e7bd61" transform="translate(386,348)"><path d="M0,-9 L9,7 H-9 Z"/><path d="M0,-2 v5"/><circle cx="0" cy="6" r="0.6" fill="#e7bd61"/></g>
   <text x="408" y="346" fill="#f1cf82" font-size="15" font-weight="600">Needs you</text>
-  <text x="408" y="366" fill="#c5a56a" font-size="11">Weft 拥有的例外车道 —— 聚合 · 永远置顶</text>
+  <text x="408" y="366" fill="#c5a56a" font-size="11">Atlas 拥有的例外车道 —— 聚合 · 永远置顶</text>
   <rect class="card" x="376" y="380" width="300" height="40" rx="9" fill="#282015" stroke="#6b5224"/>
   <circle cx="398" cy="400" r="4" fill="#e7bd61"/>
   <text class="cl" x="412" y="404" fill="#f3e5c7" font-size="12.5">权限请求 · 检查失败</text>

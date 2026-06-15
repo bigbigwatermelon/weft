@@ -1,7 +1,7 @@
 //! Codex folder-trust pre-accept — the Codex analog of `claude::ensure_trusted`.
 //!
 //! Codex prompts "Do you trust this folder?" on first run in an untrusted repo
-//! and blocks there, which stalls an unattended weft worker. Codex trust is keyed
+//! and blocks there, which stalls an unattended atlas worker. Codex trust is keyed
 //! by the *git repository root* (a worktree resolves to its main repo), stored in
 //! ~/.codex/config.toml as `[projects."<root>"] trust_level = "trusted"`. We
 //! pre-accept exactly that — a startup gate, not a per-action permission (those
@@ -56,7 +56,7 @@ fn ensure_codex_trusted_in(cfg: &Path, root: &str) {
     }
     next.push_str(&format!("\n{key}\ntrust_level = \"trusted\"\n"));
 
-    let tmp = cfg.with_extension("toml.weft-tmp");
+    let tmp = cfg.with_extension("toml.atlas-tmp");
     if std::fs::write(&tmp, next.as_bytes()).is_ok() {
         let _ = std::fs::rename(&tmp, cfg);
     }
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn appends_when_absent_preserving_existing() {
-        let base = std::env::temp_dir().join(format!("weft-codex-trust-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-codex-trust-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         let cfg = base.join("config.toml");
@@ -78,15 +78,15 @@ mod tests {
         )
         .unwrap();
 
-        ensure_codex_trusted_in(&cfg, "/private/tmp/weft-d-web");
+        ensure_codex_trusted_in(&cfg, "/private/tmp/atlas-d-web");
         let after = std::fs::read_to_string(&cfg).unwrap();
         assert!(after.contains("# my config")); // preserved
         assert!(after.contains("[projects.\"/existing\"]")); // preserved
-        assert!(after.contains("[projects.\"/private/tmp/weft-d-web\"]"));
+        assert!(after.contains("[projects.\"/private/tmp/atlas-d-web\"]"));
         assert!(after.matches("trust_level = \"trusted\"").count() == 2);
 
         // idempotent
-        ensure_codex_trusted_in(&cfg, "/private/tmp/weft-d-web");
+        ensure_codex_trusted_in(&cfg, "/private/tmp/atlas-d-web");
         let after2 = std::fs::read_to_string(&cfg).unwrap();
         assert_eq!(after, after2);
 
@@ -95,7 +95,7 @@ mod tests {
 
     #[test]
     fn noop_when_no_config() {
-        let base = std::env::temp_dir().join(format!("weft-codex-none-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-codex-none-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).unwrap();
         let cfg = base.join("config.toml");

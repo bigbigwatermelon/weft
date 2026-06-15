@@ -69,8 +69,8 @@ export function WorkspaceNav() {
           title={t("nav.home")}
           className="flex w-fit select-none items-center gap-1.5 rounded-[var(--radius-sm)] px-1 py-0.5 transition-colors hover:bg-brand-ghost"
         >
-          <img src="/weft-mark.svg" alt="" className="h-[18px] w-[18px]" draggable={false} />
-          <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">weft</span>
+          <img src="/atlas-mark.png" alt="" className="h-[18px] w-[18px]" draggable={false} />
+          <span className="text-[15px] font-semibold text-ink">Atlas</span>
         </button>
         <div className="rounded-[var(--radius-md)] border border-border bg-bg/55 p-1">
           <WorkspacePicker
@@ -301,6 +301,106 @@ function WsNavItem({
   );
 }
 
+function WorkspacePicker({
+  workspaces,
+  activeId,
+  needsByWorkspace,
+  otherNeeds,
+  onSelect,
+  onNew,
+  onRename,
+}: {
+  workspaces: { id: number; name: string }[];
+  activeId: number | null;
+  needsByWorkspace: Record<number, number>;
+  otherNeeds: boolean;
+  onSelect: (id: number) => void;
+  onNew: () => void;
+  onRename: (w: { id: number; name: string }) => void;
+}) {
+  const active = workspaces.find((w) => w.id === activeId);
+  const { t } = useTranslation();
+  return (
+    <DM.Root>
+      <DM.Trigger className="flex w-full min-w-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink outline-none transition-colors hover:bg-brand-ghost data-[state=open]:bg-brand-ghost">
+        <span className="min-w-0 flex-1 truncate text-left">
+          {active?.name ?? t("nav.noWorkspace")}
+        </span>
+        {otherNeeds && (
+          <span
+            title={t("nav.otherWorkspaceNeeds")}
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-waiting"
+          />
+        )}
+        <ChevronDown size={13} className="shrink-0 text-ink-faint" />
+      </DM.Trigger>
+      <DM.Portal>
+        <DM.Content
+          align="start"
+          sideOffset={5}
+          className="atlas-pop z-[60] w-56 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
+        >
+          {workspaces.map((w) => {
+            const count = needsByWorkspace[w.id] ?? 0;
+            const isActive = w.id === activeId;
+            return (
+              <DM.Item
+                key={w.id}
+                onSelect={() => onSelect(w.id)}
+                className={cn(
+                  "group flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink",
+                  isActive ? "text-ink" : "text-ink-muted",
+                )}
+              >
+                <Check
+                  size={13}
+                  className={cn("shrink-0", isActive ? "text-brand" : "text-transparent")}
+                />
+                <span className="min-w-0 flex-1 truncate">{w.name}</span>
+                {!isActive && count > 0 && (
+                  <span className="rounded-full bg-waiting/20 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-waiting">
+                    {count}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  title={t("nav.renameWorkspace")}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onPointerUp={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRename(w);
+                  }}
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 group-data-[highlighted]:opacity-100"
+                >
+                  <Pencil size={12} />
+                </button>
+              </DM.Item>
+            );
+          })}
+          <DM.Separator className="my-1 h-px bg-border" />
+          {active && (
+            <DM.Item
+              onSelect={() => onRename(active)}
+              className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] text-ink-muted outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink"
+            >
+              <Pencil size={13} /> {t("nav.renameWorkspace")}
+            </DM.Item>
+          )}
+          <DM.Item
+            onSelect={onNew}
+            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] text-ink-muted outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink"
+          >
+            <Plus size={13} /> {t("nav.newWorkspace")}
+          </DM.Item>
+        </DM.Content>
+      </DM.Portal>
+    </DM.Root>
+  );
+}
+
 function ThreadRow({ thread, onRename }: { thread: Thread; onRename: (id: number) => void }) {
   const {
     activeThreadId,
@@ -347,7 +447,7 @@ function ThreadRow({ thread, onRename }: { thread: Thread; onRename: (id: number
         <span className="truncate text-[13px]">{thread.title}</span>
         {liveCount > 0 && (
           <span className="flex items-center gap-1 text-[10px] text-running">
-            <span className="weft-pulse h-1.5 w-1.5 rounded-full bg-running" />
+            <span className="atlas-pulse h-1.5 w-1.5 rounded-full bg-running" />
             {liveCount}
           </span>
         )}
@@ -378,102 +478,5 @@ function ThreadRow({ thread, onRename }: { thread: Thread; onRename: (id: number
         <Trash2 size={12} />
       </button>
     </li>
-  );
-}
-
-function WorkspacePicker({
-  workspaces,
-  activeId,
-  needsByWorkspace,
-  otherNeeds,
-  onSelect,
-  onNew,
-  onRename,
-}: {
-  workspaces: { id: number; name: string }[];
-  activeId: number | null;
-  needsByWorkspace: Record<number, number>;
-  otherNeeds: boolean;
-  onSelect: (id: number) => void;
-  onNew: () => void;
-  onRename: (w: { id: number; name: string }) => void;
-}) {
-  const active = workspaces.find((w) => w.id === activeId);
-  const { t } = useTranslation();
-  return (
-    <DM.Root>
-      <DM.Trigger className="flex w-full min-w-0 items-center gap-1 rounded-[var(--radius-md)] px-2 py-1.5 text-[13px] font-medium text-ink outline-none transition-colors hover:bg-brand-ghost data-[state=open]:bg-brand-ghost">
-        <span className="min-w-0 flex-1 truncate text-left">{active?.name ?? t("nav.noWorkspace")}</span>
-        {otherNeeds && (
-          <span title={t("nav.otherWorkspaceNeeds")} className="h-1.5 w-1.5 shrink-0 rounded-full bg-waiting" />
-        )}
-        <ChevronDown size={13} className="shrink-0 text-ink-faint" />
-      </DM.Trigger>
-      <DM.Portal>
-        <DM.Content
-          align="start"
-          sideOffset={5}
-          className="weft-pop z-[60] w-56 rounded-[var(--radius-md)] border border-border bg-raised p-1 shadow-[0_8px_24px_-8px_rgba(0,0,0,0.6)]"
-        >
-          {workspaces.map((w) => {
-            const count = needsByWorkspace[w.id] ?? 0;
-            const isActive = w.id === activeId;
-            return (
-              <DM.Item
-                key={w.id}
-                onSelect={() => onSelect(w.id)}
-                className={cn(
-                  "group flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink",
-                  isActive ? "text-ink" : "text-ink-muted",
-                )}
-              >
-                <Check size={13} className={cn("shrink-0", isActive ? "text-brand" : "text-transparent")} />
-                <span className="min-w-0 flex-1 truncate">{w.name}</span>
-                {/* only flag OTHER workspaces — the current one is shown in-app */}
-                {!isActive && count > 0 && (
-                  <span className="rounded-full bg-waiting/20 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-waiting">
-                    {count}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  // Mouse-only affordance: keyboard users have a dedicated
-                  // "Rename current workspace" menu item below the list. We
-                  // hide this from keyboard/AT so we don't nest a focusable
-                  // button inside a DM.Item (role=menuitem).
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  title={t("nav.renameWorkspace")}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onPointerUp={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRename(w);
-                  }}
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded text-ink-faint opacity-0 transition-opacity hover:text-ink group-hover:opacity-100 group-data-[highlighted]:opacity-100"
-                >
-                  <Pencil size={12} />
-                </button>
-              </DM.Item>
-            );
-          })}
-          <DM.Separator className="my-1 h-px bg-border" />
-          {active && (
-            <DM.Item
-              onSelect={() => onRename(active)}
-              className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] text-ink-muted outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink"
-            >
-              <Pencil size={13} /> {t("nav.renameWorkspace")}
-            </DM.Item>
-          )}
-          <DM.Item
-            onSelect={onNew}
-            className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px] text-ink-muted outline-none data-[highlighted]:bg-brand-ghost data-[highlighted]:text-ink"
-          >
-            <Plus size={13} /> {t("nav.newWorkspace")}
-          </DM.Item>
-        </DM.Content>
-      </DM.Portal>
-    </DM.Root>
   );
 }

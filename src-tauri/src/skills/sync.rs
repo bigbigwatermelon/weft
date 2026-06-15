@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn sync_clones_then_pulls() {
-        let base = std::env::temp_dir().join(format!("weft-sksync-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-sksync-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let origin = base.join("origin");
         let cache = base.join("cache");

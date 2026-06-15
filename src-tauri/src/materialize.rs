@@ -86,10 +86,10 @@ pub async fn cleanup_worktrees(db: &Db, removed: &[(i32, String, String)]) -> Re
         {
             let repo_path = std::path::Path::new(&r.local_git_path);
             if let Err(e) = git::remove_worktree(repo_path, std::path::Path::new(path)) {
-                eprintln!("[weft] worktree remove failed for {path}: {e}");
+                eprintln!("[atlas] worktree remove failed for {path}: {e}");
             }
             if let Err(e) = git::delete_branch(repo_path, branch) {
-                eprintln!("[weft] branch delete failed for {branch}: {e}");
+                eprintln!("[atlas] branch delete failed for {branch}: {e}");
             }
         }
     }

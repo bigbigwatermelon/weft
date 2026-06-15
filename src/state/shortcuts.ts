@@ -2,13 +2,13 @@ import { useEffect } from "react";
 import { useStore } from "./store";
 
 /**
- * The app-wide keyboard layer. weft owns the ⌘ prefix (§4.3 key ownership), so
+ * The app-wide keyboard layer. atlas owns the ⌘ prefix (§4.3 key ownership), so
  * these run in the capture phase — they fire before any focused input sees the
  * key, and only ever on ⌘/Ctrl-chords, so plain typing (and copy/paste) passes
  * straight through. ⌘K is the palette's (handled there).
  *
  *   ⌘\        toggle the sidebar
- *   ⌘1/2      workspace board / repo map
+ *   ⌘1        workspace board
  *   ⌘[        go up one level (session → board → workspace)
  *
  * No chrome — keeps the "精简" home headerless while making the whole app
@@ -20,7 +20,6 @@ export function useAppShortcuts() {
     setNavCollapsed,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     activeSessionId,
     viewing,
     showNeeds,
@@ -42,10 +41,6 @@ export function useAppShortcuts() {
           backToWorkspace();
           setHomeTab("board");
           break;
-        case "2":
-          e.preventDefault();
-          openRepoMap();
-          break;
         case "[":
           // Up one level, mirroring the route hierarchy in App's Main().
           e.preventDefault();
@@ -64,7 +59,6 @@ export function useAppShortcuts() {
     setNavCollapsed,
     backToWorkspace,
     setHomeTab,
-    openRepoMap,
     activeSessionId,
     viewing,
     showNeeds,

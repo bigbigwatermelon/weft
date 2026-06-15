@@ -1,7 +1,7 @@
 # Design
 
-Visual system for weft. Dark-primary, high-density, calm. Built on a
-violet-tinted near-black architecture with an **indigo** brand (the weft mark's
+Visual system for atlas. Dark-primary, high-density, calm. Built on a
+violet-tinted near-black architecture with an **indigo** brand (the atlas mark's
 three work lines) and an **orange** convergence accent (the single outcome dot).
 All color in OKLCH. Component base: **shadcn/ui (Radix + Tailwind)**, retuned to
 these tokens — never the default shadcn look.
@@ -13,10 +13,10 @@ these tokens — never the default shadcn look.
 ## Theme
 
 **Dark + light, toggleable.** Default follows the OS (`prefers-color-scheme`),
-the choice persists (localStorage `weft-theme`), applied via `data-theme` on
+the choice persists (localStorage `atlas-theme`), applied via `data-theme` on
 `<html>` (an inline script in `index.html` sets it before first paint — no
 flash). Dark mood: a control room at night — violet-tinted near-black, the
-**indigo** brand glowing like the work lines of the weft mark, **orange** marking
+**indigo** brand glowing like the work lines of the atlas mark, **orange** marking
 convergence. Light mood: violet-tinted paper, the same brand deepened for
 contrast. Both are designed palettes, not inverts.
 
@@ -24,8 +24,8 @@ Mechanism: Tailwind `@theme` colors reference per-theme `--c-*` vars; dark is th
 `:root` default, light overrides under `:root[data-theme="light"]`. Add a color
 only as a `--c-*` pair (dark + light).
 
-Color strategy: **committed**. The brand is sourced from the weft mark
-(`public/weft-*.svg`): INDIGO `#4F46E5` = the three parallel work lines
+Color strategy: **committed**. The brand is sourced from the atlas mark
+(`public/atlas-*.svg`): INDIGO `#4F46E5` = the three parallel work lines
 (structure/primary); ORANGE `#F2683C` = the converged outcome (accent). Surfaces
 are violet-tinted near-black anchored to the mark's `#1C1B22` base. The brand
 carries identity; the surface never competes.
@@ -56,7 +56,7 @@ reserved for genuinely floating layers (popover/modal/toast) at ≤ 8px blur.
 No text dimmer than `--ink-faint` for anything readable. Disabled-only may go
 lower.
 
-### Brand (indigo) + Accent (orange) — from the weft mark
+### Brand (indigo) + Accent (orange) — from the atlas mark
 
 | Token | OKLCH | Source | Use |
 |---|---|---|---|
@@ -136,11 +136,11 @@ landing page.
 Base on **shadcn/ui** (Radix primitives + Tailwind), retokenized to the OKLCH
 variables above via CSS custom properties. Tailwind config maps `bg`, `surface`,
 `ink`, `brand`, `border`, status roles to these tokens. Key components and their
-weft treatment:
+atlas treatment:
 
 - **Status chip**: pill, glyph + color + label, used in nav, session headers,
   lists. The single most-repeated atom — must be perfect.
-- **Session panel**: the weft-owned chat timeline, framed with a header (tool,
+- **Session panel**: the atlas-owned chat timeline, framed with a header (tool,
   cwd, branch, status chip) and the §4.3 interaction layer (composer,
   Ask-Bridge approval bar, queued-message indicator).
 - **Nav tree**: workspace → issue → direction, with active = `--brand-ghost`
@@ -203,7 +203,7 @@ change of state** and to make switching feel instant, never to perform.
 - Don't animate layout props (width/height/top) where transform/opacity can do
   it; blur/clip-path only when they materially improve a moment and stay smooth.
 
-## Slop guardrails (weft-specific)
+## Slop guardrails (atlas-specific)
 
 Never ship: pastel/purple gradients, gradient text, glassmorphism as default,
 decorative side-stripe borders (the nav indicator is a 2px functional marker,

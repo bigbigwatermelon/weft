@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn copies_into_both_dirs_and_skips_repo_owned() {
-        let base = std::env::temp_dir().join(format!("weft-skinj-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("atlas-skinj-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         let src = base.join("src");
         let cwd = base.join("cwd");

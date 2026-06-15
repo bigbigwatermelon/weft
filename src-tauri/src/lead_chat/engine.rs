@@ -251,7 +251,7 @@ pub async fn ensure_running(app: &AppHandle, db: &Db, eng: &EngineRef) -> anyhow
     if let Some(stdin) = inner.stdin.as_mut() {
         let req = serde_json::json!({
             "type": "control_request",
-            "request_id": "weft-initialize",
+            "request_id": "atlas-initialize",
             "request": { "subtype": "initialize" }
         });
         let _ = stdin.write_all(format!("{req}\n").as_bytes()).await;
@@ -360,7 +360,7 @@ pub async fn send(
     // temp files and hand over paths — every agent can read those itself.
     let images = if per_turn(&inner.tool) && !images.is_empty() {
         use base64::Engine as _;
-        let dir = std::env::temp_dir().join("weft-attachments");
+        let dir = std::env::temp_dir().join("atlas-attachments");
         let _ = std::fs::create_dir_all(&dir);
         outbound.push_str("\n\nAttached images (read them as needed):\n");
         for (i, (mt, data)) in images.iter().enumerate() {
@@ -406,7 +406,7 @@ pub async fn send(
         // Fall back to exec if the app-server can't be reached (old codex, crash):
         // the thread id is shared with exec's rollout store, so resume is seamless.
         if let Err(e) = spawn_codex_turn(app.clone(), db.clone(), eng.clone(), out.clone()).await {
-            eprintln!("[weft][codex] app-server unavailable ({e}) — falling back to exec");
+            eprintln!("[atlas][codex] app-server unavailable ({e}) — falling back to exec");
             spawn_turn(app.clone(), db.clone(), eng.clone(), out).await?;
         }
     }
@@ -414,12 +414,12 @@ pub async fn send(
 }
 
 /// codex transport selector. Default = `app-server` (the migration target);
-/// `WEFT_CODEX_EXEC=1` forces the legacy exec path as an escape hatch. A failed
+/// `ATLAS_CODEX_EXEC=1` forces the legacy exec path as an escape hatch. A failed
 /// app-server connection ALSO falls back to exec at send time (see [`send`]), so
 /// an older codex without the `app-server` subcommand keeps working transparently
 /// — the thread id is shared with exec's rollout store, so resume is seamless.
 fn codex_appserver_enabled() -> bool {
-    !std::env::var("WEFT_CODEX_EXEC").is_ok_and(|v| !v.is_empty() && v != "0")
+    !std::env::var("ATLAS_CODEX_EXEC").is_ok_and(|v| !v.is_empty() && v != "0")
 }
 
 /// Drive a codex turn over the shared, multiplexed `codex app-server` connection
@@ -579,13 +579,13 @@ async fn codex_consumer(
                 if let Some(n) = next {
                     match client.start_turn(&thread, &n.text).await {
                         Ok(t) => client.set_active_turn(&thread, &t).await,
-                        Err(e) => eprintln!("[weft][codex] flush next turn: {e}"),
+                        Err(e) => eprintln!("[atlas][codex] flush next turn: {e}"),
                     }
                 }
             }
             ThreadMsg::Event(_) => {}
             ThreadMsg::Approval { id, method, params } => {
-                // Route the app-server's approval request through Weft's Ask Bridge
+                // Route the app-server's approval request through Atlas's Ask Bridge
                 // (the same Needs-you surface the exec path uses), then reply with
                 // the v2 decision. accept = run, decline = deny but continue.
                 let (thread_id, dir) = {
@@ -780,7 +780,7 @@ pub(crate) fn turn_verdict(
 /// Runaway guard (§7 跑飞护栏): every 30s, sweep all live engines and force-stop
 /// a turn that ran past the wall cap or went silent past the idle cap. The
 /// stopped engine surfaces via Needs-you (bus ask) and resumes losslessly on
-/// the next send (`--resume`). Caps come from GuardrailState (Settings / WEFT_*
+/// the next send (`--resume`). Caps come from GuardrailState (Settings / ATLAS_*
 /// env); 0 disables a cap.
 pub fn spawn_watchdog(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -1008,7 +1008,7 @@ fn spawn_reader(
                         // join+extract order is load-bearing — a marker split
                         // across two text blocks would otherwise slip through.
                         let full = texts.join("\n\n");
-                        // Fork <weft:*> sentinels out of the body before persisting:
+                        // Fork <atlas:*> sentinels out of the body before persisting:
                         // action_card lives as its own row so the UI can render the
                         // card without parsing prose; list_repos triggers a stdin
                         // reply (handled below) and produces no row of its own.
@@ -1077,15 +1077,15 @@ fn spawn_reader(
                                                     });
                                                 }
                                                 Err(e) => eprintln!(
-                                                    "[weft] lead sentinel: insert action_card failed: {e}"
+                                                    "[atlas] lead sentinel: insert action_card failed: {e}"
                                                 ),
                                             }
                                         }
                                         Ok(_) => eprintln!(
-                                            "[weft] lead sentinel: action_card payload is not an object — dropped"
+                                            "[atlas] lead sentinel: action_card payload is not an object — dropped"
                                         ),
                                         Err(e) => eprintln!(
-                                            "[weft] lead sentinel: action_card JSON parse failed: {e}"
+                                            "[atlas] lead sentinel: action_card JSON parse failed: {e}"
                                         ),
                                     }
                                 }
@@ -1097,13 +1097,13 @@ fn spawn_reader(
                                         Ok(Some(t)) => Some(t.workspace_id),
                                         Ok(None) => {
                                             eprintln!(
-                                                "[weft] lead sentinel: list_repos — thread {thread_id} not found"
+                                                "[atlas] lead sentinel: list_repos — thread {thread_id} not found"
                                             );
                                             None
                                         }
                                         Err(e) => {
                                             eprintln!(
-                                                "[weft] lead sentinel: list_repos — get_thread failed: {e}"
+                                                "[atlas] lead sentinel: list_repos — get_thread failed: {e}"
                                             );
                                             None
                                         }
@@ -1114,7 +1114,7 @@ fn spawn_reader(
                                             Ok(r) => r,
                                             Err(e) => {
                                                 eprintln!(
-                                                    "[weft] lead sentinel: list_repos query failed: {e}"
+                                                    "[atlas] lead sentinel: list_repos query failed: {e}"
                                                 );
                                                 Vec::new()
                                             }
@@ -1132,13 +1132,13 @@ fn spawn_reader(
                                             Ok(s) => s,
                                             Err(e) => {
                                                 eprintln!(
-                                                    "[weft] lead sentinel: serialize list_repos_result failed: {e}"
+                                                    "[atlas] lead sentinel: serialize list_repos_result failed: {e}"
                                                 );
                                                 continue;
                                             }
                                         };
                                         let reply = format!(
-                                            "<weft:list_repos_result>{body}</weft:list_repos_result>"
+                                            "<atlas:list_repos_result>{body}</atlas:list_repos_result>"
                                         );
                                         // Invisible plumbing: tracked=false keeps this
                                         // off the timeline; the agent reads it as a

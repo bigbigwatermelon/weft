@@ -127,7 +127,7 @@ impl AgentAdapter for ClaudeAdapter {
     fn interrupt_payload(&self, generation: u64) -> String {
         let req = serde_json::json!({
             "type": "control_request",
-            "request_id": format!("weft-int-{generation}"),
+            "request_id": format!("atlas-int-{generation}"),
             "request": { "subtype": "interrupt" }
         });
         format!("{req}\n")
@@ -261,11 +261,11 @@ impl AgentAdapter for OpenCodeAdapter {
 
 // ───────────────────────────── resolver ─────────────────────────────
 
-/// codex prefers the app-server transport unless `WEFT_CODEX_EXEC` forces exec.
+/// codex prefers the app-server transport unless `ATLAS_CODEX_EXEC` forces exec.
 /// (Single source of truth shared with `engine::codex_appserver_enabled` once the
 /// cutover lands.)
 pub(crate) fn codex_prefers_appserver() -> bool {
-    !std::env::var("WEFT_CODEX_EXEC").is_ok_and(|v| !v.is_empty() && v != "0")
+    !std::env::var("ATLAS_CODEX_EXEC").is_ok_and(|v| !v.is_empty() && v != "0")
 }
 
 /// The PROCESS adapter for a tool identity, used by the engine's spawn/parse/
@@ -362,6 +362,6 @@ mod tests {
         assert_eq!(CodexExecAdapter.interrupt(), Interrupt::Kill);
         assert_eq!(OpenCodeAdapter.interrupt(), Interrupt::Kill);
         assert_eq!(CodexAppServerAdapter.interrupt(), Interrupt::Connection);
-        assert!(ClaudeAdapter.interrupt_payload(7).contains("weft-int-7"));
+        assert!(ClaudeAdapter.interrupt_payload(7).contains("atlas-int-7"));
     }
 }

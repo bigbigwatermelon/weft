@@ -89,7 +89,7 @@ export function BackupSettings() {
 
   const downloadRecoveryKey = async () => {
     const target = await saveDialog({
-      defaultPath: "weft-recovery-key.json",
+      defaultPath: "atlas-recovery-key.json",
       filters: [{ name: "JSON", extensions: ["json"] }],
     });
     if (!target) return;
@@ -255,7 +255,7 @@ export function BackupSettings() {
               <div className="flex items-center gap-2">
                 <Input
                   value={restoreKeyPath}
-                  placeholder="/path/to/weft-recovery-key.json"
+                  placeholder="/path/to/atlas-recovery-key.json"
                   onChange={(e) => setRestoreKeyPath(e.currentTarget.value)}
                   className="h-8 min-w-0 flex-1 bg-bg/80 font-mono text-[12px]"
                 />

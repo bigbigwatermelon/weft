@@ -49,6 +49,7 @@ export function SessionView() {
 
   const { info, status, nativeId } = active;
   const running = status === "running";
+  const hasDiff = info.branch.trim().length > 0;
   // Product words, not plumbing: "<repo> · <direction>". The real worktree
   // path / branch / native id live in Inspect (§4.7).
   return (
@@ -60,14 +61,16 @@ export function SessionView() {
             {info.branch}
           </span>
           <span className="min-w-0 flex-1" />
-          <button
-            onClick={() => setShowDiff(true)}
-            title={t("diff.tab")}
-            aria-label={t("diff.tab")}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border text-ink-muted transition-colors hover:bg-surface hover:text-ink"
-          >
-            <GitCompare size={13} />
-          </button>
+          {hasDiff && (
+            <button
+              onClick={() => setShowDiff(true)}
+              title={t("diff.tab")}
+              aria-label={t("diff.tab")}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-[var(--radius-md)] border border-border text-ink-muted transition-colors hover:bg-surface hover:text-ink"
+            >
+              <GitCompare size={13} />
+            </button>
+          )}
           <button
             onClick={() => setShowKeys(true)}
             title={t("session.keymap")}
@@ -95,7 +98,7 @@ export function SessionView() {
           />
         </header>
 
-        {/* chat-engine worker: weft-owned timeline + composer */}
+        {/* chat-engine worker: atlas-owned timeline + composer */}
         <div className="flex min-h-0 flex-1 flex-col">
           <ChatTimeline
             messages={(leadMessages[active.threadId] ?? []).filter(
@@ -132,12 +135,14 @@ export function SessionView() {
         </div>
       </section>
 
-      <DiffPanel
-        cwd={info.worktree}
-        open={showDiff}
-        onClose={() => setShowDiff(false)}
-        onAsk={(text) => void api.chatSend(info.session_id, text)}
-      />
+      {hasDiff && (
+        <DiffPanel
+          cwd={info.worktree}
+          open={showDiff}
+          onClose={() => setShowDiff(false)}
+          onAsk={(text) => void api.chatSend(info.session_id, text)}
+        />
+      )}
       <KeymapDialog open={showKeys} onOpenChange={setShowKeys} />
     </div>
   );

@@ -28,7 +28,7 @@ fn ask_url(base: &str, thread: i32, dir: &str, tool: &str) -> String {
 }
 
 /// Install the Ask Bridge for a session: a PreToolUse hook that POSTs each tool
-/// action to weft's /ask endpoint and blocks on the returned allow/deny. Both
+/// action to atlas's /ask endpoint and blocks on the returned allow/deny. Both
 /// claude and codex use the IDENTICAL hookSpecificOutput contract, so the hook
 /// script is shared; only the per-tool wiring differs (claude `--settings`,
 /// codex `-c hooks.PreToolUse`). Additive — stacks with the user's own hooks.
@@ -42,8 +42,8 @@ pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Pat
         return Injection { args: vec![] };
     }
     let url = ask_url(base, thread, dir, tool);
-    let script = cwd.join(".weft-ask-hook.sh");
-    // Reads the PreToolUse JSON on stdin, asks weft, echoes weft's decision JSON
+    let script = cwd.join(".atlas-ask-hook.sh");
+    // Reads the PreToolUse JSON on stdin, asks atlas, echoes atlas's decision JSON
     // (empty on failure/timeout → the tool falls back to its own prompt).
     // -m matches the server's ASK_WAIT: hold the call until the human answers in
     // Needs-you rather than timing out into the tool's own hidden prompt.
@@ -56,12 +56,16 @@ pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Pat
     if std::fs::write(&script, body).is_err() {
         return Injection { args: vec![] };
     }
-    let _ = std::fs::set_permissions(&script, std::os::unix::fs::PermissionsExt::from_mode(0o755));
-    crate::git::git_exclude(cwd, ".weft-ask-hook.sh");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755));
+    }
+    crate::git::git_exclude(cwd, ".atlas-ask-hook.sh");
 
     match tool {
         "claude" => {
-            let settings = cwd.join(".weft-ask.settings.json");
+            let settings = cwd.join(".atlas-ask.settings.json");
             let json = serde_json::json!({
                 "hooks": { "PreToolUse": [
                     { "matcher": "*", "hooks": [
@@ -79,7 +83,7 @@ pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Pat
             {
                 return Injection { args: vec![] };
             }
-            crate::git::git_exclude(cwd, ".weft-ask.settings.json");
+            crate::git::git_exclude(cwd, ".atlas-ask.settings.json");
             Injection {
                 args: vec!["--settings".into(), settings.to_string_lossy().to_string()],
             }
@@ -103,7 +107,7 @@ pub fn inject_ask_hook(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Pat
 
 /// OpenCode has no PreToolUse hook; its analog is a local plugin's
 /// `tool.execute.before`, which is async and throws to deny. Drop a plugin in
-/// the worktree's `.opencode/plugins/` that POSTs each tool action to weft's
+/// the worktree's `.opencode/plugins/` that POSTs each tool action to atlas's
 /// /ask endpoint and throws on a deny verdict — same Ask Bridge, same endpoint,
 /// same allow/deny contract as claude/codex. Auto-loaded (no launch flag).
 fn inject_opencode_ask_plugin(base: &str, thread: i32, dir: &str, cwd: &Path) -> Injection {
@@ -112,8 +116,8 @@ fn inject_opencode_ask_plugin(base: &str, thread: i32, dir: &str, cwd: &Path) ->
     if std::fs::create_dir_all(&plugins).is_err() {
         return Injection { args: vec![] };
     }
-    let template = r#"// weft Ask Bridge — surfaces tool approvals to weft, blocks on deny.
-export const WeftAsk = async () => ({
+    let template = r#"// atlas Ask Bridge — surfaces tool approvals to atlas, blocks on deny.
+export const AtlasAsk = async () => ({
   "tool.execute.before": async (input, output) => {
     let decision;
     try {
@@ -123,28 +127,28 @@ export const WeftAsk = async () => ({
         body: JSON.stringify({ tool_name: input.tool, tool_input: output.args }),
       });
       decision = (await res.json())?.hookSpecificOutput?.permissionDecision;
-    } catch (e) { /* weft unreachable → fall back to opencode's own flow */ }
-    if (decision === "deny") throw new Error("Denied in weft");
+    } catch (e) { /* atlas unreachable → fall back to opencode's own flow */ }
+    if (decision === "deny") throw new Error("Denied in atlas");
   },
 });
 "#;
     let body = template.replace("__URL__", &url);
-    let _ = std::fs::write(plugins.join("weft-ask.js"), body);
-    crate::git::git_exclude(cwd, ".opencode/plugins/weft-ask.js");
+    let _ = std::fs::write(plugins.join("atlas-ask.js"), body);
+    crate::git::git_exclude(cwd, ".opencode/plugins/atlas-ask.js");
     Injection { args: vec![] }
 }
 
 /// Build the thread-bus injection. `cwd` is the worktree (used for the claude
 /// temp config and the opencode merge). `dir` is the direction id as a string.
 pub fn inject(base: &str, thread: i32, dir: &str, tool: &str, cwd: &Path) -> Injection {
-    inject_mcp("weft_bus", "bus", &mcp_url(base, thread, dir), tool, cwd)
+    inject_mcp("atlas_bus", "bus", &mcp_url(base, thread, dir), tool, cwd)
 }
 
 /// Build the planner-MCP injection for a lead session (read-only planning).
 /// Same additive mechanism as the bus, a different server keyed to the thread.
 pub fn inject_planner(base: &str, thread: i32, tool: &str, cwd: &Path) -> Injection {
     inject_mcp(
-        "weft_planner",
+        "atlas_planner",
         "planner",
         &planner_url(base, thread),
         tool,
@@ -156,19 +160,19 @@ pub fn inject_planner(base: &str, thread: i32, tool: &str, cwd: &Path) -> Inject
 /// per-thread — the URL has no thread/dir in path; identity is "the global
 /// helper running in IM single-chat". Same additive shape as planner.
 pub fn inject_global(base: &str, tool: &str, cwd: &Path) -> Injection {
-    inject_mcp("weft_global", "global", &global_url(base), tool, cwd)
+    inject_mcp("atlas_global", "global", &global_url(base), tool, cwd)
 }
 
 /// Additively register one HTTP MCP `server` at `url` for `tool`, never
 /// overriding the sub-repo's own config. `stem` names the claude temp config
-/// file (`.weft-<stem>.mcp.json`).
+/// file (`.atlas-<stem>.mcp.json`).
 fn inject_mcp(server: &str, stem: &str, url: &str, tool: &str, cwd: &Path) -> Injection {
     match tool {
         "claude" => {
             // ephemeral --mcp-config file inside the cwd. It's an injected,
             // untracked file, so we add it to git exclude (see git_exclude) to
             // keep it out of `git status` / diffs / commits.
-            let file = format!(".weft-{stem}.mcp.json");
+            let file = format!(".atlas-{stem}.mcp.json");
             let cfg = cwd.join(&file);
             let json = serde_json::json!({
                 "mcpServers": { server: { "type": "http", "url": url } }
@@ -230,12 +234,12 @@ mod tests {
 
     #[test]
     fn claude_writes_mcp_config_and_flags() {
-        let dir = std::env::temp_dir().join(format!("weft-inj-claude-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-inj-claude-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let inj = inject("http://127.0.0.1:9", 1, "10", "claude", &dir);
         assert_eq!(inj.args[0], "--mcp-config");
-        let cfg = std::fs::read_to_string(dir.join(".weft-bus.mcp.json")).unwrap();
-        assert!(cfg.contains("weft_bus") && cfg.contains("/bus/1/10/mcp"));
+        let cfg = std::fs::read_to_string(dir.join(".atlas-bus.mcp.json")).unwrap();
+        assert!(cfg.contains("atlas_bus") && cfg.contains("/bus/1/10/mcp"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -246,63 +250,63 @@ mod tests {
             inj.args,
             vec![
                 "-c".to_string(),
-                "mcp_servers.weft_bus.url=http://127.0.0.1:9/bus/2/30/mcp".to_string()
+                "mcp_servers.atlas_bus.url=http://127.0.0.1:9/bus/2/30/mcp".to_string()
             ]
         );
     }
 
     #[test]
     fn planner_claude_writes_its_own_config() {
-        let dir = std::env::temp_dir().join(format!("weft-inj-plan-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-inj-plan-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let inj = inject_planner("http://127.0.0.1:9", 7, "claude", &dir);
         assert_eq!(inj.args[0], "--mcp-config");
-        let cfg = std::fs::read_to_string(dir.join(".weft-planner.mcp.json")).unwrap();
-        assert!(cfg.contains("weft_planner") && cfg.contains("/planner/7/mcp"));
+        let cfg = std::fs::read_to_string(dir.join(".atlas-planner.mcp.json")).unwrap();
+        assert!(cfg.contains("atlas_planner") && cfg.contains("/planner/7/mcp"));
         // the bus config is a SEPARATE file — planner doesn't clobber it
         assert_ne!(
             inj.args[1],
-            dir.join(".weft-bus.mcp.json").to_string_lossy()
+            dir.join(".atlas-bus.mcp.json").to_string_lossy()
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn claude_ask_hook_wires_pretooluse_settings() {
-        let dir = std::env::temp_dir().join(format!("weft-askh-c-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-askh-c-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let inj = inject_ask_hook("http://127.0.0.1:9", 1, "10", "claude", &dir);
         assert_eq!(inj.args[0], "--settings");
-        let script = std::fs::read_to_string(dir.join(".weft-ask-hook.sh")).unwrap();
+        let script = std::fs::read_to_string(dir.join(".atlas-ask-hook.sh")).unwrap();
         assert!(script.contains("/ask/1/10?tool=claude"));
         let settings: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(dir.join(".weft-ask.settings.json")).unwrap(),
+            &std::fs::read_to_string(dir.join(".atlas-ask.settings.json")).unwrap(),
         )
         .unwrap();
         assert!(settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
             .as_str()
             .unwrap()
-            .contains(".weft-ask-hook.sh"));
+            .contains(".atlas-ask-hook.sh"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn codex_ask_hook_injects_pretooluse_via_config() {
-        let dir = std::env::temp_dir().join(format!("weft-askh-x-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-askh-x-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let inj = inject_ask_hook("http://127.0.0.1:9", 2, "30", "codex", &dir);
         assert_eq!(inj.args[0], "--dangerously-bypass-hook-trust");
         assert_eq!(inj.args[1], "-c");
         assert!(inj.args[2].starts_with("hooks.PreToolUse=["));
-        assert!(inj.args[2].contains(".weft-ask-hook.sh"));
-        let script = std::fs::read_to_string(dir.join(".weft-ask-hook.sh")).unwrap();
+        assert!(inj.args[2].contains(".atlas-ask-hook.sh"));
+        let script = std::fs::read_to_string(dir.join(".atlas-ask-hook.sh")).unwrap();
         assert!(script.contains("/ask/2/30?tool=codex"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn opencode_ask_plugin_written_and_excluded() {
-        let dir = std::env::temp_dir().join(format!("weft-inj-oask-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-inj-oask-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let inj = inject_ask_hook("http://127.0.0.1:9", 1, "10", "opencode", &dir);
@@ -310,10 +314,10 @@ mod tests {
             inj.args.is_empty(),
             "opencode plugin auto-loads, no launch flag"
         );
-        let plugin = std::fs::read_to_string(dir.join(".opencode/plugins/weft-ask.js")).unwrap();
+        let plugin = std::fs::read_to_string(dir.join(".opencode/plugins/atlas-ask.js")).unwrap();
         assert!(plugin.contains("tool.execute.before"));
         assert!(plugin.contains("/ask/1/10?tool=opencode"));
-        assert!(plugin.contains("Denied in weft"));
+        assert!(plugin.contains("Denied in atlas"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -324,14 +328,14 @@ mod tests {
             inj.args,
             vec![
                 "-c".to_string(),
-                "mcp_servers.weft_planner.url=http://127.0.0.1:9/planner/3/mcp".to_string()
+                "mcp_servers.atlas_planner.url=http://127.0.0.1:9/planner/3/mcp".to_string()
             ]
         );
     }
 
     #[test]
     fn opencode_merges_preserving_existing() {
-        let dir = std::env::temp_dir().join(format!("weft-inj-oc-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("atlas-inj-oc-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         // sub-repo already ships an opencode.json with its own mcp server
         std::fs::write(
@@ -344,19 +348,19 @@ mod tests {
         let merged: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(dir.join("opencode.json")).unwrap())
                 .unwrap();
-        // both the repo's server AND weft_bus must be present
+        // both the repo's server AND atlas_bus must be present
         assert!(
             merged["mcp"]["repo_own"].is_object(),
             "repo's own server preserved"
         );
-        assert_eq!(merged["mcp"]["weft_bus"]["type"], "remote");
+        assert_eq!(merged["mcp"]["atlas_bus"]["type"], "remote");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn injected_file_is_git_excluded() {
         use std::process::Command;
-        let root = std::env::temp_dir().join(format!("weft-inj-git-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("atlas-inj-git-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let repo = root.join("repo");
         let wt = root.join("wt");
@@ -381,7 +385,7 @@ mod tests {
         );
 
         let _ = inject("http://127.0.0.1:9", 1, "1", "claude", &wt);
-        assert!(wt.join(".weft-bus.mcp.json").exists(), "file written");
+        assert!(wt.join(".atlas-bus.mcp.json").exists(), "file written");
         let status = Command::new("git")
             .args(["status", "--porcelain"])
             .current_dir(&wt)
@@ -389,7 +393,7 @@ mod tests {
             .unwrap();
         let s = String::from_utf8_lossy(&status.stdout);
         assert!(
-            !s.contains(".weft-bus.mcp.json"),
+            !s.contains(".atlas-bus.mcp.json"),
             "injected file must be git-excluded, got: {s}"
         );
         let _ = std::fs::remove_dir_all(&root);

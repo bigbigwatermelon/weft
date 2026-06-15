@@ -63,7 +63,7 @@ interface Store {
   messages: BusMsg[];
   postHuman: (to: string | null, text: string) => Promise<void>;
 
-  /** Lead chat: weft-owned timeline per thread (engine pushes, no polling). */
+  /** Lead chat: atlas-owned timeline per thread (engine pushes, no polling). */
   leadMessages: Record<number, LeadMessage[]>;
   /** Lead engine turn state per thread: busy/idle/stopped + queue depth. */
   leadTurn: Record<number, { state: "busy" | "idle" | "stopped"; queued: number }>;
@@ -188,11 +188,18 @@ interface Store {
     repoId: number,
     reason: string,
   ) => Promise<void>;
+  createRun: (
+    threadId: number,
+    name: string,
+    tool: string,
+    reason?: string,
+  ) => Promise<void>;
   deleteThread: (threadId: number) => Promise<void>;
 
   viewing: { directionId: number; repoId: number; diff?: boolean } | null;
   viewDirection: (directionId: number, repoId: number, opts?: { diff?: boolean }) => void;
   driveDirection: (directionId: number, repoId: number, focus: boolean) => Promise<void>;
+  driveRun: (directionId: number, focus: boolean) => Promise<void>;
   reviveDirection: (directionId: number) => Promise<void>;
   closeObserve: () => void;
   /** Set a task's lifecycle status (human override). */
@@ -278,10 +285,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // App settings, persisted to localStorage.
   const [projectsDir, setProjectsDirState] = useState(
-    () => localStorage.getItem("weft-projects-dir") ?? "",
+    () => localStorage.getItem("atlas-projects-dir") ?? "",
   );
   const setProjectsDir = useCallback((p: string) => {
-    localStorage.setItem("weft-projects-dir", p);
+    localStorage.setItem("atlas-projects-dir", p);
     setProjectsDirState(p);
   }, []);
   const [defaultTool, setDefaultToolState] = useState("codex");
@@ -314,43 +321,43 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
   // The global review skill: "" = auto-detect from the agent's own slash list.
   const [reviewSkill, setReviewSkillState] = useState(
-    () => localStorage.getItem("weft-review-skill") ?? "",
+    () => localStorage.getItem("atlas-review-skill") ?? "",
   );
   const setReviewSkill = useCallback((s: string) => {
-    localStorage.setItem("weft-review-skill", s);
+    localStorage.setItem("atlas-review-skill", s);
     setReviewSkillState(s);
   }, []);
   // Auto-review: entering the review column runs the review skill (with a
   // self-repair directive) in the sub-task's own session. Default ON.
   const [autoReview, setAutoReviewState] = useState(
-    () => localStorage.getItem("weft-auto-review") !== "0",
+    () => localStorage.getItem("atlas-auto-review") !== "0",
   );
   const setAutoReview = useCallback((on: boolean) => {
-    localStorage.setItem("weft-auto-review", on ? "1" : "0");
+    localStorage.setItem("atlas-auto-review", on ? "1" : "0");
     setAutoReviewState(on);
   }, []);
   // System notifications: new Needs-you items / review-ready sub-tasks raise an
   // OS notification while the window is unfocused. Default ON.
   const [notifyEnabled, setNotifyEnabledState] = useState(
-    () => localStorage.getItem("weft-notify") !== "0",
+    () => localStorage.getItem("atlas-notify") !== "0",
   );
   const setNotifyEnabled = useCallback((on: boolean) => {
-    localStorage.setItem("weft-notify", on ? "1" : "0");
+    localStorage.setItem("atlas-notify", on ? "1" : "0");
     setNotifyEnabledState(on);
   }, []);
   // Keep-awake: hold a "prevent idle sleep" OS assertion while any session is
   // busy (the display may still turn off). Default ON; synced to the backend
   // on launch — its state is in-memory (same pattern as dangerous mode).
   const [keepAwake, setKeepAwakeState] = useState(
-    () => localStorage.getItem("weft-keep-awake") !== "0",
+    () => localStorage.getItem("atlas-keep-awake") !== "0",
   );
   const setKeepAwake = useCallback((on: boolean) => {
-    localStorage.setItem("weft-keep-awake", on ? "1" : "0");
+    localStorage.setItem("atlas-keep-awake", on ? "1" : "0");
     setKeepAwakeState(on);
     void api.setKeepAwake(on);
   }, []);
   useEffect(() => {
-    void api.setKeepAwake(localStorage.getItem("weft-keep-awake") !== "0");
+    void api.setKeepAwake(localStorage.getItem("atlas-keep-awake") !== "0");
   }, []);
   // Auto-check for app updates on launch (silent; only surface when found).
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(null);
@@ -373,10 +380,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setUpdateAvailable(null);
   }, []);
   const [dangerousMode, setDangerousModeState] = useState(
-    () => localStorage.getItem("weft-dangerous") === "1",
+    () => localStorage.getItem("atlas-dangerous") === "1",
   );
   const setDangerousMode = useCallback((on: boolean) => {
-    localStorage.setItem("weft-dangerous", on ? "1" : "0");
+    localStorage.setItem("atlas-dangerous", on ? "1" : "0");
     setDangerousModeState(on);
     void api.setDangerousMode(on);
     // Turning it on retro-approves the existing permission backlog (the backend
@@ -388,30 +395,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Sync the persisted Dangerous-mode flag to the backend on launch (the bus
   // registry starts fresh each run).
   useEffect(() => {
-    void api.setDangerousMode(localStorage.getItem("weft-dangerous") === "1");
+    void api.setDangerousMode(localStorage.getItem("atlas-dangerous") === "1");
   }, []);
 
   // Runaway guardrails (§7): idle + wall-clock caps in MINUTES, persisted. The
-  // backend seeds its defaults from the WEFT_* env, so we only push when the user
+  // backend seeds its defaults from the ATLAS_* env, so we only push when the user
   // has an explicit saved value — an env override survives an untouched install.
   const [idleCapMins, setIdleCapMins] = useState(
-    () => Number(localStorage.getItem("weft-idle-cap-mins") ?? "30"),
+    () => Number(localStorage.getItem("atlas-idle-cap-mins") ?? "30"),
   );
   const [wallCapMins, setWallCapMins] = useState(
-    () => Number(localStorage.getItem("weft-wall-cap-mins") ?? "120"),
+    () => Number(localStorage.getItem("atlas-wall-cap-mins") ?? "120"),
   );
   const setGuardrails = useCallback((idleMins: number, wallMins: number) => {
     const idle = Math.max(0, Math.round(idleMins));
     const wall = Math.max(0, Math.round(wallMins));
-    localStorage.setItem("weft-idle-cap-mins", String(idle));
-    localStorage.setItem("weft-wall-cap-mins", String(wall));
+    localStorage.setItem("atlas-idle-cap-mins", String(idle));
+    localStorage.setItem("atlas-wall-cap-mins", String(wall));
     setIdleCapMins(idle);
     setWallCapMins(wall);
     void api.setGuardrails(idle * 60, wall * 60);
   }, []);
   useEffect(() => {
-    const i = localStorage.getItem("weft-idle-cap-mins");
-    const w = localStorage.getItem("weft-wall-cap-mins");
+    const i = localStorage.getItem("atlas-idle-cap-mins");
+    const w = localStorage.getItem("atlas-wall-cap-mins");
     if (i != null && w != null) void api.setGuardrails(Number(i) * 60, Number(w) * 60);
   }, []);
 
@@ -432,9 +439,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshWorkspaces = useCallback(async () => {
+    const defaultWorkspaceId = await api.ensureDefaultWorkspace();
     const ws = await api.listWorkspaces();
     setWorkspaces(ws);
-    setActiveWorkspaceId((cur) => cur ?? ws[0]?.id ?? null);
+    setActiveWorkspaceId((cur) => cur ?? defaultWorkspaceId);
   }, []);
 
   const selectWorkspace = useCallback(async (id: number) => {
@@ -731,6 +739,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [activeThreadId],
   );
 
+  const driveRun = useCallback(
+    async (directionId: number, focus: boolean) => {
+      const existing = Object.values(sessionsRef.current).find(
+        (s) =>
+          s.directionId === directionId &&
+          s.repoId === 0 &&
+          s.status !== "exited",
+      );
+      if (existing) {
+        if (focus) {
+          setActiveSessionId(existing.info.session_id);
+          setShowNeeds(false);
+          setHomeTab("board");
+        }
+        return;
+      }
+      const info = await api.chatOpenRun(directionId, currentLang());
+      autoCheckedRef.current.delete(directionId);
+      setSessions((m) => {
+        const pruned = Object.fromEntries(
+          Object.entries(m).filter(
+            ([, s]) => !(s.directionId === directionId && s.repoId === 0 && s.status === "exited"),
+          ),
+        );
+        return {
+          ...pruned,
+          [info.session_id]: {
+            info,
+            status: "running",
+            directionId,
+            repoId: 0,
+            threadId: activeThreadId ?? -1,
+            nativeId: info.native_id,
+          },
+        };
+      });
+      if (focus) {
+        setActiveSessionId(info.session_id);
+        setShowNeeds(false);
+        setHomeTab("board");
+      }
+    },
+    [activeThreadId],
+  );
+
   // Automation-first (§4 principle 7): once a task is materialized, dispatch its
   // worker(s) right away — every write worktree gets an agent, no human click.
   const dispatchDirection = useCallback(
@@ -759,11 +812,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } catch {
         return;
       }
+      if (wts.length === 0) {
+        const direction = Object.values(directionsByThread)
+          .flat()
+          .find((d) => d.id === directionId);
+        if (direction?.repo_id === 0) {
+          await driveRun(directionId, false);
+        }
+        return;
+      }
       for (const w of wts) {
         await driveDirection(directionId, w.repo_id, false);
       }
     },
-    [driveDirection],
+    [directionsByThread, driveDirection, driveRun],
   );
 
   const createDirection = useCallback(
@@ -781,7 +843,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [loadThreadChildren, dispatchDirection],
   );
 
-  // ── Lead chat (weft-owned conversation; engine pushes via `lead-chat`) ──
+  const createRun = useCallback(
+    async (threadId: number, name: string, tool: string, reason?: string) => {
+      const run = await api.createRun(threadId, name, tool, reason);
+      await loadThreadChildren(threadId);
+      await driveRun(run.id, true);
+    },
+    [loadThreadChildren, driveRun],
+  );
+
+  // ── Lead chat (atlas-owned conversation; engine pushes via `lead-chat`) ──
   const [leadMessages, setLeadMessages] = useState<Record<number, LeadMessage[]>>({});
   const [leadTurn, setLeadTurn] = useState<
     Record<number, { state: "busy" | "idle" | "stopped"; queued: number }>
@@ -1001,7 +1072,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",
       );
       if (!sess) {
-        await driveDirection(directionId, repoId, false);
+        if (repoId === 0) {
+          await driveRun(directionId, false);
+        } else {
+          await driveDirection(directionId, repoId, false);
+        }
         sess = Object.values(sessionsRef.current).find(
           (s) => s.directionId === directionId && s.repoId === repoId && s.status !== "exited",
         );
@@ -1009,7 +1084,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!sess) return;
       await api.chatSend(sess.info.session_id, text);
     },
-    [driveDirection],
+    [driveDirection, driveRun],
   );
 
   const requestSkillReview = useCallback(
@@ -1212,8 +1287,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // mode → once a day, suggest turning it on.
       if ((answer === "always" || answer === "full") && !dangerousMode) {
         const today = new Date().toISOString().slice(0, 10);
-        if (localStorage.getItem("weft-danger-nudge") !== today) {
-          localStorage.setItem("weft-danger-nudge", today);
+        if (localStorage.getItem("atlas-danger-nudge") !== today) {
+          localStorage.setItem("atlas-danger-nudge", today);
           setDangerNudge("ask");
         }
       }
@@ -1495,10 +1570,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     createRepo,
     createThread,
     createDirection,
+    createRun,
     deleteThread,
     viewing,
     viewDirection,
     driveDirection,
+    driveRun,
     reviveDirection,
     closeObserve,
     setTaskStatus,

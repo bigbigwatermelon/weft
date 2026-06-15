@@ -4,17 +4,17 @@
 use base64::Engine;
 use std::process::Command;
 use std::sync::Mutex;
-use weft_app_lib::backup::{BackupService, config};
-use weft_app_lib::store::Db;
+use atlas_app_lib::backup::{BackupService, config};
+use atlas_app_lib::store::Db;
 
 // Integration tests share one process; serialize env mutations.
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn iso_env(home: &std::path::Path) {
-    std::env::set_var("WEFT_HOME", home);
+    std::env::set_var("ATLAS_HOME", home);
     let raw = [0xCDu8; 48];
     let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
-    std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+    std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
 }
 
 #[tokio::test]
@@ -51,7 +51,7 @@ async fn end_to_end_backup_creates_commit_in_bare_remote() {
     let r = svc.run_now().await.unwrap();
     assert!(matches!(
         r,
-        weft_app_lib::backup::RunOutcome::Success { .. }
+        atlas_app_lib::backup::RunOutcome::Success { .. }
     ));
 
     let out = Command::new("git")

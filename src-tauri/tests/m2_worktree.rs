@@ -2,8 +2,8 @@
 //! same repo across two threads doesn't collide.
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use weft_app_lib::materialize::{cleanup_worktrees, materialize_direction};
-use weft_app_lib::store::{repo, Db};
+use atlas_app_lib::materialize::{cleanup_worktrees, materialize_direction};
+use atlas_app_lib::store::{repo, Db};
 
 fn sh(dir: &Path, args: &[&str]) {
     let st = Command::new(args[0])
@@ -28,11 +28,11 @@ fn make_repo(root: &Path, name: &str) -> PathBuf {
 
 #[tokio::test]
 async fn m2_acceptance() {
-    let root = std::env::temp_dir().join(format!("weft-m2-acc-{}", std::process::id()));
+    let root = std::env::temp_dir().join(format!("atlas-m2-acc-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
-    let weft_home = std::env::temp_dir().join(format!("weft-m2-home-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&weft_home);
-    std::env::set_var("WEFT_HOME", weft_home.to_str().unwrap());
+    let atlas_home = std::env::temp_dir().join(format!("atlas-m2-home-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&atlas_home);
+    std::env::set_var("ATLAS_HOME", atlas_home.to_str().unwrap());
     let repo_a = make_repo(&root, "repo-a");
     let repo_b = make_repo(&root, "repo-b");
 
@@ -101,7 +101,7 @@ async fn m2_acceptance() {
     );
     assert_ne!(w3[0].branch, w1[0].branch, "branches must differ");
     // both worktrees coexist in repo-a
-    let listed = weft_app_lib::git::list_worktrees(&repo_a).unwrap();
+    let listed = atlas_app_lib::git::list_worktrees(&repo_a).unwrap();
     assert!(listed.iter().any(|(_, b)| b == &w1[0].branch));
     assert!(listed.iter().any(|(_, b)| b == &w3[0].branch));
 
@@ -120,7 +120,7 @@ async fn m2_acceptance() {
 
     // the deleted thread's namespaced branch must be gone from the canonical repo
     // (zero-accumulation), while the surviving thread's branch remains.
-    let listed_after = weft_app_lib::git::list_worktrees(&repo_a).unwrap();
+    let listed_after = atlas_app_lib::git::list_worktrees(&repo_a).unwrap();
     assert!(
         !listed_after.iter().any(|(_, b)| b == &w1[0].branch),
         "deleted thread's branch must be gone"
@@ -131,5 +131,5 @@ async fn m2_acceptance() {
     );
 
     let _ = std::fs::remove_dir_all(&root);
-    let _ = std::fs::remove_dir_all(&weft_home);
+    let _ = std::fs::remove_dir_all(&atlas_home);
 }

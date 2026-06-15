@@ -47,7 +47,7 @@ pub static APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLo
 
 /// Log a fatal startup error and exit cleanly (no panic/unwind).
 fn fatal(context: &str, err: impl std::fmt::Display) -> ! {
-    eprintln!("[weft] fatal: {context}: {err}");
+    eprintln!("[atlas] fatal: {context}: {err}");
     std::process::exit(1);
 }
 
@@ -56,15 +56,18 @@ pub fn run() {
     // Make GUI-launched spawns find nvm/fnm/native-installer CLIs (see detect.rs).
     detect::augment_path_from_login_shell();
 
+    let atlas_home = paths::atlas_home().unwrap_or_else(|e| fatal("atlas_home for backup", e));
+    tauri::async_runtime::block_on(async {
+        backup::apply_pending_restore_before_open(&atlas_home).await
+    })
+    .unwrap_or_else(|e| fatal("apply pending restore", e));
+
     // Open the DB synchronously before building the app.
     let db = tauri::async_runtime::block_on(async { store::Db::open_default().await })
-        .unwrap_or_else(|e| fatal("open weft.db", e));
+        .unwrap_or_else(|e| fatal("open atlas.db", e));
 
     // App-level backup handle: scheduler + on-exit + commands all share it.
-    let backup_svc = backup::BackupService::new(
-        db.clone(),
-        paths::weft_home().unwrap_or_else(|e| fatal("weft_home for backup", e)),
-    );
+    let backup_svc = backup::BackupService::new(db.clone(), atlas_home);
 
     // Start the local HTTP server (thread bus MCP + planner MCP + Ask Bridge).
     let bus = bus::BusRegistry::new();
@@ -77,7 +80,7 @@ pub fn run() {
             .map(|(base, _handle)| base) // leak the JoinHandle: server lives for app lifetime
             .unwrap_or_else(|e| fatal("start bus server", e))
     };
-    eprintln!("[weft] thread bus on {bus_base}");
+    eprintln!("[atlas] thread bus on {bus_base}");
 
     // Wire the coordinator: bus wakes -> nudge the target direction's session.
     let (wake_tx, wake_rx) = std::sync::mpsc::channel::<bus::Wake>();
@@ -156,6 +159,7 @@ pub fn run() {
             commands::preview_brief,
             commands::verify_direction,
             commands::create_direction,
+            commands::create_run,
             commands::list_worktrees,
             commands::repo_diff,
             commands::delete_thread,
@@ -186,6 +190,7 @@ pub fn run() {
             lead_chat::commands::discover_slash,
             lead_chat::commands::post_lead_tool_result,
             lead_chat::commands::chat_open_worker,
+            lead_chat::commands::chat_open_run,
             lead_chat::commands::chat_send,
             lead_chat::commands::chat_interrupt,
             lead_chat::commands::chat_stop,

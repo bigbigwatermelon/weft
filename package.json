@@ -1,12 +1,17 @@
 {
-  "name": "weft",
+  "name": "atlas",
   "private": true,
   "version": "0.1.0",
+  "packageManager": "pnpm@10.33.2",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/install-git-hooks.mjs",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "ci:pre-push": "pnpm preflight",
+    "preflight": "scripts/preflight.sh",
+    "preflight:quick": "scripts/preflight.sh --quick",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -43,5 +48,10 @@
     "@vitejs/plugin-react": "^4.6.0",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

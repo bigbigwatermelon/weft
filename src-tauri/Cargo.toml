@@ -1,12 +1,12 @@
 [package]
-name = "weft-app"
+name = "atlas-app"
 version = "0.1.0"
-description = "weft — multi-repo / multi-tool session orchestrator"
-authors = ["weft"]
+description = "Atlas — local multi-agent desktop workbench"
+authors = ["Jingchen"]
 edition = "2021"
 
 [lib]
-name = "weft_app_lib"
+name = "atlas_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

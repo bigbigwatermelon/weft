@@ -286,10 +286,10 @@ mod tests {
 
     #[test]
     fn empty_tool_input_yields_blank_summary() {
-        let l = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__weft_planner__get_task","input":{}}]}}"#;
+        let l = r#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"mcp__atlas_planner__get_task","input":{}}]}}"#;
         match parse_line(l) {
             ChatEvent::Assistant { tools, .. } => {
-                assert_eq!(tools[0].0, "mcp__weft_planner__get_task");
+                assert_eq!(tools[0].0, "mcp__atlas_planner__get_task");
                 assert_eq!(tools[0].1, "");
             }
             e => panic!("{e:?}"),
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn parses_initialize_commands() {
-        let l = r#"{"type":"control_response","response":{"subtype":"success","request_id":"weft-init","response":{"commands":[{"name":"compact","description":"x"},{"name":"superpowers:requesting-code-review"}]}}}"#;
+        let l = r#"{"type":"control_response","response":{"subtype":"success","request_id":"atlas-init","response":{"commands":[{"name":"compact","description":"x"},{"name":"superpowers:requesting-code-review"}]}}}"#;
         match parse_line(l) {
             ChatEvent::Commands { commands } => {
                 assert_eq!(
@@ -386,7 +386,7 @@ mod tests {
             e => panic!("{e:?}"),
         }
         // interrupt acks (no commands payload) stay Other
-        let ack = r#"{"type":"control_response","response":{"subtype":"success","request_id":"weft-int-1"}}"#;
+        let ack = r#"{"type":"control_response","response":{"subtype":"success","request_id":"atlas-int-1"}}"#;
         assert!(matches!(parse_line(ack), ChatEvent::Other));
     }
 

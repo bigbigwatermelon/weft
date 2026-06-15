@@ -9,8 +9,8 @@ use anyhow::{Result, anyhow};
 use std::path::Path;
 use std::process::Command;
 
-const COMMITTER_NAME: &str = "Weft";
-const COMMITTER_EMAIL: &str = "weft@local";
+const COMMITTER_NAME: &str = "Atlas";
+const COMMITTER_EMAIL: &str = "atlas@local";
 
 fn git() -> Command {
     let mut c = Command::new("git");

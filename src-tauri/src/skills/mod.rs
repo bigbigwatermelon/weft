@@ -1,4 +1,4 @@
-//! weft-managed skills: git-sourced, synced, injected into worker/lead cwds.
+//! atlas-managed skills: git-sourced, synced, injected into worker/lead cwds.
 pub mod inject;
 pub mod parse;
 pub mod sync;
@@ -17,7 +17,7 @@ pub struct EnabledSkill {
     /// True when a same-named skill from a lower source id already won.
     pub overridden: bool,
     /// True when enabled at "global" scope (all workspaces) rather than only
-    /// this workspace — drives the weft-global vs weft-workspace layer label.
+    /// this workspace — drives the atlas-global vs atlas-workspace layer label.
     pub global: bool,
 }
 
@@ -126,12 +126,12 @@ pub async fn sync_source(db: &Db, id: i32) -> Result<()> {
     Ok(())
 }
 
-/// Sweep all sources at startup, then every interval (WEFT_SKILLS_SYNC_SECS,
+/// Sweep all sources at startup, then every interval (ATLAS_SKILLS_SYNC_SECS,
 /// default 6h; floored at 60s). Best-effort, never blocks.
 pub fn spawn_periodic(app: tauri::AppHandle) {
     use tauri::Manager;
     std::thread::spawn(move || {
-        let interval = std::env::var("WEFT_SKILLS_SYNC_SECS")
+        let interval = std::env::var("ATLAS_SKILLS_SYNC_SECS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(6 * 3600)

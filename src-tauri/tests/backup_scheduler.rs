@@ -5,16 +5,16 @@ use base64::Engine;
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
-use weft_app_lib::backup::{BackupService, config, scheduler};
-use weft_app_lib::store::Db;
+use atlas_app_lib::backup::{BackupService, config, scheduler};
+use atlas_app_lib::store::Db;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn iso_env(home: &std::path::Path) {
-    std::env::set_var("WEFT_HOME", home);
+    std::env::set_var("ATLAS_HOME", home);
     let raw = [0xBEu8; 48];
     let b64 = base64::engine::general_purpose::STANDARD.encode(raw);
-    std::env::set_var("WEFT_TEST_DB_KEY_B64", &b64);
+    std::env::set_var("ATLAS_TEST_DB_KEY_B64", &b64);
 }
 
 fn make_bare(parent: &std::path::Path) -> String {
@@ -30,6 +30,24 @@ fn make_bare(parent: &std::path::Path) -> String {
     format!("file://{}", bare.to_string_lossy())
 }
 
+#[test]
+fn spawn_does_not_require_current_tokio_reactor() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let tmp = tempfile::tempdir().unwrap();
+    iso_env(tmp.path());
+    let db = tauri::async_runtime::block_on(async { Db::open_default().await.unwrap() });
+    let svc = BackupService::new(db, tmp.path().to_path_buf());
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        scheduler::spawn(svc);
+    }));
+
+    assert!(
+        result.is_ok(),
+        "scheduler startup should use Tauri's runtime instead of requiring a current Tokio reactor"
+    );
+}
+
 #[tokio::test]
 async fn scheduler_fires_at_least_once_when_interval_short() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -40,7 +58,7 @@ async fn scheduler_fires_at_least_once_when_interval_short() {
 
     use sea_orm::{ActiveModelTrait, Set};
     let m = config::load(&db).await.unwrap();
-    let mut am: weft_app_lib::store::entities::backup_config::ActiveModel = m.into();
+    let mut am: atlas_app_lib::store::entities::backup_config::ActiveModel = m.into();
     am.enabled = Set(true);
     am.remote_url = Set(url);
     am.auto_backup_enabled = Set(true);
@@ -74,7 +92,7 @@ async fn run_on_exit_no_op_when_disabled() {
     assert!(cfg.last_error.is_none());
 }
 
-/// Regression: if Weft was closed during the interval and the next-due time
+/// Regression: if Atlas was closed during the interval and the next-due time
 /// is already in the past on relaunch, the scheduler should fire immediately
 /// instead of sleeping `interval` more seconds.
 #[tokio::test]
@@ -87,7 +105,7 @@ async fn idle_catchup_fires_immediately() {
 
     use sea_orm::{ActiveModelTrait, Set};
     let m = config::load(&db).await.unwrap();
-    let mut am: weft_app_lib::store::entities::backup_config::ActiveModel = m.into();
+    let mut am: atlas_app_lib::store::entities::backup_config::ActiveModel = m.into();
     am.enabled = Set(true);
     am.remote_url = Set(url);
     am.auto_backup_enabled = Set(true);
