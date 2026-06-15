@@ -2,6 +2,11 @@ name: CI
 
 on:
   workflow_dispatch:
+    inputs:
+      base_ref:
+        description: 'Base branch or ref for whitespace diff checks'
+        required: false
+        default: 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +21,9 @@ jobs:
           fetch-depth: 0
 
       - name: Check whitespace errors
-        run: git diff --check origin/${{ github.base_ref }}...HEAD
+        run: |
+          git fetch origin ${{ inputs.base_ref }} --depth=1
+          git diff --check FETCH_HEAD...HEAD
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
