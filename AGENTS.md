@@ -35,14 +35,6 @@ History uses short conventional prefixes such as `feat(plan): ...`, `fix(store):
 
 PRs should include a concise summary, verification commands and results, linked issue/task when applicable, and screenshots or short recordings for visible UI changes.
 
-## Codex Automated Review Guidelines
-
-When Codex reviews a pull request, review the PR diff against its base branch and focus on correctness, security, data safety, regression risk, and missing tests. Lead with actionable findings ordered by severity and include exact file and line references where possible. Avoid style-only comments unless they mask a real bug.
-
-For Atlas identity work, do not preserve legacy Weft runtime state by default. New product identity should use Atlas-only application names, data directories, database names, environment variables, protocol identifiers, bundle metadata, and user-facing copy unless a PR explicitly documents a deliberate migration bridge.
-
-Check Tauri, Rust, and React boundaries together: backend commands must surface typed errors instead of panicking, store migrations must be forward-safe, frontend strings must stay in `src/i18n/en.ts` and `src/i18n/zh.ts`, and visible UI changes should have build or manual verification evidence.
-
 ## Architecture & Configuration Notes
 
 Do not write cross-repo wiring into canonical repositories. Use temporary launch flags, worktree-local ignored files, or Atlas-managed state. Current delivery reaches reviewable worktree diffs with pre-PR checks; PR creation, CI/CD observation, and deployment orchestration are roadmap work.
