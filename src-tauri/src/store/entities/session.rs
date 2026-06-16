@@ -9,6 +9,7 @@ pub struct Model {
     pub tool: String,
     pub cwd: String,
     pub native_session_id: Option<String>,
+    pub computer_use_enabled: bool,
     pub status: String,
     pub created_at: String,
 }

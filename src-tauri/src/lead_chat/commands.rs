@@ -9,14 +9,6 @@ fn lead_key(thread_id: i32) -> i64 {
     -(thread_id as i64)
 }
 
-fn empty_injection() -> crate::bus::inject::Injection {
-    crate::bus::inject::Injection { args: vec![] }
-}
-
-fn should_inject_computer_use(resumed: bool) -> bool {
-    !resumed
-}
-
 /// What a (re)opened run session looks like to the frontend.
 #[derive(serde::Serialize, Clone)]
 pub struct SessionInfo {
@@ -145,11 +137,25 @@ pub async fn lead_engine(
     let ask = crate::bus::inject::inject_ask_hook(&base, thread_id, "lead", &t.lead_tool, &cwd);
     crate::skills::inject_for(db, t.workspace_id, &cwd).await;
     let native_id = repo::lead_native_id(db, thread_id).await.ok().flatten();
-    let computer = if should_inject_computer_use(native_id.is_some()) {
-        crate::computer_use::inject::maybe_inject(app, db, &t.lead_tool, &cwd).await
+    let computer_use_enabled = if native_id.is_some() {
+        repo::lead_computer_use_enabled(db, thread_id)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(false)
     } else {
-        empty_injection()
+        let enabled = crate::computer_use::settings::enabled(db)
+            .await
+            .unwrap_or(false);
+        let _ = repo::set_lead_computer_use_enabled(db, thread_id, enabled).await;
+        enabled
     };
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &t.lead_tool,
+        &cwd,
+        computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
     extra.extend(computer.args);
@@ -415,9 +421,25 @@ async fn chat_open_run_impl(
     let prior = repo::latest_session_for(db, direction_id).await?;
     let native = prior.as_ref().and_then(|s| s.native_session_id.clone());
     let resumed = native.is_some();
+    let new_session_computer_use = if resumed {
+        false
+    } else {
+        crate::computer_use::settings::enabled(db)
+            .await
+            .unwrap_or(false)
+    };
     let sess = match prior {
         Some(s) if s.native_session_id.is_some() => s,
-        _ => repo::create_session(db, direction_id, &dir.tool, &cwd_str).await?,
+        _ => {
+            repo::create_session_with_computer_use(
+                db,
+                direction_id,
+                &dir.tool,
+                &cwd_str,
+                new_session_computer_use,
+            )
+            .await?
+        }
     };
 
     let base = app.state::<crate::BusBase>().0.clone();
@@ -436,11 +458,12 @@ async fn chat_open_run_impl(
         &cwd,
     );
     crate::skills::inject_for(db, thread.workspace_id, &cwd).await;
-    let computer = if should_inject_computer_use(resumed) {
-        crate::computer_use::inject::maybe_inject(app, db, &dir.tool, &cwd).await
-    } else {
-        empty_injection()
-    };
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &dir.tool,
+        &cwd,
+        sess.computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
     extra.extend(computer.args);
@@ -543,11 +566,12 @@ async fn worker_engine(app: &AppHandle, db: &Db, session_id: i32) -> anyhow::Res
     if let Ok(Some(th)) = repo::get_thread(db, dir.thread_id).await {
         crate::skills::inject_for(db, th.workspace_id, &cwd).await;
     }
-    let computer = if should_inject_computer_use(sess.native_session_id.is_some()) {
-        crate::computer_use::inject::maybe_inject(app, db, &sess.tool, &cwd).await
-    } else {
-        empty_injection()
-    };
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &sess.tool,
+        &cwd,
+        sess.computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
     extra.extend(computer.args);
@@ -656,15 +680,4 @@ pub async fn flag_lead_skill_refresh(
     }
     eng.lock().await.pending_skill_refresh = true;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn computer_use_injection_is_new_session_only() {
-        assert!(should_inject_computer_use(false));
-        assert!(!should_inject_computer_use(true));
-    }
 }

@@ -548,6 +548,7 @@ async fn ensure_atlas_schema(conn: &sea_orm::DatabaseConnection, path: &Path) ->
                 "tool",
                 "cwd",
                 "native_session_id",
+                "computer_use_enabled",
                 "status",
                 "created_at",
             ],

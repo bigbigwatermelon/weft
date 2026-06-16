@@ -100,7 +100,7 @@ Agent session smoke:
 3. Atlas spawned Codex through exec transport:
 
 ```text
-codex exec --ignore-user-config ... \
+codex exec -c projects."<run-cwd>".trust_level="trusted" ... \
   -c mcp_servers.open_computer_use.command=".../Resources/sidecars/open-computer-use" \
   -c mcp_servers.open_computer_use.args=["mcp"] \
   --json --cd /private/tmp/atlas-smoke.<run-id>/leads/1 ...

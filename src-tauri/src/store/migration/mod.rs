@@ -28,6 +28,7 @@ impl MigratorTrait for Migrator {
             Box::new(M0015ImRoute),
             Box::new(M0016BackupConfig),
             Box::new(M0017DropLegacyRepoModel),
+            Box::new(M0018SessionComputerUseEnabled),
         ]
     }
 }
@@ -622,6 +623,43 @@ impl MigrationTrait for M0017DropLegacyRepoModel {
     }
 }
 
+/// Persists whether a run session was created with Computer Use enabled.
+/// Existing sessions default to false because older rows did not record the
+/// launch-time MCP injection intent.
+pub struct M0018SessionComputerUseEnabled;
+impl MigrationName for M0018SessionComputerUseEnabled {
+    fn name(&self) -> &str {
+        "m0018_session_computer_use_enabled"
+    }
+}
+#[async_trait::async_trait]
+impl MigrationTrait for M0018SessionComputerUseEnabled {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        let r = manager
+            .alter_table(
+                Table::alter()
+                    .table(Alias::new("session"))
+                    .add_column(
+                        ColumnDef::new(Alias::new("computer_use_enabled"))
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
+                    .to_owned(),
+            )
+            .await;
+        match r {
+            Ok(()) => Ok(()),
+            Err(e) if e.to_string().to_lowercase().contains("duplicate column") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        drop_column_if_exists(manager, "session", "computer_use_enabled").await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -685,5 +723,48 @@ mod tests {
             name == "repo_id"
         });
         assert!(!has_repo_id);
+    }
+
+    #[tokio::test]
+    async fn m0018_adds_session_computer_use_default_false() {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        db.execute_unprepared(
+            r#"
+            CREATE TABLE session (
+                id INTEGER PRIMARY KEY,
+                direction_id INTEGER NOT NULL,
+                tool TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                native_session_id TEXT,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            "#,
+        )
+        .await
+        .unwrap();
+        db.execute_unprepared(
+            r#"
+            INSERT INTO session
+                (id, direction_id, tool, cwd, native_session_id, status, created_at)
+            VALUES
+                (1, 10, 'codex', '/generic', 'generic-native', 'idle', '2026-01-01');
+            "#,
+        )
+        .await
+        .unwrap();
+
+        let manager = SchemaManager::new(&db);
+        M0018SessionComputerUseEnabled.up(&manager).await.unwrap();
+
+        let rows = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                "SELECT computer_use_enabled FROM session ORDER BY id".to_string(),
+            ))
+            .await
+            .unwrap();
+        let enabled: bool = rows[0].try_get("", "computer_use_enabled").unwrap();
+        assert!(!enabled);
     }
 }

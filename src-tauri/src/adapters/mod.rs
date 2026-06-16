@@ -148,7 +148,7 @@ impl AgentAdapter for CodexExecAdapter {
 
     fn build_argv(&self, ctx: &AdapterContext) -> anyhow::Result<(String, Vec<String>)> {
         // Mirrors engine::spawn_turn's codex branch (message rides the argv).
-        let mut a: Vec<String> = vec!["exec".into()];
+        let mut a: Vec<String> = vec!["exec".into(), "-c".into(), codex_project_trust_arg(ctx.cwd)];
         a.extend(ctx.extra_args.iter().cloned());
         a.push("--json".into());
         a.push("--cd".into());
@@ -170,6 +170,18 @@ impl AgentAdapter for CodexExecAdapter {
     fn interrupt(&self) -> Interrupt {
         Interrupt::Kill
     }
+}
+
+fn codex_project_trust_arg(cwd: &Path) -> String {
+    format!(
+        "projects.{}.trust_level={}",
+        toml_quote(&cwd.to_string_lossy()),
+        toml_quote("trusted")
+    )
+}
+
+fn toml_quote(value: &str) -> String {
+    toml::Value::String(value.to_string()).to_string()
 }
 
 // ───────────────────────── codex (app-server) ─────────────────────────
@@ -323,6 +335,8 @@ mod tests {
             .unwrap();
         assert_eq!(prog, "codex");
         assert_eq!(a[0], "exec");
+        assert_eq!(a[1], "-c");
+        assert!(a[2].starts_with("projects."));
         assert!(a.contains(&"--json".to_string()));
         assert_eq!(a.last().unwrap(), "do it");
         let i = a.iter().position(|x| x == "resume").unwrap();
@@ -346,10 +360,25 @@ mod tests {
             .unwrap();
         assert_eq!(a[0], "exec");
         assert!(!a.contains(&"--ignore-user-config".to_string()));
-        assert!(!a.iter().any(|arg| arg.starts_with("projects.")));
+        let trust = a.iter().find(|arg| arg.starts_with("projects.")).unwrap();
+        assert!(trust.ends_with(".trust_level=\"trusted\""));
         assert!(!cwd.join(".codex").join("config.toml").exists());
 
         let _ = std::fs::remove_dir_all(&cwd);
+    }
+
+    #[test]
+    fn codex_exec_project_trust_arg_quotes_cwd() {
+        let cwd = PathBuf::from(r#"/tmp/atlas "quoted" path"#);
+
+        let trust = codex_project_trust_arg(&cwd);
+        let path_literal = trust
+            .strip_prefix("projects.")
+            .unwrap()
+            .strip_suffix(".trust_level=\"trusted\"")
+            .unwrap();
+        let parsed: toml::Value = toml::from_str(&format!("value = {path_literal}")).unwrap();
+        assert_eq!(parsed["value"].as_str().unwrap(), cwd.to_string_lossy());
     }
 
     #[test]
