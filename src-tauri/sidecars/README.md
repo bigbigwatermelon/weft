@@ -48,3 +48,7 @@ src-tauri/sidecars/open-computer-use --version
 src-tauri/sidecars/open-computer-use help call
 src-tauri/sidecars/open-computer-use call list_apps
 ```
+
+`pnpm computer-use:verify-sidecar` checks the pinned runtime version, command surface,
+and the sha256 digests recorded in `open-computer-use.version.json` for both the
+wrapper and native runtime binary.

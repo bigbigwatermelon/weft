@@ -66,6 +66,10 @@ function hashFile(path, algorithm, encoding) {
   return hash.digest(encoding);
 }
 
+function sha256File(path) {
+  return hashFile(path, "sha256", "hex");
+}
+
 function assertEqual(label, actual, expectedValue) {
   if (actual !== expectedValue) {
     throw new Error(`${label} mismatch: expected ${expectedValue}, got ${actual}`);
@@ -118,6 +122,8 @@ function writeMetadata() {
     npmIntegrity: expected.npmIntegrity,
     binary: "open-computer-use",
     runtime: "open-computer-use-runtime/Open Computer Use.app/Contents/MacOS/OpenComputerUse",
+    wrapperSha256: sha256File(wrapperPath),
+    runtimeSha256: sha256File(runtimeBinaryPath),
     preparedBy: "scripts/prepare-open-computer-use-sidecar.mjs",
     notes:
       "Atlas bundles the native runtime from the pinned npm release artifact and does not run upstream global installer scripts.",
@@ -134,6 +140,21 @@ function verifyLocalRuntime() {
   if (!existsSync(runtimeBinaryPath)) {
     throw new Error(`Missing runtime binary: ${runtimeBinaryPath}`);
   }
+
+  if (!existsSync(metadataPath)) {
+    throw new Error(`Missing sidecar metadata: ${metadataPath}`);
+  }
+
+  const metadata = JSON.parse(readFileSync(metadataPath, "utf8"));
+  if (!metadata.wrapperSha256) {
+    throw new Error("Sidecar metadata missing wrapperSha256");
+  }
+  if (!metadata.runtimeSha256) {
+    throw new Error("Sidecar metadata missing runtimeSha256");
+  }
+
+  assertEqual("wrapper sha256", sha256File(wrapperPath), metadata.wrapperSha256);
+  assertEqual("runtime sha256", sha256File(runtimeBinaryPath), metadata.runtimeSha256);
 
   const versionResult = run(wrapperPath, ["--version"]);
   const version = versionResult.stdout.trim();

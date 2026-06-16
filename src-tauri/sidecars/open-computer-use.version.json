@@ -10,6 +10,8 @@
   "npmIntegrity": "sha512-5qwCPl7Gm4Wk2i/wFkq2dVLN2SzNRQSJTd95zXdGF+u5ZsUXkFx1IFVdNbYelWOpc4fgy8Z8/gYrbacj/2chig==",
   "binary": "open-computer-use",
   "runtime": "open-computer-use-runtime/Open Computer Use.app/Contents/MacOS/OpenComputerUse",
+  "wrapperSha256": "ee8a68fb780c0b3a89e75220f94dca42e3884a7fbb7c553d9bd7b31af80bab6b",
+  "runtimeSha256": "07be48ca254b1113bd61585a48f4274e5c6b590fc9a6c957e5533f2fe96695b2",
   "preparedBy": "scripts/prepare-open-computer-use-sidecar.mjs",
   "notes": "Atlas bundles the native runtime from the pinned npm release artifact and does not run upstream global installer scripts."
 }
