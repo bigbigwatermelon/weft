@@ -70,6 +70,27 @@ async fn drop_column_if_exists(
     }
 }
 
+async fn clear_legacy_repo_session_native_ids(
+    manager: &SchemaManager<'_>,
+) -> Result<(), DbErr> {
+    let r = manager
+        .get_connection()
+        .execute_unprepared("UPDATE session SET native_session_id = NULL WHERE repo_id IS NOT NULL")
+        .await;
+    match r {
+        Ok(_) => Ok(()),
+        Err(e)
+            if {
+                let s = e.to_string().to_lowercase();
+                s.contains("no such column") || s.contains("no such table")
+            } =>
+        {
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
 pub struct M0001Init;
 
 impl MigrationName for M0001Init {
@@ -591,11 +612,78 @@ impl MigrationTrait for M0017DropLegacyRepoModel {
         for column in ["branch", "repo_id", "reason"] {
             drop_column_if_exists(manager, "direction", column).await?;
         }
+        clear_legacy_repo_session_native_ids(manager).await?;
         drop_column_if_exists(manager, "session", "repo_id").await?;
         Ok(())
     }
 
     async fn down(&self, _manager: &SchemaManager) -> Result<(), DbErr> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sea_orm::{ConnectionTrait, Database, DatabaseBackend, Statement};
+
+    #[tokio::test]
+    async fn m0017_clears_legacy_repo_session_native_ids_before_dropping_repo_id() {
+        let db = Database::connect("sqlite::memory:").await.unwrap();
+        db.execute_unprepared(
+            r#"
+            CREATE TABLE session (
+                id INTEGER PRIMARY KEY,
+                direction_id INTEGER NOT NULL,
+                repo_id INTEGER,
+                tool TEXT NOT NULL,
+                cwd TEXT NOT NULL,
+                native_session_id TEXT,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            "#,
+        )
+        .await
+        .unwrap();
+        db.execute_unprepared(
+            r#"
+            INSERT INTO session
+                (id, direction_id, repo_id, tool, cwd, native_session_id, status, created_at)
+            VALUES
+                (1, 10, 99, 'codex', '/legacy', 'legacy-native', 'idle', '2026-01-01'),
+                (2, 10, NULL, 'codex', '/generic', 'generic-native', 'idle', '2026-01-01');
+            "#,
+        )
+        .await
+        .unwrap();
+
+        let manager = SchemaManager::new(&db);
+        M0017DropLegacyRepoModel.up(&manager).await.unwrap();
+
+        let rows = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                "SELECT id, native_session_id FROM session ORDER BY id".to_string(),
+            ))
+            .await
+            .unwrap();
+        let legacy_native: Option<String> = rows[0].try_get("", "native_session_id").unwrap();
+        let generic_native: Option<String> = rows[1].try_get("", "native_session_id").unwrap();
+        assert_eq!(legacy_native, None);
+        assert_eq!(generic_native.as_deref(), Some("generic-native"));
+
+        let columns = db
+            .query_all(Statement::from_string(
+                DatabaseBackend::Sqlite,
+                "PRAGMA table_info('session')".to_string(),
+            ))
+            .await
+            .unwrap();
+        let has_repo_id = columns.iter().any(|row| {
+            let name: String = row.try_get("", "name").unwrap();
+            name == "repo_id"
+        });
+        assert!(!has_repo_id);
     }
 }
