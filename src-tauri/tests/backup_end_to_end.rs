@@ -2,7 +2,6 @@
 //! actually grew a commit and the backup_config row was updated.
 
 use base64::Engine;
-use std::process::Command;
 use std::sync::Mutex;
 use atlas_app_lib::backup::{BackupService, config};
 use atlas_app_lib::store::Db;
@@ -24,7 +23,7 @@ async fn end_to_end_backup_creates_commit_in_bare_remote() {
     iso_env(tmp.path());
 
     let bare = tmp.path().join("remote.git");
-    let status = Command::new("git")
+    let status = atlas_app_lib::git::command()
         .arg("init")
         .arg("--bare")
         .arg("--initial-branch=main")
@@ -54,7 +53,7 @@ async fn end_to_end_backup_creates_commit_in_bare_remote() {
         atlas_app_lib::backup::RunOutcome::Success { .. }
     ));
 
-    let out = Command::new("git")
+    let out = atlas_app_lib::git::command()
         .current_dir(&bare)
         .arg("log")
         .arg("--oneline")

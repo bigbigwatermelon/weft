@@ -146,13 +146,9 @@ impl AgentAdapter for CodexExecAdapter {
         true
     }
 
-    fn prepare(&self, cwd: &Path) {
-        crate::codex::ensure_codex_trusted(cwd);
-    }
-
     fn build_argv(&self, ctx: &AdapterContext) -> anyhow::Result<(String, Vec<String>)> {
         // Mirrors engine::spawn_turn's codex branch (message rides the argv).
-        let mut a: Vec<String> = vec!["exec".into()];
+        let mut a: Vec<String> = vec!["exec".into(), "-c".into(), codex_project_trust_arg(ctx.cwd)];
         a.extend(ctx.extra_args.iter().cloned());
         a.push("--json".into());
         a.push("--cd".into());
@@ -176,6 +172,18 @@ impl AgentAdapter for CodexExecAdapter {
     }
 }
 
+fn codex_project_trust_arg(cwd: &Path) -> String {
+    format!(
+        "projects.{}.trust_level={}",
+        toml_quote(&cwd.to_string_lossy()),
+        toml_quote("trusted")
+    )
+}
+
+fn toml_quote(value: &str) -> String {
+    toml::Value::String(value.to_string()).to_string()
+}
+
 // ───────────────────────── codex (app-server) ─────────────────────────
 
 pub struct CodexAppServerAdapter;
@@ -192,7 +200,9 @@ impl AgentAdapter for CodexAppServerAdapter {
     }
 
     fn build_argv(&self, _ctx: &AdapterContext) -> anyhow::Result<(String, Vec<String>)> {
-        anyhow::bail!("codex app-server is a connection adapter — drive it via codex_app_server::client()")
+        anyhow::bail!(
+            "codex app-server is a connection adapter — drive it via codex_app_server::client()"
+        )
     }
 
     fn parse_line(&self, _line: &str) -> ChatEvent {
@@ -305,7 +315,9 @@ mod tests {
     #[test]
     fn claude_argv_matches_engine_shape() {
         let cwd = PathBuf::from("/tmp");
-        let (prog, a) = ClaudeAdapter.build_argv(&ctx(&cwd, Some("sess-1"), "hi", &[])).unwrap();
+        let (prog, a) = ClaudeAdapter
+            .build_argv(&ctx(&cwd, Some("sess-1"), "hi", &[]))
+            .unwrap();
         assert_eq!(prog, "claude");
         assert!(a.contains(&"--include-partial-messages".to_string()));
         assert!(a.contains(&"--verbose".to_string()));
@@ -318,9 +330,13 @@ mod tests {
     #[test]
     fn codex_exec_argv_carries_message_and_resume() {
         let cwd = PathBuf::from("/repo");
-        let (prog, a) = CodexExecAdapter.build_argv(&ctx(&cwd, Some("t1"), "do it", &[])).unwrap();
+        let (prog, a) = CodexExecAdapter
+            .build_argv(&ctx(&cwd, Some("t1"), "do it", &[]))
+            .unwrap();
         assert_eq!(prog, "codex");
         assert_eq!(a[0], "exec");
+        assert_eq!(a[1], "-c");
+        assert!(a[2].starts_with("projects."));
         assert!(a.contains(&"--json".to_string()));
         assert_eq!(a.last().unwrap(), "do it");
         let i = a.iter().position(|x| x == "resume").unwrap();
@@ -328,15 +344,57 @@ mod tests {
     }
 
     #[test]
+    fn codex_exec_argv_preserves_user_config_by_default() {
+        let cwd =
+            std::env::temp_dir().join(format!("atlas-codex-user-config-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&cwd);
+        std::fs::create_dir_all(&cwd).unwrap();
+        crate::git::command()
+            .args(["init", "-q"])
+            .current_dir(&cwd)
+            .status()
+            .unwrap();
+
+        let (_prog, a) = CodexExecAdapter
+            .build_argv(&ctx(&cwd, None, "do it", &[]))
+            .unwrap();
+        assert_eq!(a[0], "exec");
+        assert!(!a.contains(&"--ignore-user-config".to_string()));
+        let trust = a.iter().find(|arg| arg.starts_with("projects.")).unwrap();
+        assert!(trust.ends_with(".trust_level=\"trusted\""));
+        assert!(!cwd.join(".codex").join("config.toml").exists());
+
+        let _ = std::fs::remove_dir_all(&cwd);
+    }
+
+    #[test]
+    fn codex_exec_project_trust_arg_quotes_cwd() {
+        let cwd = PathBuf::from(r#"/tmp/atlas "quoted" path"#);
+
+        let trust = codex_project_trust_arg(&cwd);
+        let path_literal = trust
+            .strip_prefix("projects.")
+            .unwrap()
+            .strip_suffix(".trust_level=\"trusted\"")
+            .unwrap();
+        let parsed: toml::Value = toml::from_str(&format!("value = {path_literal}")).unwrap();
+        assert_eq!(parsed["value"].as_str().unwrap(), cwd.to_string_lossy());
+    }
+
+    #[test]
     fn opencode_argv_routes_known_slash_to_command() {
         let cwd = PathBuf::from("/repo");
         let cmds = vec![SlashCmd::bare("review")];
-        let (_p, a) = OpenCodeAdapter.build_argv(&ctx(&cwd, None, "/review fix it", &cmds)).unwrap();
+        let (_p, a) = OpenCodeAdapter
+            .build_argv(&ctx(&cwd, None, "/review fix it", &cmds))
+            .unwrap();
         let i = a.iter().position(|x| x == "--command").unwrap();
         assert_eq!(a[i + 1], "review");
         assert_eq!(a.last().unwrap(), "fix it");
         // unknown slash stays literal
-        let (_p, b) = OpenCodeAdapter.build_argv(&ctx(&cwd, None, "/nope hi", &cmds)).unwrap();
+        let (_p, b) = OpenCodeAdapter
+            .build_argv(&ctx(&cwd, None, "/nope hi", &cmds))
+            .unwrap();
         assert!(!b.contains(&"--command".to_string()));
         assert_eq!(b.last().unwrap(), "/nope hi");
     }

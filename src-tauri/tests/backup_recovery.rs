@@ -9,7 +9,6 @@ use base64::Engine;
 use sea_orm::ConnectionTrait;
 use sea_orm_migration::MigratorTrait;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::Mutex;
 
 static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -30,7 +29,7 @@ fn current_schema_version() -> usize {
 
 fn make_bare(parent: &Path) -> String {
     let bare = parent.join("remote.git");
-    let s = Command::new("git")
+    let s = atlas_app_lib::git::command()
         .arg("init")
         .arg("--bare")
         .arg("--initial-branch=main")
@@ -42,7 +41,8 @@ fn make_bare(parent: &Path) -> String {
 }
 
 fn sh(dir: &Path, args: &[&str]) {
-    let st = Command::new(args[0])
+    let mut cmd = atlas_app_lib::git::command();
+    let st = cmd
         .args(&args[1..])
         .current_dir(dir)
         .status()

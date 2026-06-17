@@ -7,18 +7,17 @@
 
 use anyhow::{Result, anyhow};
 use std::path::Path;
-use std::process::Command;
 
 const COMMITTER_NAME: &str = "Atlas";
 const COMMITTER_EMAIL: &str = "atlas@local";
 
-fn git() -> Command {
-    let mut c = Command::new("git");
+fn git() -> std::process::Command {
+    let mut c = crate::git::command();
     c.env("GIT_TERMINAL_PROMPT", "0");
     c
 }
 
-fn run(mut cmd: Command, ctx: &str) -> Result<String> {
+fn run(mut cmd: std::process::Command, ctx: &str) -> Result<String> {
     let out = cmd
         .output()
         .map_err(|e| anyhow!("spawn git for {ctx}: {e}"))?;

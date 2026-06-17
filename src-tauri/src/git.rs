@@ -3,8 +3,38 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+pub const LOCAL_ENV_VARS: &[&str] = &[
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+    "GIT_DIR",
+    "GIT_GRAFT_FILE",
+    "GIT_IMPLICIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_NO_REPLACE_OBJECTS",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_PREFIX",
+    "GIT_REPLACE_REF_BASE",
+    "GIT_SHALLOW_FILE",
+    "GIT_WORK_TREE",
+];
+
+pub fn command() -> Command {
+    let mut cmd = Command::new("git");
+    clear_local_env(&mut cmd);
+    cmd
+}
+
+pub fn clear_local_env(cmd: &mut Command) {
+    for key in LOCAL_ENV_VARS {
+        cmd.env_remove(key);
+    }
+}
+
 fn git_exclude_path(cwd: &Path) -> Option<PathBuf> {
-    let out = Command::new("git")
+    let out = command()
         .args([
             "-C",
             &cwd.to_string_lossy(),
@@ -48,4 +78,29 @@ pub fn git_exclude(cwd: &Path, name: &str) {
     content.push_str(name);
     content.push('\n');
     let _ = std::fs::write(&exclude_path, content);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_env_vars_match_git_reported_vars() {
+        let out = Command::new("git")
+            .args(["rev-parse", "--local-env-vars"])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        let local_env = String::from_utf8_lossy(&out.stdout);
+        let mut expected = local_env
+            .lines()
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>();
+        expected.sort_unstable();
+
+        let mut actual = LOCAL_ENV_VARS.to_vec();
+        actual.sort_unstable();
+
+        assert_eq!(actual, expected);
+    }
 }

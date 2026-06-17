@@ -12,10 +12,10 @@ pub mod backup;
 mod brief;
 pub mod bus;
 mod claude;
-mod codex;
 mod codex_app_server;
 pub mod commands;
 mod commands_backup;
+mod computer_use;
 pub mod config;
 mod coordinator;
 mod detect;
@@ -166,6 +166,9 @@ pub fn run() {
             inspect::open_terminal,
             inspect::reveal_path,
             inspect::open_url,
+            computer_use::commands::computer_use_get_status,
+            computer_use::commands::computer_use_set_enabled,
+            computer_use::commands::computer_use_run_doctor,
             tools::detect_tools,
             commands::get_default_tool,
             commands::set_default_tool,

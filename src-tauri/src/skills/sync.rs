@@ -4,10 +4,9 @@
 
 use anyhow::{anyhow, Result};
 use std::path::Path;
-use std::process::Command;
 
 fn run(dir: Option<&Path>, args: &[&str]) -> Result<()> {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::git::command();
     if let Some(d) = dir {
         cmd.current_dir(d);
     }
@@ -60,16 +59,12 @@ pub fn sync_to(url: &str, git_ref: &str, cache: &Path) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::process::Command;
 
     fn sh(dir: &std::path::Path, args: &[&str]) {
+        let mut cmd = crate::git::command();
+        cmd.args(&args[1..]).current_dir(dir);
         assert!(
-            Command::new(args[0])
-                .args(&args[1..])
-                .current_dir(dir)
-                .status()
-                .unwrap()
-                .success(),
+            cmd.status().unwrap().success(),
             "cmd {:?}",
             args
         );

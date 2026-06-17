@@ -123,7 +123,7 @@ pub async fn lead_engine(
     std::fs::create_dir_all(&cwd)?;
     // git-init so claude's session store (keyed by cwd) behaves like any other
     // cwd; harmless if it already exists.
-    let _ = std::process::Command::new("git")
+    let _ = crate::git::command()
         .args(["init", "-q"])
         .current_dir(&cwd)
         .status();
@@ -136,8 +136,29 @@ pub async fn lead_engine(
     };
     let ask = crate::bus::inject::inject_ask_hook(&base, thread_id, "lead", &t.lead_tool, &cwd);
     crate::skills::inject_for(db, t.workspace_id, &cwd).await;
+    let native_id = repo::lead_native_id(db, thread_id).await.ok().flatten();
+    let computer_use_enabled = if native_id.is_some() {
+        repo::lead_computer_use_enabled(db, thread_id)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or(false)
+    } else {
+        let enabled = crate::computer_use::settings::enabled(db)
+            .await
+            .unwrap_or(false);
+        let _ = repo::set_lead_computer_use_enabled(db, thread_id, enabled).await;
+        enabled
+    };
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &t.lead_tool,
+        &cwd,
+        computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
+    extra.extend(computer.args);
     let system_prompt = if is_concierge {
         concierge_prompt(lang)
     } else {
@@ -154,7 +175,7 @@ pub async fn lead_engine(
         cwd,
         extra_args: extra,
         system_prompt,
-        native_id: repo::lead_native_id(db, thread_id).await.ok().flatten(),
+        native_id,
         slash_commands: vec![],
         turn: Default::default(),
         turn_id: repo::next_turn_id(db, thread_id).await.unwrap_or(1) - 1,
@@ -400,9 +421,25 @@ async fn chat_open_run_impl(
     let prior = repo::latest_session_for(db, direction_id).await?;
     let native = prior.as_ref().and_then(|s| s.native_session_id.clone());
     let resumed = native.is_some();
+    let new_session_computer_use = if resumed {
+        false
+    } else {
+        crate::computer_use::settings::enabled(db)
+            .await
+            .unwrap_or(false)
+    };
     let sess = match prior {
         Some(s) if s.native_session_id.is_some() => s,
-        _ => repo::create_session(db, direction_id, &dir.tool, &cwd_str).await?,
+        _ => {
+            repo::create_session_with_computer_use(
+                db,
+                direction_id,
+                &dir.tool,
+                &cwd_str,
+                new_session_computer_use,
+            )
+            .await?
+        }
     };
 
     let base = app.state::<crate::BusBase>().0.clone();
@@ -421,8 +458,15 @@ async fn chat_open_run_impl(
         &cwd,
     );
     crate::skills::inject_for(db, thread.workspace_id, &cwd).await;
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &dir.tool,
+        &cwd,
+        sess.computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
+    extra.extend(computer.args);
 
     let state = app.state::<LeadChatState>();
     let key = sess.id as i64;
@@ -522,8 +566,15 @@ async fn worker_engine(app: &AppHandle, db: &Db, session_id: i32) -> anyhow::Res
     if let Ok(Some(th)) = repo::get_thread(db, dir.thread_id).await {
         crate::skills::inject_for(db, th.workspace_id, &cwd).await;
     }
+    let computer = crate::computer_use::inject::inject_for_enabled(
+        app,
+        &sess.tool,
+        &cwd,
+        sess.computer_use_enabled,
+    );
     let mut extra = ask.args;
     extra.extend(inj.args);
+    extra.extend(computer.args);
     let inner = engine::EngineInner {
         thread_id: dir.thread_id,
         tool: sess.tool.clone(),

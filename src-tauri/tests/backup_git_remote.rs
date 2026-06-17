@@ -1,12 +1,11 @@
 //! End-to-end git wrapper test: init → commit → push → clone-back, using a
 //! local `git init --bare` repo as the "remote".
 
-use std::process::Command;
 use atlas_app_lib::backup::git_remote;
 
 fn make_bare_remote(parent: &std::path::Path) -> std::path::PathBuf {
     let bare = parent.join("remote.git");
-    Command::new("git")
+    atlas_app_lib::git::command()
         .arg("init")
         .arg("--bare")
         .arg(&bare)
@@ -63,7 +62,7 @@ fn ensure_clone_rebuilds_when_origin_changes() {
     git_remote::ensure_clone(&staging, &remote_url(&bare1)).unwrap();
     git_remote::ensure_clone(&staging, &remote_url(&bare2)).unwrap();
 
-    let out = Command::new("git")
+    let out = atlas_app_lib::git::command()
         .current_dir(&staging)
         .arg("remote")
         .arg("get-url")

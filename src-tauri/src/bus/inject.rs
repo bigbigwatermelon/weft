@@ -358,13 +358,12 @@ mod tests {
 
     #[test]
     fn injected_file_is_git_excluded() {
-        use std::process::Command;
         let root = std::env::temp_dir().join(format!("atlas-inj-git-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let dir = root.join("dir");
         std::fs::create_dir_all(&dir).unwrap();
         let sh = |dir: &Path, args: &[&str]| {
-            assert!(Command::new(args[0])
+            assert!(crate::git::command()
                 .args(&args[1..])
                 .current_dir(dir)
                 .status()
@@ -375,7 +374,7 @@ mod tests {
 
         let _ = inject("http://127.0.0.1:9", 1, "1", "claude", &dir);
         assert!(dir.join(".atlas-bus.mcp.json").exists(), "file written");
-        let status = Command::new("git")
+        let status = crate::git::command()
             .args(["status", "--porcelain"])
             .current_dir(&dir)
             .output()

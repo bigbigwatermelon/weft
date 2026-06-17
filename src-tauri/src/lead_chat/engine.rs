@@ -383,7 +383,8 @@ pub async fn send(
     };
     // codex (app-server): no resident stdin, no per-turn process — the shared
     // connection drives the turn after the lock drops. Gated; default stays exec.
-    let is_codex_appserver = inner.tool == "codex" && codex_appserver_enabled();
+    let is_codex_appserver =
+        inner.tool == "codex" && codex_appserver_enabled_for(&inner.extra_args);
     let spawn_now = direct && per_turn(&inner.tool) && !is_codex_appserver;
     if direct && !spawn_now && !is_codex_appserver {
         write_user(&mut inner, &out).await;
@@ -420,6 +421,16 @@ pub async fn send(
 /// — the thread id is shared with exec's rollout store, so resume is seamless.
 fn codex_appserver_enabled() -> bool {
     !std::env::var("ATLAS_CODEX_EXEC").is_ok_and(|v| !v.is_empty() && v != "0")
+}
+
+fn codex_appserver_enabled_for(extra_args: &[String]) -> bool {
+    codex_appserver_enabled() && !codex_extra_args_require_exec(extra_args)
+}
+
+fn codex_extra_args_require_exec(extra_args: &[String]) -> bool {
+    extra_args
+        .iter()
+        .any(|arg| arg.contains("mcp_servers.open_computer_use."))
 }
 
 /// Drive a codex turn over the shared, multiplexed `codex app-server` connection
@@ -670,7 +681,7 @@ pub async fn interrupt(app: &AppHandle, eng: &EngineRef) -> anyhow::Result<()> {
     // codex app-server: no child to kill — interrupt the in-flight turn over the
     // shared connection (turn/interrupt {threadId, turnId}); the consumer's
     // TurnEnd then finalizes the row as `interrupted`.
-    if inner.tool == "codex" && codex_appserver_enabled() {
+    if inner.tool == "codex" && codex_appserver_enabled_for(&inner.extra_args) {
         let thread = inner.native_id.clone();
         drop(inner);
         if let (Some(thread), Ok(client)) =
@@ -1372,6 +1383,29 @@ mod tests {
         assert!(per_turn("codex"));
         assert!(per_turn("opencode"));
         assert!(!per_turn("mystery"));
+    }
+
+    #[test]
+    fn computer_use_codex_args_force_exec_transport() {
+        let args = vec![
+            "-c".to_string(),
+            "mcp_servers.open_computer_use.command=\"/tmp/open-computer-use\"".to_string(),
+            "-c".to_string(),
+            "mcp_servers.open_computer_use.args=[\"mcp\"]".to_string(),
+        ];
+
+        assert!(codex_extra_args_require_exec(&args));
+        assert!(!codex_appserver_enabled_for(&args));
+    }
+
+    #[test]
+    fn unrelated_codex_args_keep_appserver_transport() {
+        let args = vec![
+            "-c".to_string(),
+            "mcp_servers.atlas_planner.url=http://127.0.0.1:1/planner/1/mcp".to_string(),
+        ];
+
+        assert!(!codex_extra_args_require_exec(&args));
     }
 
     #[test]

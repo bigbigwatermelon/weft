@@ -2,7 +2,6 @@
 //! run_now pipeline gets exercised on tick.
 
 use base64::Engine;
-use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
 use atlas_app_lib::backup::{BackupService, config, scheduler};
@@ -19,7 +18,7 @@ fn iso_env(home: &std::path::Path) {
 
 fn make_bare(parent: &std::path::Path) -> String {
     let bare = parent.join("remote.git");
-    let s = Command::new("git")
+    let s = atlas_app_lib::git::command()
         .arg("init")
         .arg("--bare")
         .arg("--initial-branch=main")

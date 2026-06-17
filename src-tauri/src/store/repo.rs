@@ -376,11 +376,22 @@ pub async fn create_session(
     tool: &str,
     cwd: &str,
 ) -> Result<session::Model> {
+    create_session_with_computer_use(db, direction_id, tool, cwd, false).await
+}
+
+pub async fn create_session_with_computer_use(
+    db: &Db,
+    direction_id: i32,
+    tool: &str,
+    cwd: &str,
+    computer_use_enabled: bool,
+) -> Result<session::Model> {
     Ok(session::ActiveModel {
         direction_id: Set(direction_id),
         tool: Set(tool.to_string()),
         cwd: Set(cwd.to_string()),
         native_session_id: Set(None),
+        computer_use_enabled: Set(computer_use_enabled),
         status: Set("starting".to_string()),
         created_at: Set(now()),
         ..Default::default()
@@ -504,28 +515,34 @@ pub async fn complete_queued(db: &Db, thread_id: i32, _text: &str) -> Result<()>
 
 /// The lead's persisted engine metadata (native session id) lives in a single
 /// role=system kind=meta row per thread, invisible to the timeline UI.
-pub async fn lead_native_id(db: &Db, thread_id: i32) -> Result<Option<String>> {
+async fn lead_meta_row(db: &Db, thread_id: i32) -> Result<Option<lead_message::Model>> {
     Ok(lead_message::Entity::find()
         .filter(lead_message::Column::ThreadId.eq(thread_id))
         .filter(lead_message::Column::Kind.eq("meta"))
         .one(&db.0)
-        .await?
-        .and_then(|m| {
-            serde_json::from_str::<serde_json::Value>(&m.content)
-                .ok()?
-                .get("native_id")?
-                .as_str()
-                .map(String::from)
-        }))
+        .await?)
 }
 
-pub async fn set_lead_native_id(db: &Db, thread_id: i32, native_id: &str) -> Result<()> {
-    let content = serde_json::json!({ "native_id": native_id }).to_string();
-    let existing = lead_message::Entity::find()
-        .filter(lead_message::Column::ThreadId.eq(thread_id))
-        .filter(lead_message::Column::Kind.eq("meta"))
-        .one(&db.0)
-        .await?;
+fn lead_meta_map(content: &str) -> serde_json::Map<String, serde_json::Value> {
+    serde_json::from_str::<serde_json::Value>(content)
+        .ok()
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default()
+}
+
+async fn set_lead_meta_field(
+    db: &Db,
+    thread_id: i32,
+    key: &str,
+    value: serde_json::Value,
+) -> Result<()> {
+    let existing = lead_meta_row(db, thread_id).await?;
+    let mut map = existing
+        .as_ref()
+        .map(|m| lead_meta_map(&m.content))
+        .unwrap_or_default();
+    map.insert(key.to_string(), value);
+    let content = serde_json::Value::Object(map).to_string();
     match existing {
         Some(m) => {
             let mut a: lead_message::ActiveModel = m.into();
@@ -540,6 +557,39 @@ pub async fn set_lead_native_id(db: &Db, thread_id: i32, native_id: &str) -> Res
         }
     }
     Ok(())
+}
+
+pub async fn lead_native_id(db: &Db, thread_id: i32) -> Result<Option<String>> {
+    Ok(lead_meta_row(db, thread_id).await?.and_then(|m| {
+        serde_json::from_str::<serde_json::Value>(&m.content)
+            .ok()?
+            .get("native_id")?
+            .as_str()
+            .map(String::from)
+    }))
+}
+
+pub async fn set_lead_native_id(db: &Db, thread_id: i32, native_id: &str) -> Result<()> {
+    set_lead_meta_field(db, thread_id, "native_id", serde_json::json!(native_id)).await
+}
+
+pub async fn lead_computer_use_enabled(db: &Db, thread_id: i32) -> Result<Option<bool>> {
+    Ok(lead_meta_row(db, thread_id).await?.and_then(|m| {
+        serde_json::from_str::<serde_json::Value>(&m.content)
+            .ok()?
+            .get("computer_use_enabled")?
+            .as_bool()
+    }))
+}
+
+pub async fn set_lead_computer_use_enabled(db: &Db, thread_id: i32, enabled: bool) -> Result<()> {
+    set_lead_meta_field(
+        db,
+        thread_id,
+        "computer_use_enabled",
+        serde_json::json!(enabled),
+    )
+    .await
 }
 
 // ─────────────────────────── im_route (M2) ───────────────────────────
@@ -670,12 +720,15 @@ mod tests {
     async fn lead_native_id_upserts() {
         let db = mem().await;
         assert!(lead_native_id(&db, 3).await.unwrap().is_none());
+        assert_eq!(lead_computer_use_enabled(&db, 3).await.unwrap(), None);
+        set_lead_computer_use_enabled(&db, 3, true).await.unwrap();
         set_lead_native_id(&db, 3, "abc").await.unwrap();
         set_lead_native_id(&db, 3, "def").await.unwrap();
         assert_eq!(
             lead_native_id(&db, 3).await.unwrap().as_deref(),
             Some("def")
         );
+        assert_eq!(lead_computer_use_enabled(&db, 3).await.unwrap(), Some(true));
         // meta row stays single + out of turn numbering
         assert_eq!(list_lead_messages(&db, 3).await.unwrap().len(), 1);
     }
@@ -764,6 +817,32 @@ mod tests {
         let latest = latest_session_for(&db, dir.id).await.unwrap().unwrap();
         assert_eq!(latest.id, s2.id);
         assert_eq!(latest.native_session_id.as_deref(), Some("abc-123"));
+    }
+
+    #[tokio::test]
+    async fn session_records_computer_use_creation_intent() {
+        let db = mem().await;
+        let ws = create_workspace(&db, "Demo WS").await.unwrap();
+        let thread = create_thread(&db, ws.id, "T", "feature", "claude")
+            .await
+            .unwrap();
+        let dir = create_direction(&db, thread.id, "D", "claude", "impl-only")
+            .await
+            .unwrap();
+
+        let default_session = create_session(&db, dir.id, "claude", "/tmp/a")
+            .await
+            .unwrap();
+        let enabled_session =
+            create_session_with_computer_use(&db, dir.id, "claude", "/tmp/b", true)
+                .await
+                .unwrap();
+
+        assert!(!default_session.computer_use_enabled);
+        assert!(enabled_session.computer_use_enabled);
+        let latest = latest_session_for(&db, dir.id).await.unwrap().unwrap();
+        assert_eq!(latest.id, enabled_session.id);
+        assert!(latest.computer_use_enabled);
     }
 
     #[tokio::test]
